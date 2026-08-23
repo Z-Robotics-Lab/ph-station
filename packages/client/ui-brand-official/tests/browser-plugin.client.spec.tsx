@@ -34,15 +34,14 @@ describe('official browser-brand plugin', () => {
     expect(inject).toEqual(['slots'])
   })
 
-  it('leaves every slot empty outside the official build profile', async () => {
+  it('fills every slot regardless of build profile', async () => {
     vi.stubEnv('DSH_CLIENT_BUILD_PROFILE', 'local')
     const subject = await bench()
     await subject.ctx.plugin({ inject: [...inject], apply }).await()
-    for (const hole of HOLES) expect(subject.slots.entries(hole)).toHaveLength(0)
+    for (const hole of HOLES) expect(subject.slots.entries(hole)).toHaveLength(1)
   })
 
   it('fills declarations before or after apply and removes every occupant on teardown', async () => {
-    vi.stubEnv('DSH_CLIENT_BUILD_PROFILE', 'official')
     const before = await bench()
     const fiber = before.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
@@ -65,15 +64,17 @@ describe('official browser-brand plugin', () => {
     for (const hole of HOLES) expect(after.slots.entries(hole)).toHaveLength(1)
   })
 
-  it('renders the official name independently from both requested mark sizes', () => {
+  it('renders the physical-harness name and the PH mark at both requested sizes', () => {
     const name = render(<OfficialBrandName />)
-    expect(name.container.querySelector('svg')?.getAttribute('viewBox')).toBe('26 0 156 24')
+    expect(name.container.textContent).toBe('physical-harness')
     name.unmount()
 
     const mark = render(<OfficialBrandMark size={34} className="hero-mark" />)
-    expect(mark.container.querySelector('svg')?.getAttribute('width')).toBe('34')
-    expect(mark.container.querySelector('svg')?.getAttribute('class')).toBe('hero-mark')
+    const span = mark.container.querySelector('span')
+    expect(span?.textContent).toBe('PH')
+    expect(span?.getAttribute('class')).toBe('hero-mark')
+    expect(span?.style.fontSize).toBe('34px')
     mark.rerender(<OfficialBrandMark size={24} />)
-    expect(mark.container.querySelector('svg')?.getAttribute('width')).toBe('24')
+    expect(mark.container.querySelector('span')?.style.fontSize).toBe('24px')
   })
 })

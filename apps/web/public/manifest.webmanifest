@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "DeepSeek Harness",
-  "short_name": "DSH",
+  "name": "physical-harness 控制台",
+  "short_name": "PH",
   "start_url": "/",
   "scope": "/",
   "display": "fullscreen",
