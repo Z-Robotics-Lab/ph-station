@@ -66,6 +66,23 @@
       config:
         maxNoteBytes: 8192
 
+    # physical-harness fork host bridge: the board Remote (POST /api/board/*)
+    # the 战报 panel reads, execFile-forwarding board/storecli.py. It lives HERE
+    # in the fork bundle (not the shared $DSH_HOME/cordis.patch.yml overlay) so
+    # `scripts/cockpit --npx` -- which serves the published dsh and never loads
+    # this bundle -- can never layer an insert row naming a package the npx tree
+    # cannot resolve; the overlay stays MCP-row-only and both paths boot green
+    # (docs/ph-station-design.md §6). Box paths are the fork-only channel:
+    # scripts/cockpit exports PH_BOARD_* and the row is disabled without them,
+    # so a plain `dsh web` still boots (the panel then reports board unavailable).
+    - id: board-bridge
+      name: '@deepseek-ai/dsh-ph-board'
+      disabled: !!js !process.env.PH_BOARD_REPO
+      config:
+        pythonPath: !!js process.env.PH_BOARD_PYTHON
+        repoRoot: !!js process.env.PH_BOARD_REPO
+        runsDir: !!js process.env.PH_BOARD_RUNS
+
     # Browser Session export: `/export` command plus the shared download dialog.
     - id: session-log-download
       name: '@deepseek-ai/dsh-session-log-export'
@@ -293,6 +310,10 @@
 
     - id: ui-trajectory
       name: '@deepseek-ai/dsh-client-ui-trajectory'
+
+    # physical-harness 战报 panel: a conversation-view tab over the board Remote.
+    - id: ui-ph-battle
+      name: '@deepseek-ai/dsh-client-ui-ph-battle'
 
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #

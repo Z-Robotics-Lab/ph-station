@@ -1,0 +1,164 @@
+/* 战报 panel: neutral, theme-aware via currentColor mixes (no palette of its own). */
+
+.panel {
+  display: flex;
+  gap: 1rem;
+  height: 100%;
+  min-height: 0;
+  font-size: 0.85rem;
+}
+
+.sidebar {
+  flex: 0 0 16rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow-y: auto;
+  border-right: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  padding-right: 0.5rem;
+}
+
+.sidebarHead,
+.sectionHead {
+  font-weight: 600;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.25rem 0.4rem;
+}
+
+.sectionHead {
+  margin-top: 1rem;
+}
+
+.storeRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.storeRow:hover {
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+
+.storeRowActive {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  border-color: color-mix(in srgb, currentColor 20%, transparent);
+}
+
+.storeName {
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.storeMeta {
+  opacity: 0.65;
+  font-size: 0.75rem;
+}
+
+.detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+}
+
+.state {
+  opacity: 0.6;
+  padding: 1rem;
+}
+
+.detailHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+  word-break: break-all;
+}
+
+.prereg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  opacity: 0.7;
+  font-size: 0.75rem;
+}
+
+.badgeRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.badgeLabel {
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.badge {
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 8%, transparent);
+  white-space: nowrap;
+}
+
+.table th {
+  opacity: 0.6;
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rule {
+  opacity: 0.75;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  white-space: normal;
+}
+
+.pass {
+  color: color-mix(in srgb, currentColor 40%, #16a34a);
+  font-weight: 600;
+}
+
+.fail {
+  color: color-mix(in srgb, currentColor 40%, #dc2626);
+  font-weight: 600;
+}

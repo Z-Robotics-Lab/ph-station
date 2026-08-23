@@ -43,6 +43,9 @@
       "path": "../../host/plugin-inventory"
     },
     {
+      "path": "../../host/dsh-ph-board"
+    },
+    {
       "path": "../../interaction/commands"
     },
     {
