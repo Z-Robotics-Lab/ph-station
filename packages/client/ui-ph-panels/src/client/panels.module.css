@@ -1,0 +1,399 @@
+/* 演进/机箱/账本 panels + status bar: neutral, theme-aware via currentColor
+   mixes (no palette of its own), mirroring ui-ph-battle. */
+
+.panel {
+  display: flex;
+  gap: 1rem;
+  height: 100%;
+  min-height: 0;
+  font-size: 0.85rem;
+}
+
+.sidebar {
+  flex: 0 0 16rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow-y: auto;
+  border-right: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  padding-right: 0.5rem;
+}
+
+.sidebarHead,
+.sectionHead {
+  font-weight: 600;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.25rem 0.4rem;
+}
+
+.sectionHead {
+  margin-top: 1rem;
+}
+
+.storeRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.storeRow:hover {
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+
+.storeRowActive {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  border-color: color-mix(in srgb, currentColor 20%, transparent);
+}
+
+.storeName {
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.storeMeta {
+  opacity: 0.65;
+  font-size: 0.75rem;
+}
+
+.detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+}
+
+.state {
+  opacity: 0.6;
+  padding: 1rem;
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 0.75rem;
+  word-break: break-all;
+}
+
+/* --- 演进 generation bars --------------------------------------------------- */
+
+.barRow {
+  display: grid;
+  grid-template-columns: 4rem 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.25rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.barLabel {
+  opacity: 0.75;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.barTrack {
+  position: relative;
+  height: 0.9rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  border-radius: 0.2rem;
+  overflow: hidden;
+}
+
+.barFill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 0.2rem;
+}
+
+.barPos {
+  background: color-mix(in srgb, currentColor 25%, #16a34a);
+}
+
+.barNeg {
+  background: color-mix(in srgb, currentColor 25%, #dc2626);
+}
+
+.barValue {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+  min-width: 3rem;
+}
+
+.genBlock {
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+}
+
+.genHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.genTitle {
+  font-weight: 600;
+}
+
+.genMeta {
+  opacity: 0.7;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- rounds feed ----------------------------------------------------------- */
+
+.round {
+  border-bottom: 1px solid color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.roundHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.25rem;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.roundHead:hover {
+  background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
+.roundNum {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.roundDate {
+  opacity: 0.6;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.roundTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roundBody {
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  opacity: 0.85;
+  padding: 0.25rem 0.5rem 0.75rem;
+  overflow-x: auto;
+}
+
+/* --- 机箱 card grid -------------------------------------------------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.75rem;
+  padding: 0.25rem;
+  align-content: start;
+  overflow: auto;
+  height: 100%;
+}
+
+.card {
+  border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.cardName {
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.cardDir {
+  opacity: 0.55;
+  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+}
+
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.badge {
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.375rem;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.badgeMuted {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+.kv {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+
+.kvLabel {
+  opacity: 0.6;
+}
+
+.thirdParty {
+  font-size: 0.72rem;
+  opacity: 0.7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+}
+
+/* --- shared table (账本) --------------------------------------------------- */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.table th {
+  opacity: 0.6;
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.src {
+  opacity: 0.7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+}
+
+.pass {
+  color: color-mix(in srgb, currentColor 40%, #16a34a);
+  font-weight: 600;
+}
+
+.fail {
+  color: color-mix(in srgb, currentColor 40%, #dc2626);
+  font-weight: 600;
+}
+
+.burned {
+  color: color-mix(in srgb, currentColor 35%, #dc2626);
+  font-weight: 600;
+}
+
+.reserved {
+  color: color-mix(in srgb, currentColor 35%, #d97706);
+  font-weight: 600;
+}
+
+.planned {
+  opacity: 0.7;
+}
+
+/* --- status bar (shell.overlay bottom strip) ------------------------------- */
+
+.statusBar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.2rem 0.75rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  backdrop-filter: blur(4px);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.statusItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.statusLabel {
+  opacity: 0.55;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.statusValue {
+  font-weight: 600;
+}
+
+.statusMono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  opacity: 0.8;
+}
+
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dotOnline {
+  background: #16a34a;
+}
+
+.dotOffline {
+  background: #dc2626;
+}
+
+.statusSpacer {
+  flex: 1 1 auto;
+}

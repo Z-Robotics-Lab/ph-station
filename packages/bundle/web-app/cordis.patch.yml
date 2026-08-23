@@ -315,6 +315,10 @@
     - id: ui-ph-battle
       name: '@deepseek-ai/dsh-client-ui-ph-battle'
 
+    # physical-harness 演进/机箱/账本 panels + status bar over the board Remote.
+    - id: ui-ph-panels
+      name: '@deepseek-ai/dsh-client-ui-ph-panels'
+
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #
 # Every row below composes what ONE agent contributes to the host registries:

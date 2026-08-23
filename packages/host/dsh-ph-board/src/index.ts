@@ -21,7 +21,7 @@ import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 // The Typert-generated ./typert and ./remote artifacts import Zod at runtime.
 import type {} from 'zod'
-import type { BoardStoreRequest } from './types.ts'
+import type { BoardSessionRequest, BoardStoreRequest } from './types.ts'
 
 export type * from './types.ts'
 
@@ -106,6 +106,43 @@ export class BoardBridge extends TypertRemoteService {
   @Remote('cards')
   cards(): Promise<JsonValue> {
     return this.run('cards')
+  }
+
+  /**
+   * The progress.md rounds feed (`## Round N - DATE - TITLE` sections), latest first.
+   * @returns board.store.parse_rounds(...) verbatim (演进 timeline).
+   */
+  @Remote('rounds')
+  rounds(): Promise<JsonValue> {
+    return this.run('rounds')
+  }
+
+  /**
+   * The STATUS.md seed-block ledger (each range's burn state + source line).
+   * @returns board.store.parse_ledger(...) verbatim (账本 table).
+   */
+  @Remote('ledger')
+  ledger(): Promise<JsonValue> {
+    return this.run('ledger')
+  }
+
+  /**
+   * Every runtime session under runs/, newest first (summary cards, no rows).
+   * @returns board.store.discover_sessions(runs) verbatim (status-bar heartbeat).
+   */
+  @Remote('sessions')
+  sessions(): Promise<JsonValue> {
+    return this.run('sessions')
+  }
+
+  /**
+   * One runtime session by name: its note payloads grouped by kind + chain check.
+   * @param request - the session name (guarded by storecli's safe_child).
+   * @returns board.store.read_session(...) verbatim, or an {error} dict.
+   */
+  @Remote('session')
+  session(request: BoardSessionRequest): Promise<JsonValue> {
+    return this.run('session', request.name)
   }
 
   /** Spawn the harness CLI face and forward its stdout JSON verbatim. */

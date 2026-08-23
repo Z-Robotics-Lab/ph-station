@@ -5,3 +5,9 @@ export interface BoardStoreRequest {
   /** Campaign store directory name; storecli rejects a traversal name. */
   readonly name: string
 }
+
+/** A name-addressed runtime-session read: the direct child name under runs/. */
+export interface BoardSessionRequest {
+  /** Runtime session directory name; storecli rejects a traversal name. */
+  readonly name: string
+}
