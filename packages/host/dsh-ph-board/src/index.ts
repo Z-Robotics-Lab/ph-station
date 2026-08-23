@@ -99,6 +99,15 @@ export class BoardBridge extends TypertRemoteService {
     return this.run('heldout', request.name)
   }
 
+  /**
+   * Every installed 机箱 card (each plugin's `manifest.toml`), manifest read as data.
+   * @returns board.cards.list_cards() verbatim.
+   */
+  @Remote('cards')
+  cards(): Promise<JsonValue> {
+    return this.run('cards')
+  }
+
   /** Spawn the harness CLI face and forward its stdout JSON verbatim. */
   private async run(fn: string, name?: string): Promise<JsonValue> {
     const args = ['-m', 'board.storecli', fn]
