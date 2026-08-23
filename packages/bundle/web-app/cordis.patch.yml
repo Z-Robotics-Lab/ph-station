@@ -77,7 +77,7 @@
     # so a plain `dsh web` still boots (the panel then reports board unavailable).
     - id: board-bridge
       name: '@deepseek-ai/dsh-ph-board'
-      disabled: !!js !process.env.PH_BOARD_REPO
+      disabled: !!js process.env.PH_BOARD_REPO === undefined
       config:
         pythonPath: !!js process.env.PH_BOARD_PYTHON
         repoRoot: !!js process.env.PH_BOARD_REPO
