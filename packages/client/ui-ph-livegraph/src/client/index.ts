@@ -42,7 +42,7 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
     id: 'livegraph',
-    order: 24,
+    order: 19,
     locale: NS,
     label: () => t('view.livegraph'),
     inject: (_sessionId: SessionId): LiveGraphInjected => ({
