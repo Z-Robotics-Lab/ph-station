@@ -7,6 +7,7 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { finite, pp } from './format.ts'
+import { usePolledLoad } from './poll.ts'
 import css from './panels.module.css'
 
 /** The three board reads this panel drives, injected by the slot registration. */
@@ -77,12 +78,7 @@ export function EvolutionView({
     if (r.ok) setRounds(r.value as Round[])
   }, [fetchStores, fetchRounds])
 
-  // Human-cadence poll (see ui-ph-battle): the RSI tree changes at run speed.
-  useEffect(() => {
-    void load()
-    const timer = setInterval(() => { void load() }, 5000)
-    return () => { clearInterval(timer) }
-  }, [load])
+  usePolledLoad(load)
 
   useEffect(() => {
     if (selected === null) { setDetail(null); return }

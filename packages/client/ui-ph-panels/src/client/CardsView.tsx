@@ -4,10 +4,11 @@
  * status source is wired yet, so a visibly-labeled '体检: 未接入' slot stands
  * in — it is never faked. */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import { usePolledLoad } from './poll.ts'
 import css from './panels.module.css'
 
 /** The single board read this panel drives. */
@@ -45,12 +46,7 @@ export function CardsView({
     setCards(c.value as Card[])
   }, [fetchCards])
 
-  // Human-cadence poll: the plugin set changes only on install/rebuild.
-  useEffect(() => {
-    void load()
-    const timer = setInterval(() => { void load() }, 5000)
-    return () => { clearInterval(timer) }
-  }, [load])
+  usePolledLoad(load)
 
   if (cards === null) {
     return <div className={css.state}>{error === null ? t('loading') : `${t('unavailable')} — ${error}`}</div>

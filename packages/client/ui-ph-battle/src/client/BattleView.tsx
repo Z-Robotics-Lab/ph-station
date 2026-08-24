@@ -69,6 +69,10 @@ interface HeldoutBlock {
 }
 interface HeldoutBlocks { blocks?: HeldoutBlock[]; error?: string }
 
+// Live-refresh cadence (matches ui-ph-panels' POLL_MS): human cadence, the
+// campaign list changes at run speed, not sub-second.
+const POLL_MS = 15000
+
 const finite = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 /** Signed percentage-point delta (governed - base), already a rate difference. */
 function pp(delta?: number | null): string {
@@ -109,13 +113,24 @@ export function BattleView({
     setStores(carried.value as StoreSummary[])
   }, [fetchStores])
 
-  // Human-cadence poll: stores rarely change, so a fixed interval is enough.
-  // ponytail: fixed 5s poll; drive off store_mtime if the list ever gets large.
+  // Human-cadence poll, paused while the tab is hidden (a background console
+  // burns no board calls) and re-run the moment it returns. A failed poll keeps
+  // the last-good list — loadStores sets error without clearing stores.
+  // ponytail: local twin of ui-ph-panels' usePolledLoad — kept inline so
+  // ui-ph-battle needs no dependency on that package for eight lines; extract to
+  // a shared package only if a third ph panel package appears.
+  /* jscpd:ignore-start */
   useEffect(() => {
-    void loadStores()
-    const timer = setInterval(() => { void loadStores() }, 5000)
-    return () => { clearInterval(timer) }
+    const run = () => { if (!document.hidden) void loadStores() }
+    run()
+    const timer = setInterval(run, POLL_MS)
+    document.addEventListener('visibilitychange', run)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', run)
+    }
   }, [loadStores])
+  /* jscpd:ignore-end */
 
   useEffect(() => {
     if (selected === null) { setDetail(null); setHeldout(null); return }

@@ -5,11 +5,12 @@
  * does not return them (it would need a new board.store endpoint), so they are
  * not faked here. */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PhPanelsKey } from './locales.ts'
+import { usePolledLoad } from './poll.ts'
 import css from './panels.module.css'
 
 /** The single board read this panel drives. */
@@ -38,12 +39,7 @@ export function LedgerView({
     setBlocks(l.value as Block[])
   }, [fetchLedger])
 
-  // Human-cadence poll: STATUS.md changes at hand-edit speed.
-  useEffect(() => {
-    void load()
-    const timer = setInterval(() => { void load() }, 5000)
-    return () => { clearInterval(timer) }
-  }, [load])
+  usePolledLoad(load)
 
   if (blocks === null) {
     return <div className={css.state}>{error === null ? t('loading') : `${t('unavailable')} — ${error}`}</div>

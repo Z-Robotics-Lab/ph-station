@@ -397,3 +397,28 @@
 .statusSpacer {
   flex: 1 1 auto;
 }
+
+/* 任务台 quick chips: a wrapping row above the composer card. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.15rem 0;
+}
+
+.chip {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}

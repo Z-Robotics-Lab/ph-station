@@ -20,6 +20,7 @@ import { EvolutionView, type EvolutionInjected } from './EvolutionView.tsx'
 import { CardsView, type CardsInjected } from './CardsView.tsx'
 import { LedgerView, type LedgerInjected } from './LedgerView.tsx'
 import { StatusBar, type StatusInjected } from './StatusBar.tsx'
+import { TaskChips } from './TaskChips.tsx'
 
 /** Required services: the conversation + shell slots, the board Remote, the copy. */
 export const inject = ['slots', 'remote', 'remote.board', 'locale']
@@ -83,4 +84,13 @@ export function apply(ctx: Context): void {
       fetchSession: (name: string) => board.session({ name }),
     }),
   }, StatusBar))
+
+  // 任务台 quick chips above the composer: prefill-only presets (setDraft via
+  // the session standard kit, no inject face). Below the plan strip (order 0).
+  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+    name: 'conversation.input.dock',
+    id: 'ph-task-chips',
+    order: 20,
+    locale: NS,
+  }, TaskChips))
 }

@@ -1,5 +1,5 @@
 /** `phpanels` namespace dictionaries: tab labels + field labels for the
- * 演进 / 机箱 / 账本 panels and the status bar. One namespace, four views. */
+ * 演进 / 机箱 / 账本 panels, the status bar, and the 任务台 composer chips. */
 
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'phpanels'
@@ -58,6 +58,17 @@ export type PhPanelsKey =
   | 'skills'
   | 'mountPlan'
   | 'noSession'
+  | 'viewfinder'
+  | 'on'
+  | 'off'
+  // 任务台 chips
+  | 'chips.title'
+  | 'chips.stack'
+  | 'chips.stack.template'
+  | 'chips.lift'
+  | 'chips.lift.template'
+  | 'chips.battle'
+  | 'chips.battle.template'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -116,6 +127,16 @@ export const zh: Record<PhPanelsKey, string> = {
   'skills': '技能',
   'mountPlan': '挂载计划',
   'noSession': '无会话',
+  'viewfinder': '取景窗',
+  'on': '开',
+  'off': '关',
+  'chips.title': '任务台',
+  'chips.stack': 'stack 任务',
+  'chips.stack.template': '开始一个 stack 抓取任务：seed=0，渲染开启。先说明计划，再执行。',
+  'chips.lift': 'lift_geometric 任务',
+  'chips.lift.template': '开始一个 lift_geometric 任务：seed=0，渲染开启。先说明计划，再执行。',
+  'chips.battle': '看最新战报',
+  'chips.battle.template': '打开最新战报，用最近一次战役的 held-out 结果做小结。',
 }
 
 /** English dictionary. */
@@ -168,4 +189,14 @@ export const en: Record<PhPanelsKey, string> = {
   'skills': 'skills',
   'mountPlan': 'mount plan',
   'noSession': 'no session',
+  'viewfinder': 'Viewfinder',
+  'on': 'on',
+  'off': 'off',
+  'chips.title': 'Task shortcuts',
+  'chips.stack': 'stack task',
+  'chips.stack.template': 'Start a stack grasp task: seed=0, render on. Outline the plan, then run.',
+  'chips.lift': 'lift_geometric task',
+  'chips.lift.template': 'Start a lift_geometric task: seed=0, render on. Outline the plan, then run.',
+  'chips.battle': 'latest battle report',
+  'chips.battle.template': "Open the latest battle report and summarize the most recent campaign's held-out result.",
 }
