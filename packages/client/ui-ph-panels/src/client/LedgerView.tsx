@@ -10,6 +10,7 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PhPanelsKey } from './locales.ts'
+import { EmptyCard, PanelFrame, Term } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
 import css from './panels.module.css'
 
@@ -48,37 +49,47 @@ export function LedgerView({
   usePolledLoad(load)
 
   if (blocks === null) {
-    return <div className={css.state}>{error === null ? t('loading') : `${t('unavailable')} — ${error}`}</div>
+    return (
+      <PanelFrame title={t('view.ledger')} sub={t('sub.ledger')}>
+        <div className={css.state}>{error === null ? t('loading') : `${t('unavailable')} — ${error}`}</div>
+      </PanelFrame>
+    )
   }
   if (blocks.length === 0) {
-    return <div className={css.state}>{t('noLedger')}</div>
+    return (
+      <PanelFrame title={t('view.ledger')} sub={t('sub.ledger')}>
+        <EmptyCard>{t('noLedger')}</EmptyCard>
+      </PanelFrame>
+    )
   }
 
   return (
-    <div className={css.detail}>
-      <table className={css.table}>
-        <thead>
-          <tr>
-            <th>{t('range')}</th>
-            <th>{t('state')}</th>
-            <th>{t('source')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {blocks.map((b, i) => {
-            const state = b.state ?? ''
-            return (
-              <tr key={`${b.lo}-${b.hi}-${i}`}>
-                <td className={css.num}>{b.lo ?? '—'}–{b.hi ?? '—'}</td>
-                <td className={STATE_CLASS[state] ?? undefined}>
-                  {state ? t(state as PhPanelsKey) : '—'}
-                </td>
-                <td className={css.src}>{b.line ?? ''}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+    <PanelFrame title={t('view.ledger')} sub={t('sub.ledger')}>
+      <div className={css.detail}>
+        <table className={css.table}>
+          <thead>
+            <tr>
+              <th><Term label={t('range')} tip={t('seedBlock.tip')} /></th>
+              <th>{t('state')}</th>
+              <th>{t('source')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {blocks.map((b, i) => {
+              const state = b.state ?? ''
+              return (
+                <tr key={`${b.lo}-${b.hi}-${i}`}>
+                  <td className={css.num}>{b.lo ?? '—'}–{b.hi ?? '—'}</td>
+                  <td className={STATE_CLASS[state] ?? undefined}>
+                    {state ? t(state as PhPanelsKey) : '—'}
+                  </td>
+                  <td className={css.src}>{b.line ?? ''}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </PanelFrame>
   )
 }

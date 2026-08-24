@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { agoSeconds } from './format.ts'
+import { Term } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
 import css from './panels.module.css'
 
@@ -122,7 +123,7 @@ export function StatusBar({
           </span>
           {sha ? (
             <span className={css.statusItem}>
-              <span className={css.statusLabel}>{t('mountPlan')}</span>
+              <span className={css.statusLabel}><Term label={t('mountPlan')} tip={t('mountPlan.tip')} /></span>
               <span className={css.statusMono}>{sha.slice(0, 8)}</span>
             </span>
           ) : null}
@@ -130,7 +131,7 @@ export function StatusBar({
       )}
       {rtStatus === null ? null : (
         <span className={css.statusItem}>
-          <span className={css.statusLabel}>{t('viewfinder')}</span>
+          <span className={css.statusLabel}><Term label={t('viewfinder')} tip={t('viewfinder.tip')} /></span>
           <span className={css.statusValue}>{renderOn(rtStatus.render) ? t('on') : t('off')}</span>
           {rtStatus.pid == null ? null : (
             <span className={css.statusMono}>pid {rtStatus.pid}</span>

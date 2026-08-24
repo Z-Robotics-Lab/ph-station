@@ -56,6 +56,13 @@ export type PhOpsKey =
   | 'noRounds'
   | 'promoted'
   | 'noCampaign'
+  // jargon tooltips (plain-Chinese one-liners, hover a `?` badge)
+  | 'stagePass.tip'
+  | 'replan.tip'
+  | 'promoted.tip'
+  | 'privileged.tip'
+  | 'mountPlan.tip'
+  | 'viewfinder.tip'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -114,6 +121,12 @@ export const zh: Record<PhOpsKey, string> = {
   'noRounds': '无轮次',
   'promoted': '晋级',
   'noCampaign': '暂无战役',
+  'stagePass.tip': '阶段通过率：所有节点的阶段里通过的比例。',
+  'replan.tip': '重规划：某节点失败后，规划器重新出计划再试一次。',
+  'promoted.tip': '晋级：这一代通过了 dev / 盲测 / 留出集的门槛，被采纳为新基线。',
+  'privileged.tip': '特权能力：能执行高风险/越权操作（如直接驱动硬件）的能力，需额外授权。',
+  'mountPlan.tip': '挂载计划：本次启动装载的插件/技能组合的指纹（sha），用来确认跑的是哪一套配置。',
+  'viewfinder.tip': '取景窗：机器人相机的实时画面渲染开关；开＝正在出图，关＝未渲染。',
 }
 
 /** English dictionary. */
@@ -166,4 +179,10 @@ export const en: Record<PhOpsKey, string> = {
   'noRounds': 'no rounds',
   'promoted': 'promoted',
   'noCampaign': 'no campaign',
+  'stagePass.tip': "Stage pass rate: the fraction of all nodes' stages that passed.",
+  'replan.tip': 'Replan: after a node fails, the planner produces a new plan and retries.',
+  'promoted.tip': 'Promoted: this generation passed the dev / blind / held-out gates and became the new baseline.',
+  'privileged.tip': 'Privileged capability: one that can perform high-risk or elevated actions (e.g. drive hardware directly); needs extra authorization.',
+  'mountPlan.tip': 'Mount plan: fingerprint (sha) of the plugin/skill set loaded at boot — confirms which configuration is running.',
+  'viewfinder.tip': "Viewfinder: the robot camera's live render toggle; on = rendering frames, off = not.",
 }
