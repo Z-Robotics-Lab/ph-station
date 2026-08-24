@@ -9,6 +9,7 @@
  */
 
 import { useMemo } from 'react'
+import { IconTimeline } from '@deepseek-ai/dsh-client-ui-ph-icons'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { OpEvent } from './graph.ts'
 import { runWindow, useRunFeed } from './RunFeed.tsx'
@@ -96,6 +97,7 @@ export function TickerView({ t }: PropsLocale<'phlivegraph'>) {
   return (
     <div className={css.ticker}>
       <div className={css.header}>
+        <IconTimeline size={14} />
         <span className={css.headTitle}>{t('process')}</span>
         <span className={css.headSub}>{label}</span>
       </div>

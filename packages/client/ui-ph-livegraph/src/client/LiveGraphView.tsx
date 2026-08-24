@@ -16,6 +16,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Background, Handle, Position, ReactFlow } from '@xyflow/react'
+import { IconBroadcast, IconPlayerPause, IconPlayerPlay } from '@deepseek-ai/dsh-client-ui-ph-icons'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { foldEvents, layout } from './graph.ts'
 import type { LiveGraphModel, NodeStatus, PlanNodeState, RoutingRow, RunInfo } from './graph.ts'
@@ -176,7 +177,7 @@ function Scrubber({
         onClick={onGoLive}
         title={t(live ? 'liveOn' : 'liveOff')}
       >
-        <span className={css.liveDot} />{t(live ? 'live' : 'history')}
+        <IconBroadcast size={12} />{t(live ? 'live' : 'history')}
       </button>
       {runs.length > 0 ? (
         <select
@@ -192,7 +193,7 @@ function Scrubber({
         </select>
       ) : null}
       <button type="button" className={css.playBtn} onClick={onTogglePlay} disabled={!run} aria-label={t(playing ? 'pause' : 'play')}>
-        {playing ? '❚❚' : '▶'}
+        {playing ? <IconPlayerPause size={13} /> : <IconPlayerPlay size={13} />}
       </button>
       <div
         ref={trackRef}
