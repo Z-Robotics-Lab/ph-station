@@ -3,10 +3,12 @@
  * (×100 for pp display); no statistics computed here. */
 
 import { useCallback, useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { finite, pp } from './format.ts'
+import { EmptyCard, PanelFrame, Term } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
 import css from './panels.module.css'
 
@@ -41,7 +43,7 @@ interface Round { round?: number | null; date?: string | null; title?: string | 
 // data-driven axis only if a campaign ever exceeds it (then it just clamps).
 const FULL_SCALE_PP = 40
 
-function Bar({ label, delta }: { label: string; delta: number | null | undefined }) {
+function Bar({ label, delta }: { label: ReactNode; delta: number | null | undefined }) {
   const d = finite(delta)
   const width = d === null ? 0 : Math.min(100, (Math.abs(d) * 100 / FULL_SCALE_PP) * 100)
   return (
@@ -96,57 +98,74 @@ export function EvolutionView({
     return () => { live = false }
   }, [selected, fetchStore])
 
+  // The loading/empty scaffolds mirror ui-ph-battle by design; the ph panel
+  // packages stay decoupled rather than share a chrome library.
+  /* jscpd:ignore-start */
   if (stores === null) {
-    return <div className={css.state}>{error === null ? t('loading') : `${t('unavailable')} — ${error}`}</div>
+    return (
+      <PanelFrame title={t('view.evolution')} sub={t('sub.evolution')}>
+        <div className={css.state}>{error === null ? t('loading') : `${t('unavailable')} — ${error}`}</div>
+      </PanelFrame>
+    )
   }
+  if (stores.length === 0) {
+    return (
+      <PanelFrame title={t('view.evolution')} sub={t('sub.evolution')}>
+        <EmptyCard>{t('emptyStores')}</EmptyCard>
+      </PanelFrame>
+    )
+  }
+  /* jscpd:ignore-end */
 
   return (
-    <div className={css.panel}>
-      {/* Deliberately independent per panel: the two ph panel packages stay decoupled rather than share this sidebar. */}
-      {/* jscpd:ignore-start */}
-      <aside className={css.sidebar}>
-        <div className={css.sidebarHead}>{t('stores')}</div>
-        {stores.map(store => (
-          <button
-            key={store.name}
-            type="button"
-            className={store.name === selected ? `${css.storeRow} ${css.storeRowActive}` : css.storeRow}
-            onClick={() => { setSelected(store.name) }}
-          >
-            <span className={css.storeName}>{store.name}</span>
-            <span className={css.storeMeta}>
-              {store.task ?? '—'} · {store.promoted ?? 0}/{store.generations ?? 0} {t('promoted')}
-            </span>
-          </button>
-        ))}
-      </aside>
-      {/* jscpd:ignore-end */}
-
-      <section className={css.detail}>
-        <div className={css.sectionHead}>{t('generations')}</div>
-        {detail === null
-          ? <div className={css.state}>{t('selectStore')}</div>
-          : <GenerationList detail={detail} t={t} />}
-
-        <div className={css.sectionHead}>{t('rounds')}</div>
-        {rounds.length === 0
-          ? <div className={css.state}>{t('noRounds')}</div>
-          : rounds.map(rd => (
-            <div key={rd.round ?? Math.random()} className={css.round}>
-              <button
-                type="button"
-                className={css.roundHead}
-                onClick={() => { setOpen(open === rd.round ? null : (rd.round ?? null)) }}
-              >
-                <span className={css.roundNum}>#{rd.round ?? '—'}</span>
-                <span className={css.roundDate}>{rd.date ?? ''}</span>
-                <span className={css.roundTitle}>{rd.title ?? ''}</span>
-              </button>
-              {open === rd.round && rd.body ? <div className={css.roundBody}>{rd.body}</div> : null}
-            </div>
+    <PanelFrame title={t('view.evolution')} sub={t('sub.evolution')}>
+      <div className={css.panel}>
+        {/* Deliberately independent per panel: the two ph panel packages stay decoupled rather than share this sidebar. */}
+        {/* jscpd:ignore-start */}
+        <aside className={css.sidebar}>
+          <div className={css.sidebarHead}>{t('stores')}</div>
+          {stores.map(store => (
+            <button
+              key={store.name}
+              type="button"
+              className={store.name === selected ? `${css.storeRow} ${css.storeRowActive}` : css.storeRow}
+              onClick={() => { setSelected(store.name) }}
+            >
+              <span className={css.storeName}>{store.name}</span>
+              <span className={css.storeMeta}>
+                {store.task ?? '—'} · {store.promoted ?? 0}/{store.generations ?? 0} {t('promoted')}
+              </span>
+            </button>
           ))}
-      </section>
-    </div>
+        </aside>
+        {/* jscpd:ignore-end */}
+
+        <section className={css.detail}>
+          <div className={css.sectionHead}>{t('generations')}</div>
+          {detail === null
+            ? <div className={css.state}>{t('selectStore')}</div>
+            : <GenerationList detail={detail} t={t} />}
+
+          <div className={css.sectionHead}>{t('rounds')}</div>
+          {rounds.length === 0
+            ? <div className={css.state}>{t('noRounds')}</div>
+            : rounds.map(rd => (
+              <div key={rd.round ?? Math.random()} className={css.round}>
+                <button
+                  type="button"
+                  className={css.roundHead}
+                  onClick={() => { setOpen(open === rd.round ? null : (rd.round ?? null)) }}
+                >
+                  <span className={css.roundNum}>#{rd.round ?? '—'}</span>
+                  <span className={css.roundDate}>{rd.date ?? ''}</span>
+                  <span className={css.roundTitle}>{rd.title ?? ''}</span>
+                </button>
+                {open === rd.round && rd.body ? <div className={css.roundBody}>{rd.body}</div> : null}
+              </div>
+            ))}
+        </section>
+      </div>
+    </PanelFrame>
   )
 }
 
@@ -158,21 +177,23 @@ function GenerationList({ detail, t }: { detail: StoreDetail } & PropsLocale<'ph
   }
   return (
     <>
-      {finite(heldoutDelta) === null ? null : <Bar label={t('heldoutDelta')} delta={heldoutDelta} />}
+      {finite(heldoutDelta) === null
+        ? null
+        : <Bar label={<Term label={t('heldoutDelta')} tip={t('heldout.tip')} />} delta={heldoutDelta} />}
       {gens.map(g => (
         <div key={g.generation ?? Math.random()} className={css.genBlock}>
           <div className={css.genHead}>
             <span className={css.genTitle}>{t('generation')} {g.generation ?? '—'}</span>
             <span className={g.promoted === true ? css.pass : css.fail}>
-              {g.promoted === true ? t('promoted') : t('rejected')}
+              <Term label={g.promoted === true ? t('promoted') : t('rejected')} tip={t('promoted.tip')} />
             </span>
             <span className={css.genMeta}>
-              {t('mcnemar')} {g.dev_gate?.fixed ?? '—'}/{g.dev_gate?.broken ?? '—'}
+              <Term label={t('mcnemar')} tip={t('mcnemar.tip')} /> {g.dev_gate?.fixed ?? '—'}/{g.dev_gate?.broken ?? '—'}
             </span>
             {g.rule?.trigger_str ? <span className={css.genMeta}>{g.rule.trigger_str}</span> : null}
           </div>
-          <Bar label={t('devDelta')} delta={g.dev_delta} />
-          <Bar label={t('blindDelta')} delta={g.blind_delta} />
+          <Bar label={<Term label={t('devDelta')} tip={t('delta.tip')} />} delta={g.dev_delta} />
+          <Bar label={<Term label={t('blindDelta')} tip={t('delta.tip')} />} delta={g.blind_delta} />
         </div>
       ))}
     </>

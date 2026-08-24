@@ -8,6 +8,7 @@ import { useCallback, useState } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import { EmptyCard, PanelFrame } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
 import css from './panels.module.css'
 
@@ -55,42 +56,52 @@ export function CardsView({
   usePolledLoad(load)
 
   if (cards === null) {
-    return <div className={css.state}>{error === null ? t('loading') : `${t('unavailable')} — ${error}`}</div>
+    return (
+      <PanelFrame title={t('view.cards')} sub={t('sub.cards')}>
+        <div className={css.state}>{error === null ? t('loading') : `${t('unavailable')} — ${error}`}</div>
+      </PanelFrame>
+    )
   }
   if (cards.length === 0) {
-    return <div className={css.state}>{t('noCards')}</div>
+    return (
+      <PanelFrame title={t('view.cards')} sub={t('sub.cards')}>
+        <EmptyCard>{t('noCards')}</EmptyCard>
+      </PanelFrame>
+    )
   }
 
   return (
-    <div className={css.grid}>
-      {cards.map((card) => {
-        const c = card.contributes ?? {}
-        const tp = card.manifest?.third_party ?? []
-        return (
-          <div key={card.dir ?? card.name} className={css.card}>
-            <div>
-              <div className={css.cardName}>{card.name ?? '—'}</div>
-              <div className={css.cardDir}>{card.dir ?? ''}</div>
-            </div>
-            <div className={css.badgeRow}>
-              <span className={css.badge}>{t('actuation')}: {card.actuation ?? '—'}</span>
-              <span className={css.badge}>{t('needsSim')}: {card.needs_sim ? t('yes') : t('no')}</span>
-              {/* No doctor status source yet (scripts/plugin_doctor.py unbuilt):
+    <PanelFrame title={t('view.cards')} sub={t('sub.cards')}>
+      <div className={css.grid}>
+        {cards.map((card) => {
+          const c = card.contributes ?? {}
+          const tp = card.manifest?.third_party ?? []
+          return (
+            <div key={card.dir ?? card.name} className={css.card}>
+              <div>
+                <div className={css.cardName}>{card.name ?? '—'}</div>
+                <div className={css.cardDir}>{card.dir ?? ''}</div>
+              </div>
+              <div className={css.badgeRow}>
+                <span className={css.badge}>{t('actuation')}: {card.actuation ?? '—'}</span>
+                <span className={css.badge}>{t('needsSim')}: {card.needs_sim ? t('yes') : t('no')}</span>
+                {/* No doctor status source yet (scripts/plugin_doctor.py unbuilt):
                   a labeled placeholder, never a fabricated health verdict. */}
-              <span className={`${css.badge} ${css.badgeMuted}`}>{t('doctor')}: {t('doctorNotWired')}</span>
+                <span className={`${css.badge} ${css.badgeMuted}`}>{t('doctor')}: {t('doctorNotWired')}</span>
+              </div>
+              <div className={css.kv}>
+                <span><span className={css.kvLabel}>{t('mounts')}</span> {count(c.mounts)}</span>
+                <span><span className={css.kvLabel}>{t('taskBindings')}</span> {count(c.task_bindings)}</span>
+                <span><span className={css.kvLabel}>{t('campaigns')}</span> {count(c.campaigns)}</span>
+                <span><span className={css.kvLabel}>{t('bundles')}</span> {count(c.bundles)}</span>
+              </div>
+              {tp.length === 0 ? null : (
+                <div className={css.thirdParty}>{t('thirdParty')}: {tp.join(', ')}</div>
+              )}
             </div>
-            <div className={css.kv}>
-              <span><span className={css.kvLabel}>{t('mounts')}</span> {count(c.mounts)}</span>
-              <span><span className={css.kvLabel}>{t('taskBindings')}</span> {count(c.task_bindings)}</span>
-              <span><span className={css.kvLabel}>{t('campaigns')}</span> {count(c.campaigns)}</span>
-              <span><span className={css.kvLabel}>{t('bundles')}</span> {count(c.bundles)}</span>
-            </div>
-            {tp.length === 0 ? null : (
-              <div className={css.thirdParty}>{t('thirdParty')}: {tp.join(', ')}</div>
-            )}
-          </div>
-        )
-      })}
-    </div>
+          )
+        })}
+      </div>
+    </PanelFrame>
   )
 }

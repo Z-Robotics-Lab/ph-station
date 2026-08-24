@@ -24,11 +24,15 @@ interface Breadcrumb {
 
 const DEFAULT_VIEW_ID = 'chat'
 
-/** Resolve by id and keep stale persisted selections on the stable Chat fallback. */
+/** Resolve by id; with no valid selection, default to the leftmost tab (tabs are
+ * order-sorted) so a build can make its own view the first-screen default, and
+ * fall back to the stable Chat view when even that is absent. */
 function resolveActiveView(tabs: readonly ViewTab[], selectedId: string | null): ViewTab | undefined {
-  const requestedId = selectedId ?? DEFAULT_VIEW_ID
-  return tabs.find(view => view.id === requestedId)
-    ?? tabs.find(view => view.id === DEFAULT_VIEW_ID)
+  if (selectedId !== null) {
+    const hit = tabs.find(view => view.id === selectedId)
+    if (hit !== undefined) return hit
+  }
+  return tabs[0] ?? tabs.find(view => view.id === DEFAULT_VIEW_ID)
 }
 
 function deriveAncestry(list: SessionListState, id: SessionId): readonly Breadcrumb[] {

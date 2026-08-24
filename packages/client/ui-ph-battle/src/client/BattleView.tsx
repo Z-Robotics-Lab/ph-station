@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import { EmptyCard, PanelFrame, Term } from './chrome.tsx'
 import css from './BattleView.module.css'
 
 /** The three board reads the panel drives, injected by the slot registration. */
@@ -151,41 +152,55 @@ export function BattleView({
     return () => { live = false }
   }, [selected, fetchStore, fetchHeldout])
 
+  // The loading/empty scaffolds mirror ui-ph-panels by design; the ph panel
+  // packages stay decoupled rather than share a chrome library.
+  /* jscpd:ignore-start */
   if (stores === null) {
-    return <div className={css.state}>{error === null ? t('loading') : `${t('unavailable')} — ${error}`}</div>
+    return (
+      <PanelFrame title={t('view.battle')} sub={t('sub.battle')}>
+        <div className={css.state}>{error === null ? t('loading') : `${t('unavailable')} — ${error}`}</div>
+      </PanelFrame>
+    )
   }
   if (stores.length === 0) {
-    return <div className={css.state}>{t('empty')}</div>
+    return (
+      <PanelFrame title={t('view.battle')} sub={t('sub.battle')}>
+        <EmptyCard>{t('empty')}</EmptyCard>
+      </PanelFrame>
+    )
   }
+  /* jscpd:ignore-end */
 
   return (
-    <div className={css.panel}>
-      {/* Deliberately independent per panel: the two ph panel packages stay decoupled rather than share this sidebar. */}
-      {/* jscpd:ignore-start */}
-      <aside className={css.sidebar}>
-        <div className={css.sidebarHead}>{t('stores')}</div>
-        {stores.map(store => (
-          <button
-            key={store.name}
-            type="button"
-            className={store.name === selected ? `${css.storeRow} ${css.storeRowActive}` : css.storeRow}
-            onClick={() => { setSelected(store.name) }}
-          >
-            <span className={css.storeName}>{store.name}</span>
-            <span className={css.storeMeta}>
-              {store.task ?? '—'} · {store.promoted ?? 0}/{store.generations ?? 0} {t('promoted')}
-              {finite(store.heldout) === null ? '' : ` · ${t('heldout')} ${store.heldout}`}
-            </span>
-          </button>
-        ))}
-      </aside>
-      {/* jscpd:ignore-end */}
-      <section className={css.detail}>
-        {detail === null
-          ? <div className={css.state}>{t('selectStore')}</div>
-          : <StoreDetailView detail={detail} heldout={heldout} t={t} />}
-      </section>
-    </div>
+    <PanelFrame title={t('view.battle')} sub={t('sub.battle')}>
+      <div className={css.panel}>
+        {/* Deliberately independent per panel: the two ph panel packages stay decoupled rather than share this sidebar. */}
+        {/* jscpd:ignore-start */}
+        <aside className={css.sidebar}>
+          <div className={css.sidebarHead}>{t('stores')}</div>
+          {stores.map(store => (
+            <button
+              key={store.name}
+              type="button"
+              className={store.name === selected ? `${css.storeRow} ${css.storeRowActive}` : css.storeRow}
+              onClick={() => { setSelected(store.name) }}
+            >
+              <span className={css.storeName}>{store.name}</span>
+              <span className={css.storeMeta}>
+                {store.task ?? '—'} · {store.promoted ?? 0}/{store.generations ?? 0} {t('promoted')}
+                {finite(store.heldout) === null ? '' : ` · ${t('heldout')} ${store.heldout}`}
+              </span>
+            </button>
+          ))}
+        </aside>
+        {/* jscpd:ignore-end */}
+        <section className={css.detail}>
+          {detail === null
+            ? <div className={css.state}>{t('selectStore')}</div>
+            : <StoreDetailView detail={detail} heldout={heldout} t={t} />}
+        </section>
+      </div>
+    </PanelFrame>
   )
 }
 
@@ -212,12 +227,12 @@ function StoreDetailView({
       </header>
 
       <div className={css.badgeRow}>
-        <span className={css.badgeLabel}>{t('heldoutBadge')}</span>
+        <span className={css.badgeLabel}><Term label={t('heldoutBadge')} tip={t('heldout.tip')} /></span>
         {result?.heldout === undefined
           ? <span className={css.badge}>{t('noHeldout')}</span>
           : (
             <span className={css.badge}>
-              {result.heldout.fixed ?? '—'}/{result.heldout.n ?? '—'} · {t('delta')} {pp(result.heldout_delta)}
+              {result.heldout.fixed ?? '—'}/{result.heldout.n ?? '—'} · <Term label={t('delta')} tip={t('delta.tip')} /> {pp(result.heldout_delta)}
               {' · '}{t('pValue')} {pval(result.heldout.p_value)}
               {result.heldout_vs_blind == null ? '' : ` · ${t('vsBlind')} ${pval(result.heldout_vs_blind.p_value)}`}
             </span>
@@ -231,7 +246,7 @@ function StoreDetailView({
               <th>{t('generation')}</th>
               <th>{t('devGate')}</th>
               <th>{t('delta')}</th>
-              <th>{t('mcnemar')}</th>
+              <th><Term label={t('mcnemar')} tip={t('mcnemar.tip')} /></th>
               <th>{t('pValue')}</th>
               <th>{t('blindGate')}</th>
               <th>{t('delta')}</th>
@@ -244,7 +259,7 @@ function StoreDetailView({
                 <td>
                   {g.generation ?? '—'}{' '}
                   <span className={g.promoted === true ? css.pass : css.fail}>
-                    {g.promoted === true ? t('promoted') : t('rejected')}
+                    <Term label={g.promoted === true ? t('promoted') : t('rejected')} tip={t('promoted.tip')} />
                   </span>
                 </td>
                 <td className={css.num}>{gate(g.dev_gate)}</td>
@@ -269,7 +284,7 @@ function StoreDetailView({
                 <th>{t('block')}</th>
                 <th>{t('devGate')}</th>
                 <th>{t('delta')}</th>
-                <th>{t('mcnemar')}</th>
+                <th><Term label={t('mcnemar')} tip={t('mcnemar.tip')} /></th>
                 <th>{t('pValue')}</th>
                 <th>{t('vsBlind')}</th>
                 <th>{t('heldoutBadge')}</th>

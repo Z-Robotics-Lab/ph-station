@@ -1,5 +1,6 @@
-/** `phpanels` namespace dictionaries: tab labels + field labels for the
- * 演进 / 机箱 / 账本 panels, the status bar, and the 任务台 composer chips. */
+/** `phpanels` namespace dictionaries: tab labels + one-line subtitles, empty-state
+ * explainers, jargon tooltips, and field labels for the 代际进化 / 能力卡 / 账本
+ * panels, the status bar, and the 任务台 composer chips. */
 
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'phpanels'
@@ -9,13 +10,18 @@ export type PhPanelsKey =
   | 'view.evolution'
   | 'view.cards'
   | 'view.ledger'
+  // one-line panel subtitles (rendered in the panel head under the tab name)
+  | 'sub.evolution'
+  | 'sub.cards'
+  | 'sub.ledger'
   | 'loading'
   | 'unavailable'
-  // 演进
+  // 代际进化
   | 'stores'
   | 'selectStore'
   | 'generations'
   | 'noGenerations'
+  | 'emptyStores'
   | 'promoted'
   | 'rejected'
   | 'generation'
@@ -26,7 +32,7 @@ export type PhPanelsKey =
   | 'rule'
   | 'rounds'
   | 'noRounds'
-  // 机箱
+  // 能力卡
   | 'noCards'
   | 'actuation'
   | 'needsSim'
@@ -61,6 +67,14 @@ export type PhPanelsKey =
   | 'viewfinder'
   | 'on'
   | 'off'
+  // jargon tooltips (plain-Chinese one-liners, hover a `?` badge)
+  | 'mcnemar.tip'
+  | 'heldout.tip'
+  | 'promoted.tip'
+  | 'delta.tip'
+  | 'seedBlock.tip'
+  | 'mountPlan.tip'
+  | 'viewfinder.tip'
   // 任务台 chips
   | 'chips.title'
   | 'chips.stack'
@@ -72,22 +86,26 @@ export type PhPanelsKey =
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    /** The 演进/机箱/账本 tab labels, field labels, and status-bar copy. */
+    /** The 代际进化/能力卡/账本 tab labels, subtitles, field labels, and status-bar copy. */
     'phpanels': PhPanelsKey
   }
 }
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh: Record<PhPanelsKey, string> = {
-  'view.evolution': '演进',
-  'view.cards': '机箱',
+  'view.evolution': '代际进化',
+  'view.cards': '能力卡',
   'view.ledger': '账本',
+  'sub.evolution': '每一代改动相对上一代的成绩变化和是否晋级',
+  'sub.cards': '已装的技能/能力：驱动方式、是否需仿真、任务绑定',
+  'sub.ledger': '各 seed 区块的预算占用：已烧 / 预留 / 计划',
   'loading': '加载中…',
   'unavailable': '数据面不可用（board bridge 未挂载）',
   'stores': '战役',
   'selectStore': '选择一个战役查看代际演进',
   'generations': '代际',
   'noGenerations': '无代际记录',
+  'emptyStores': '还没有战役数据。战役 = 一次针对某任务的多代自我改进；每代会打 dev/盲测/留出集分数并判定是否晋级。',
   'promoted': '晋级',
   'rejected': '未晋级',
   'generation': '代',
@@ -98,7 +116,7 @@ export const zh: Record<PhPanelsKey, string> = {
   'rule': '规则',
   'rounds': '轮次',
   'noRounds': 'progress.md 无轮次',
-  'noCards': '暂无机箱卡',
+  'noCards': '还没读到能力卡。每张卡来自一个已装插件的 manifest.toml，描述它提供的技能、驱动方式与任务绑定。',
   'actuation': '驱动',
   'needsSim': '需要仿真',
   'yes': '是',
@@ -111,7 +129,7 @@ export const zh: Record<PhPanelsKey, string> = {
   'thirdParty': '第三方',
   'doctor': '体检',
   'doctorNotWired': '未接入',
-  'noLedger': 'STATUS.md 无区块预算',
+  'noLedger': 'STATUS.md 里还没有区块预算。账本按 seed 区块记录预算的已烧/预留/计划。',
   'range': '区块',
   'state': '状态',
   'source': '来源',
@@ -130,6 +148,13 @@ export const zh: Record<PhPanelsKey, string> = {
   'viewfinder': '取景窗',
   'on': '开',
   'off': '关',
+  'mcnemar.tip': "McNemar 检验：只看被改动'修对'和'改坏'的题，判断这代改动是不是真变好（而非运气）。",
+  'heldout.tip': '留出集：训练时从没见过的题，用来诚实检验泛化，防止背答案刷分。',
+  'promoted.tip': '晋级：这一代通过了 dev / 盲测 / 留出集的门槛，被采纳为新基线。',
+  'delta.tip': 'Δpp：相对上一代的成功率变化，单位百分点。',
+  'seedBlock.tip': 'seed 区块：一段任务种子编号范围；预算按区块分配和消耗。',
+  'mountPlan.tip': '挂载计划：本次启动装载的插件/技能组合的指纹（sha），用来确认跑的是哪一套配置。',
+  'viewfinder.tip': '取景窗：机器人相机的实时画面渲染开关；开＝正在出图，关＝未渲染。',
   'chips.title': '任务台',
   'chips.stack': 'stack 任务',
   'chips.stack.template': '开始一个 stack 抓取任务：seed=0，渲染开启。先说明计划，再执行。',
@@ -141,15 +166,19 @@ export const zh: Record<PhPanelsKey, string> = {
 
 /** English dictionary. */
 export const en: Record<PhPanelsKey, string> = {
-  'view.evolution': 'Evolution',
-  'view.cards': 'Chassis',
+  'view.evolution': 'Generations',
+  'view.cards': 'Capability cards',
   'view.ledger': 'Ledger',
+  'sub.evolution': "Each generation's score change vs the previous, and whether it was promoted.",
+  'sub.cards': 'Installed skills/capabilities: actuation, whether sim is needed, task bindings.',
+  'sub.ledger': 'Budget usage per seed block: burned / reserved / planned.',
   'loading': 'Loading…',
   'unavailable': 'Data plane unavailable (board bridge not mounted)',
   'stores': 'Campaigns',
   'selectStore': 'Select a campaign to see its generation evolution',
   'generations': 'Generations',
   'noGenerations': 'No generation records',
+  'emptyStores': "No campaign data yet. A campaign is one task's multi-generation self-improvement; each generation scores dev / blind / held-out and is judged for promotion.",
   'promoted': 'promoted',
   'rejected': 'rejected',
   'generation': 'Gen',
@@ -160,7 +189,7 @@ export const en: Record<PhPanelsKey, string> = {
   'rule': 'rule',
   'rounds': 'Rounds',
   'noRounds': 'No rounds in progress.md',
-  'noCards': 'No chassis cards',
+  'noCards': "No capability cards yet. Each card comes from an installed plugin's manifest.toml — the skills it provides, its actuation, and its task bindings.",
   'actuation': 'actuation',
   'needsSim': 'needs sim',
   'yes': 'yes',
@@ -173,7 +202,7 @@ export const en: Record<PhPanelsKey, string> = {
   'thirdParty': 'third-party',
   'doctor': 'Doctor',
   'doctorNotWired': 'not wired',
-  'noLedger': 'No block budget in STATUS.md',
+  'noLedger': 'No block budget in STATUS.md yet. The ledger tracks budget burned / reserved / planned per seed block.',
   'range': 'Range',
   'state': 'State',
   'source': 'Source',
@@ -192,6 +221,13 @@ export const en: Record<PhPanelsKey, string> = {
   'viewfinder': 'Viewfinder',
   'on': 'on',
   'off': 'off',
+  'mcnemar.tip': 'McNemar test: looks only at items this generation fixed vs broke, to judge whether the change is truly better (not luck).',
+  'heldout.tip': 'Held-out set: items never seen during training, used to honestly check generalization and prevent memorized answers.',
+  'promoted.tip': 'Promoted: this generation passed the dev / blind / held-out gates and became the new baseline.',
+  'delta.tip': 'Δpp: change in success rate vs the previous generation, in percentage points.',
+  'seedBlock.tip': 'Seed block: a range of task seed numbers; budget is allocated and consumed per block.',
+  'mountPlan.tip': 'Mount plan: fingerprint (sha) of the plugin/skill set loaded at boot — confirms which configuration is running.',
+  'viewfinder.tip': "Viewfinder: the robot camera's live render toggle; on = rendering frames, off = not.",
   'chips.title': 'Task shortcuts',
   'chips.stack': 'stack task',
   'chips.stack.template': 'Start a stack grasp task: seed=0, render on. Outline the plan, then run.',

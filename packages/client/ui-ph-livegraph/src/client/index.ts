@@ -15,6 +15,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { en, NS, zh } from './locales.ts'
 import { LiveGraphView, type LiveGraphInjected } from './LiveGraphView.tsx'
+import { LabView } from './LabView.tsx'
 import xyflowBase from './xyflow-base.css?inline'
 
 const PLUGIN_ID = '@deepseek-ai/dsh-client-ui-ph-livegraph'
@@ -39,16 +40,31 @@ export function apply(ctx: Context): void {
   const t = ctx.locale.bind(NS)
   const board = ctx.remote.board
 
+  const inject = (_sessionId: SessionId): LiveGraphInjected => ({
+    fetchSessions: () => board.sessions(),
+    fetchSession: (name: string) => board.session({ name }),
+    fetchRuntimeEvents: (name: string, afterSeq: number) => board.runtimeEvents({ name, afterSeq }),
+  })
+
+  // 实验台: the same-screen cockpit and the session's default view. Registered
+  // before Chat (order 0) and Trajectory (order 10) so it is the leftmost tab
+  // and thus `resolveActiveView`'s no-selection default. 执行图谱 stays a
+  // standalone tab (order 19) for the graph alone.
+  ctx.slots.inject('conversation.view', () => ctx.slots.register({
+    name: 'conversation.view',
+    id: 'lab',
+    order: -10,
+    locale: NS,
+    label: () => t('view.lab'),
+    inject,
+  }, LabView))
+
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
     id: 'livegraph',
-    order: 24,
+    order: 19,
     locale: NS,
     label: () => t('view.livegraph'),
-    inject: (_sessionId: SessionId): LiveGraphInjected => ({
-      fetchSessions: () => board.sessions(),
-      fetchSession: (name: string) => board.session({ name }),
-      fetchRuntimeEvents: (name: string, afterSeq: number) => board.runtimeEvents({ name, afterSeq }),
-    }),
+    inject,
   }, LiveGraphView))
 }

@@ -207,8 +207,487 @@
   stroke-dasharray: 4 3;
 }
 
-.edgeVerify :global(.react-flow__edge-path) {
+.edgeBranch :global(.react-flow__edge-path) {
   stroke: color-mix(in srgb, #d97706 70%, transparent);
-  stroke-width: 1.2;
-  stroke-dasharray: 2 3;
+  stroke-width: 1.4;
+  stroke-dasharray: 5 3;
+}
+
+/* The one edge that traces the currently-executing path: accent + flowing dash
+   (React Flow's own .animated draws the marching ants; we only recolor). */
+.edgeActive :global(.react-flow__edge-path) {
+  stroke: #2563eb;
+  stroke-width: 2.6;
+}
+
+:global(.react-flow__edge.animated) .edgeActive :global(.react-flow__edge-path),
+.edgeActive :global(.react-flow__edge-path) {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, #2563eb 60%, transparent));
+}
+
+.edgeBranch :global(.react-flow__edge-text) {
+  fill: color-mix(in srgb, #d97706 90%, currentColor);
+  font-size: 0.6rem;
+}
+
+/* React Flow needs a real handle to anchor an edge; hide the default black dot
+   (base css gives handles a #333 fill + min 5px) without removing the anchor. */
+.handle {
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+}
+
+/* --- current-step cursor + node meta --------------------------------------- */
+
+.cursorTag {
+  position: absolute;
+  top: -0.6rem;
+  left: 0.5rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.02rem 0.3rem;
+  border-radius: 0.5rem;
+  background: #2563eb;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+
+.plan {
+  position: relative;
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.28rem;
+  align-items: center;
+}
+
+.meta {
+  font-size: 0.64rem;
+  opacity: 0.72;
+}
+
+.metaFault {
+  color: #dc2626;
+  opacity: 0.95;
+  font-weight: 600;
+}
+
+.predChip {
+  font-size: 0.6rem;
+  padding: 0.02rem 0.3rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, #2563eb 16%, transparent);
+  border: 1px solid color-mix(in srgb, #2563eb 40%, transparent);
+}
+
+/* --- scrubber / timeline --------------------------------------------------- */
+
+.scrubBar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  font-size: 0.72rem;
+}
+
+.liveBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  font-weight: 700;
+  font-size: 0.68rem;
+  cursor: pointer;
+  color: inherit;
+}
+
+.liveOn {
+  background: color-mix(in srgb, #16a34a 20%, transparent);
+  border-color: color-mix(in srgb, #16a34a 55%, transparent);
+}
+
+.liveOff {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  border-color: color-mix(in srgb, currentColor 22%, transparent);
+  opacity: 0.85;
+}
+
+.liveDot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.liveOn .liveDot {
+  background: #16a34a;
+  box-shadow: 0 0 5px color-mix(in srgb, #16a34a 70%, transparent);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.runPick,
+.playBtn {
+  font-size: 0.68rem;
+  padding: 0.12rem 0.35rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+
+.playBtn {
+  min-width: 1.7rem;
+}
+
+.playBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.track {
+  position: relative;
+  flex: 1;
+  height: 0.85rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.trackFill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, #2563eb 30%, transparent);
+}
+
+.tick {
+  position: absolute;
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: color-mix(in srgb, currentColor 55%, transparent);
+}
+
+.tickOk { background: #16a34a; }
+.tickFail { background: #dc2626; }
+.tickReplan { background: #d97706; }
+
+.playhead {
+  position: absolute;
+  top: 50%;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: #2563eb;
+  border: 2px solid var(--ph-bg, #fff);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #2563eb 60%, transparent);
+}
+
+.seqCount {
+  font-family: ui-monospace, monospace;
+  font-size: 0.66rem;
+  opacity: 0.75;
+  min-width: 2.6rem;
+  text-align: right;
+}
+
+.routeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.66rem;
+  opacity: 0.85;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* --- evidence card --------------------------------------------------------- */
+
+.canvas {
+  position: relative;
+}
+
+.evidence {
+  position: absolute;
+  left: 0.6rem;
+  bottom: 0.6rem;
+  width: min(17rem, 62%);
+  max-height: 60%;
+  overflow: auto;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  background: color-mix(in srgb, var(--ph-bg, Canvas) 92%, currentColor);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 16px color-mix(in srgb, currentColor 18%, transparent);
+  font-size: 0.72rem;
+}
+
+.evidenceHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.evidenceKind {
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.4rem;
+  border: 1.5px solid color-mix(in srgb, currentColor 25%, transparent);
+}
+
+.evClose {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.dl {
+  margin: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.dlRow {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: 0.4rem;
+}
+
+.dt {
+  opacity: 0.6;
+}
+
+.dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+/* --- empty state ----------------------------------------------------------- */
+
+.emptyCard {
+  margin: auto;
+  max-width: 26rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.emptyTitle {
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.emptyBody {
+  opacity: 0.7;
+  line-height: 1.5;
+}
+
+/* --- 实验台 lab + split pane ------------------------------------------------ */
+
+.lab {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  font-size: 0.85rem;
+}
+
+.split {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.splitPane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Fill the cell absolutely so the pane's content (the ticker's long event list)
+   contributes zero intrinsic height — otherwise the conversation view area
+   (flex: 1 0 auto, cannot shrink) grows to that content and stretches the whole
+   split, panning the graph off-view. Absolute inset:0 breaks that feedback. */
+.paneFill {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Bound the axis the inline template does NOT set, else the single implicit
+   track sizes to content (the ticker's tall list) and both panes overflow the
+   container — which stretched the graph canvas and broke its fitView. */
+.splitH {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.splitV {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* The right pane (ticker) gets a seam so the two panes read as distinct. */
+.splitH .splitPane:last-child {
+  border-left: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.splitV .splitPane:last-child {
+  border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.gutter {
+  position: relative;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  transition: background 0.12s ease;
+  touch-action: none;
+}
+
+.gutter:hover,
+.gutter:active {
+  background: color-mix(in srgb, #2563eb 45%, transparent);
+}
+
+.gutterH {
+  cursor: col-resize;
+}
+
+.gutterV {
+  cursor: row-resize;
+}
+
+/* A centered grip line so the thin gutter is discoverable. */
+.gutter::after {
+  content: '';
+  position: absolute;
+  inset: 50% 50%;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 45%, transparent);
+}
+
+.gutterH::after {
+  width: 2px;
+  height: 1.6rem;
+  transform: translate(-50%, -50%);
+}
+
+.gutterV::after {
+  width: 1.6rem;
+  height: 2px;
+  transform: translate(-50%, -50%);
+}
+
+/* --- 过程流 ticker --------------------------------------------------------- */
+
+.ticker {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.tickerList {
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem 0.4rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.tkRow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding: 0.22rem 0.45rem;
+  border-radius: 0.4rem;
+  border-left: 2px solid transparent;
+  line-height: 1.35;
+}
+
+.tkRow:hover {
+  background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
+.tkIcon {
+  flex: none;
+  width: 1rem;
+  text-align: center;
+  font-size: 0.72rem;
+  opacity: 0.8;
+}
+
+.tkText {
+  flex: 1;
+  min-width: 0;
+}
+
+.tkSub {
+  font-family: ui-monospace, monospace;
+  font-size: 0.72rem;
+  opacity: 0.6;
+}
+
+.tkCurrent {
+  flex: none;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.02rem 0.32rem;
+  border-radius: 0.5rem;
+  background: #2563eb;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+
+/* Tone accents (left bar + icon color), matching the graph's status vocabulary. */
+.tkOk .tkIcon { color: #16a34a; opacity: 1; }
+.tkFail .tkIcon { color: #dc2626; opacity: 1; }
+.tkWarn .tkIcon { color: #d97706; opacity: 1; }
+.tkRun .tkIcon { color: #2563eb; opacity: 1; }
+
+.tkActive {
+  background: color-mix(in srgb, #2563eb 12%, transparent);
+  border-left-color: #2563eb;
+}
+
+.tkActive .tkText {
+  font-weight: 600;
+}
+
+.tickerEmpty {
+  margin: auto;
+  max-width: 20rem;
+  padding: 1.5rem;
+  text-align: center;
+  opacity: 0.7;
+  line-height: 1.5;
 }

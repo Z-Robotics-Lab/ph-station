@@ -12,6 +12,7 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { SidebarSectionProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { agoSeconds, finite, pct } from './format.ts'
+import { Term } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
 import type {
   BootRow, PlanComplete, RuntimeStatus, SessionDetail, SessionProgress, SessionSummary,
@@ -148,12 +149,12 @@ function ProgressCard({ progress, t }: { progress: SessionProgress | null } & { 
         <span className={css.progBig}>{done}<span className={css.statSlash}>/{total}</span></span>
         <span className={css.progUnit}>{t('tasks')}</span>
       </div>
-      <div className={css.meterLabel}>{t('stagePass')} <b>{pct(progress?.stage_pass_rate)}</b></div>
+      <div className={css.meterLabel}><Term label={t('stagePass')} tip={t('stagePass.tip')} /> <b>{pct(progress?.stage_pass_rate)}</b></div>
       <div className={css.meterTrack}>
         <span className={css.meterFill} style={{ width: `${(rate ?? 0) * 100}%` }} />
       </div>
       <div className={css.tallies}>
-        <span>{t('replans')} <b>{progress?.replans ?? 0}</b></span>
+        <span><Term label={t('replans')} tip={t('replan.tip')} /> <b>{progress?.replans ?? 0}</b></span>
         <span>{t('faults')} <b>{progress?.faults ?? 0}</b></span>
         {(progress?.task_errors ?? 0) > 0
           ? <span className={css.statAlert}>{t('taskErrors')} <b>{progress?.task_errors}</b></span>
@@ -187,12 +188,12 @@ function VitalsCard({
       </div>
       {sha ? (
         <div className={css.vitalRow}>
-          <span className={css.vitalLabel}>{t('mountPlan')}</span>
+          <span className={css.vitalLabel}><Term label={t('mountPlan')} tip={t('mountPlan.tip')} /></span>
           <span className={css.mono}>{sha.slice(0, 8)}</span>
         </div>
       ) : null}
       <div className={css.vitalRow}>
-        <span className={css.vitalLabel}>{t('viewfinder')}</span>
+        <span className={css.vitalLabel}><Term label={t('viewfinder')} tip={t('viewfinder.tip')} /></span>
         {rtStatus === null
           ? <span className={css.dim}>{online === false ? t('off') : '—'}</span>
           : (
@@ -219,7 +220,7 @@ function EvolutionCard({ stores, rounds, t }: { stores: StoreSummary[]; rounds: 
       </div>
       <div className={css.evoRow}>
         <span className={css.vitalLabel}>{store?.name ?? t('noCampaign')}</span>
-        {store ? <span>{store.promoted ?? 0}/{store.generations ?? 0} {t('promoted')}</span> : null}
+        {store ? <span>{store.promoted ?? 0}/{store.generations ?? 0} <Term label={t('promoted')} tip={t('promoted.tip')} /></span> : null}
       </div>
     </section>
   )
