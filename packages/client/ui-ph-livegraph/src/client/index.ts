@@ -46,12 +46,14 @@ export function apply(ctx: Context): void {
     fetchRuntimeEvents: (name: string, afterSeq: number) => board.runtimeEvents({ name, afterSeq }),
   })
 
-  // 实验台: the same-screen cockpit and, at order 18 (leftmost), the session's
-  // default view. 执行图谱 stays a standalone tab for the graph alone.
+  // 实验台: the same-screen cockpit and the session's default view. Registered
+  // before Chat (order 0) and Trajectory (order 10) so it is the leftmost tab
+  // and thus `resolveActiveView`'s no-selection default. 执行图谱 stays a
+  // standalone tab (order 19) for the graph alone.
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
     id: 'lab',
-    order: 18,
+    order: -10,
     locale: NS,
     label: () => t('view.lab'),
     inject,
