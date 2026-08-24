@@ -52,7 +52,7 @@ export function SplitPane({ left, right, vertical, storageKey }: {
     : { gridTemplateColumns: `${pct} 8px minmax(0, 1fr)` }
   return (
     <div ref={wrapRef} className={`${css.split} ${vertical ? css.splitV : css.splitH}`} style={style}>
-      <div className={css.splitPane}>{left}</div>
+      <div className={css.splitPane}><div className={css.paneFill}>{left}</div></div>
       <div
         className={`${css.gutter} ${vertical ? css.gutterV : css.gutterH}`}
         onPointerDown={onDown}
@@ -61,7 +61,7 @@ export function SplitPane({ left, right, vertical, storageKey }: {
         role="separator"
         aria-orientation={vertical ? 'horizontal' : 'vertical'}
       />
-      <div className={css.splitPane}>{right}</div>
+      <div className={css.splitPane}><div className={css.paneFill}>{right}</div></div>
     </div>
   )
 }
