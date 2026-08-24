@@ -49,13 +49,16 @@ function buildWelcome(
 }
 
 describe('WelcomeNoticeStore', () => {
-  it('acknowledges in memory without calling loopback-only settings APIs', async () => {
+  it('auto-acknowledges in memory so an origin that cannot persist never nags', async () => {
     const describeCall = vi.fn()
     const mutate = vi.fn()
     const { controller } = buildWelcome({ describe: describeCall, mutate }, 'memory')
 
+    // A memory-mode (remote/insecure) scope cannot reach the loopback-only
+    // settings API, so a dismissal could never persist; the notice reads as
+    // already-acknowledged instead of reappearing on every load.
     await controller.load()
-    expect(controller.store.getSnapshot()).toEqual({ status: 'ready', acknowledged: false, error: null })
+    expect(controller.store.getSnapshot()).toEqual({ status: 'ready', acknowledged: true, error: null })
     await expect(controller.acknowledge()).resolves.toBe(true)
     expect(controller.store.getSnapshot()).toEqual({ status: 'ready', acknowledged: true, error: null })
     await controller.load()

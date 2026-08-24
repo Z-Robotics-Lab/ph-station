@@ -1,10 +1,12 @@
-// Trusted non-loopback Web access cannot call the loopback-only settings API;
-// the notice therefore advances for this browser process and returns on reload.
+// A non-loopback Web origin cannot reach the loopback-only settings API, so the
+// notice could never persist its acknowledgement there and used to reappear on
+// every load. The fork gates it off on a memory-mode scope: no welcome dialog
+// ever blocks a remote origin.
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
-  acknowledgeReloadConnectionLoss, launchWebScaffold, watchConsole, webSnapshotMode,
+  launchWebScaffold, watchConsole, webSnapshotMode,
   WELCOME_NOTICE_COPY,
   type WebScaffold,
 } from './scaffold.ts'
@@ -38,23 +40,19 @@ describe.skipIf(MODE === 'record')('web e2e: remote welcome notice', () => {
     await scaffold?.close()
   })
 
-  it('advances process-locally and presents the notice again after reload', async () => {
-    const welcome = page.getByRole('dialog', { name: WELCOME_NOTICE_COPY.zh.title })
-    await welcome.waitFor({ timeout: 15_000 })
-    expect(await page.locator('#root').evaluate(root => (root as HTMLElement).inert)).toBe(true)
-
-    await welcome.getByRole('button', { name: WELCOME_NOTICE_COPY.zh.continueLabel }).click()
-    await welcome.waitFor({ state: 'detached', timeout: 15_000 })
+  it('never blocks a remote origin behind a notice it could not remember', async () => {
+    // The onboarding step decides synchronously from the memory-mode scope; give
+    // it a poll's grace, then assert the notice is absent and the app is usable.
     await expect.poll(
-      () => page.locator('#root').evaluate(root => (root as HTMLElement).inert),
-      { timeout: 15_000 },
-    ).toBe(false)
+      () => page.getByRole('dialog', { name: WELCOME_NOTICE_COPY.zh.title }).count(),
+      { timeout: 5_000 },
+    ).toBe(0)
+    expect(await page.locator('#root').evaluate(root => (root as HTMLElement).inert)).toBe(false)
 
-    const reloadWarnings = tripwire.warnings.length
+    // The notice must stay gone across a reload, not merely be dismissed once.
     await page.reload({ waitUntil: 'load' })
-    acknowledgeReloadConnectionLoss(tripwire, reloadWarnings)
-    await welcome.waitFor({ timeout: 15_000 })
-    expect(tripwire.warnings).toEqual([])
+    await page.waitForSelector('#root', { timeout: 30_000 })
+    expect(await page.getByRole('dialog', { name: WELCOME_NOTICE_COPY.zh.title }).count()).toBe(0)
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
 })
