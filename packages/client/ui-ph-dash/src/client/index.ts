@@ -63,7 +63,6 @@ export function apply(ctx: Context): void {
     order: -20,
     locale: NS,
     label: () => t('view.dash'),
-    children: { 'conversation.view': { kind: 'list', scope: 'session' } },
     inject: (_sessionId: SessionId): DashInjected => ({ views }),
   }, DashView))
 }

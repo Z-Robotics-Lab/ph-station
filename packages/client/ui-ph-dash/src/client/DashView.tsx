@@ -22,7 +22,7 @@ import { DockviewReact, themeDark, themeLight } from 'dockview-react'
 import type { DockviewApi, DockviewReadyEvent, IDockviewPanelProps } from 'dockview-react'
 import { IconLayoutDashboard, IconLayoutOff } from '@deepseek-ai/dsh-client-ui-ph-icons'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { InjectFace, PropsLocale, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './DashView.module.css'
 
 /** One view tab projected from the conversation.view ledger. */
@@ -40,11 +40,10 @@ export interface DashInjected {
   views: DashViewLedger
 }
 
-/** Full dashboard props: base view kit, the conversation.view render share
- * (authorized by the entry's children declaration), the injected ledger, copy. */
+/** Full dashboard props: base view kit (the owner share carries `renderView`,
+ * the skeleton's delegated conversation.view render), the injected ledger, copy. */
 export type DashViewProps =
   ConvViewProps
-  & PropsRenderSlots<'conversation.view'>
   & InjectFace<DashInjected>
   & PropsLocale<'phdash'>
 
@@ -121,18 +120,14 @@ function reconcile(api: DockviewApi, tabs: DashViewTab[]): void {
 }
 
 export function DashView(props: DashViewProps) {
-  const { views, renderSlot, inspect, onInspectDone, t } = props
+  const { views, renderView, t } = props
   const apiRef = useRef<DockviewApi | null>(null)
   const [dark, setDark] = useState(isDark)
 
   // The panel body renderer, held in a ref so the context value is stable while
-  // always calling the latest renderSlot/inspect.
+  // always calling the latest delegated renderView from the skeleton.
   const renderRef = useRef<(id: string) => ReactNode>(() => null)
-  renderRef.current = (id: string) => {
-    if (id === SELF) return null
-    const owner = { inspect: inspect ?? null, onInspectDone: onInspectDone ?? (() => {}) }
-    return renderSlot('conversation.view', owner, { only: id })
-  }
+  renderRef.current = (id: string) => (id === SELF || !renderView ? null : renderView(id))
   const renderById = useRef((id: string) => renderRef.current(id)).current
 
   // Follow the app's light/dark palette so the dockview chrome matches.
@@ -205,6 +200,10 @@ export function DashView(props: DashViewProps) {
             onReady={onReady}
             components={COMPONENTS}
             theme={dark ? themeDark : themeLight}
+            // Mount only the visible panel of each group: a hidden view (its
+            // xyflow canvas + board poll) stays torn down until its tab is
+            // shown, so ~10 docked views never poll or render at once.
+            defaultRenderer="onlyWhenVisible"
           />
         </div>
       </div>
