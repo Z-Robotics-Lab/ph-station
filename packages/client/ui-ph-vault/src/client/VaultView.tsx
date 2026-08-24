@@ -353,8 +353,18 @@ export function VaultView({
       if (!live) return
       timer = setTimeout(tick, REFRESH_MS)
     }
-    void tick()
-    return () => { live = false; if (timer !== undefined) clearTimeout(timer) }
+    // First load runs regardless of visibility — the vault is static data that
+    // must appear the moment its tab opens, even if the OS window is not
+    // frontmost. Only the recurring refresh is visibility-gated, and a
+    // background→foreground transition triggers an immediate refetch.
+    void (async () => { await load(); if (live) timer = setTimeout(tick, REFRESH_MS) })()
+    const onVisible = () => { if (!document.hidden) void load() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      live = false
+      if (timer !== undefined) clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [load])
 
   const filters: VaultFilters = useMemo(() => ({ kinds, statuses, rels, search }), [kinds, statuses, rels, search])
