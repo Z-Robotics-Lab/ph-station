@@ -9,10 +9,14 @@ Each `@Remote` method `execFile`s `<pythonPath> -m board.storecli <fn> [name]`
 with `cwd=<repoRoot>` and returns `JSON.parse(stdout)` verbatim — zero
 statistics, zero interpretation. The gateway auto-serves them at
 `POST /api/board/<name>` (`stores`, `store`, `heldout`, `cards`, `rounds`,
-`ledger`, `sessions`, `session`). `cards` reads the 机箱 (`board/cards.py`:
-`plugins/*/manifest.toml` as data); `rounds`/`ledger` fold the progress.md /
-STATUS.md feeds; `sessions`/`session` read the runtime session-log chain (the
-演进 / 机箱 / 账本 panels and the status bar).
+`ledger`, `sessions`, `session`, `runtimeStatus`, `runtimeEvents`). `cards`
+reads the 机箱 (`board/cards.py`: `plugins/*/manifest.toml` as data);
+`rounds`/`ledger` fold the progress.md / STATUS.md feeds; `sessions`/`session`
+read the runtime session-log chain (the 演进 / 机箱 / 账本 panels and the
+status bar). `runtimeEvents` reads the operational live-progress feed
+(`runs/<session>/runtime_events.jsonl`) with an incremental `afterSeq` cursor
+(forwarded as `--after`); `last_seq` below the caller's cursor means the
+runtime re-booted and the poller re-reads from 0 (the 执行图 live graph).
 
 ## Model Experience
 

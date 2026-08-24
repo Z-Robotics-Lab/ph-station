@@ -88,6 +88,7 @@
     { "path": "./packages/client/ui-user-questions" },
     { "path": "./packages/client/ui-trajectory" },
     { "path": "./packages/client/ui-ph-battle" },
+    { "path": "./packages/client/ui-ph-livegraph" },
     { "path": "./packages/client/ui-ph-panels" },
     { "path": "./packages/session-query/session-log-export" },
     { "path": "./packages/client/ui-theme" },
