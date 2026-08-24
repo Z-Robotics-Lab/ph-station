@@ -9,10 +9,13 @@ Each `@Remote` method `execFile`s `<pythonPath> -m board.storecli <fn> [name]`
 with `cwd=<repoRoot>` and returns `JSON.parse(stdout)` verbatim — zero
 statistics, zero interpretation. The gateway auto-serves them at
 `POST /api/board/<name>` (`stores`, `store`, `heldout`, `cards`, `rounds`,
-`ledger`, `sessions`, `session`). `cards` reads the 机箱 (`board/cards.py`:
-`plugins/*/manifest.toml` as data); `rounds`/`ledger` fold the progress.md /
-STATUS.md feeds; `sessions`/`session` read the runtime session-log chain (the
-演进 / 机箱 / 账本 panels and the status bar).
+`ledger`, `sessions`, `session`, `sessionProgress`, `runtimeStatus`). `cards`
+reads the 机箱 (`board/cards.py`: `plugins/*/manifest.toml` as data);
+`rounds`/`ledger` fold the progress.md / STATUS.md feeds; `sessions`/`session`
+read the runtime session-log chain (the 演进 / 机箱 / 账本 panels and the status
+bar); `sessionProgress` folds one session's `task.plan_complete` rows into the
+mission-progress counts the operator rail and mission cockpit render;
+`runtimeStatus` reads the live `runtime_status.json` (the 取景窗 chip / vitals).
 
 ## Model Experience
 

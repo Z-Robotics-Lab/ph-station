@@ -319,6 +319,11 @@
     - id: ui-ph-panels
       name: '@deepseek-ai/dsh-client-ui-ph-panels'
 
+    # physical-harness operator rail + mission cockpit: a sidebar.section of
+    # at-a-glance panels + a graph-first mission cockpit over the board Remote.
+    - id: ui-ph-ops
+      name: '@deepseek-ai/dsh-client-ui-ph-ops'
+
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #
 # Every row below composes what ONE agent contributes to the host registries:

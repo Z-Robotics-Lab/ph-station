@@ -146,6 +146,18 @@ export class BoardBridge extends TypertRemoteService {
   }
 
   /**
+   * One session's mission-progress aggregate over its task.plan_complete rows
+   * (task tallies, total replans/faults, stage pass-rate, latest task tree).
+   * The fold lives in Python (charter: statistics in board/); this forwards it.
+   * @param request - the session name (guarded by storecli's safe_child).
+   * @returns board.store.session_progress(...) verbatim, or an {error} dict.
+   */
+  @Remote('sessionProgress')
+  sessionProgress(request: BoardSessionRequest): Promise<JsonValue> {
+    return this.run('session_progress', request.name)
+  }
+
+  /**
    * One runtime session's LIVE status (pid/render/mode/boot_ts/display),
    * overwritten each boot. Live operational state, not the sealed boot-row seal.
    * @param request - the session name (guarded by storecli's safe_child).

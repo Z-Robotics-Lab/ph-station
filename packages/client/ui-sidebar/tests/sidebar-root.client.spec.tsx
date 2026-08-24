@@ -51,6 +51,8 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
           footerActionOwner = owner
           return <div data-testid="footer-action-seat" data-wide={owner.wide} />
         }
+        // The operator-rail seat: renders its own marker, never the workspace region.
+        if (key === 'sidebar.section') return <div data-testid="ops-section" data-wide={owner.wide} />
         regionOwner = owner as SidebarSectionOwnerProps
         return <div data-testid="region" data-wide={owner.wide} />
       }) as SidebarRootComponentProps['renderSlot']}
