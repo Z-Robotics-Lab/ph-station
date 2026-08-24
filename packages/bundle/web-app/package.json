@@ -87,6 +87,7 @@
     "@deepseek-ai/dsh-client-ui-ph-battle": "workspace:^",
     "@deepseek-ai/dsh-client-ui-ph-livegraph": "workspace:^",
     "@deepseek-ai/dsh-client-ui-ph-panels": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-ph-vault": "workspace:^",
     "@deepseek-ai/dsh-client-ui-ph-ops": "workspace:^",
     "@deepseek-ai/dsh-client-ui-workspace": "workspace:^",
     "@deepseek-ai/dsh-cmdline": "workspace:^",

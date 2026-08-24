@@ -329,6 +329,11 @@
     - id: ui-ph-livegraph
       name: '@deepseek-ai/dsh-client-ui-ph-livegraph'
 
+    # physical-harness 技能库 skill-vault wiki panel over the board Remote's
+    # vault fold (typed-relation graph + per-node wiki pages).
+    - id: ui-ph-vault
+      name: '@deepseek-ai/dsh-client-ui-ph-vault'
+
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #
 # Every row below composes what ONE agent contributes to the host registries:

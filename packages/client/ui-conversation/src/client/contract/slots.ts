@@ -508,6 +508,8 @@ export interface ConversationSessionHeaderInjected {
   }
   /** Select a real Session through the runtime navigation owner. */
   open: (sessionId: SessionId) => void
+  /** Open a new blank conversation in the current workspace (the header's + affordance). */
+  startSession: () => void
 }
 
 /**

@@ -1144,6 +1144,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-ph-panels EvolutionView id \'evolution\'',
       'client-ui-ph-panels CardsView id \'cards\'',
       'client-ui-ph-panels LedgerView id \'ledger\'',
+      'client-ui-ph-vault VaultView id \'vault\'',
       'client-ui-trajectory TrajectoryView id \'trajectory\'',
     ],
     replaceRisk: 'none',

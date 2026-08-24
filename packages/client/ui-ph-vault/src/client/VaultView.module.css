@@ -1,0 +1,407 @@
+/* 技能库 panel: neutral and theme-aware via currentColor mixes (no palette of
+   its own); skill status rides the shared PH colors (promoted=green,
+   candidate=amber, retired=grey), matching 战报/执行图. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-size: 0.85rem;
+}
+
+.empty {
+  padding: 2rem;
+  opacity: 0.6;
+}
+
+/* --- toolbar (search + filter chips) -------------------------------------- */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.7rem;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.search {
+  flex: 1 1 12rem;
+  min-width: 8rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  color: inherit;
+  font-size: 0.8rem;
+}
+
+.chipGroup {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.chipLabel {
+  font-size: 0.68rem;
+  opacity: 0.6;
+  margin-right: 0.1rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  font-size: 0.68rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.7rem;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.chipOn {
+  opacity: 1;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border-color: color-mix(in srgb, currentColor 45%, transparent);
+  font-weight: 600;
+}
+
+.chipDot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+}
+
+/* --- canvas --------------------------------------------------------------- */
+
+.canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.graphHint {
+  position: absolute;
+  right: 0.6rem;
+  bottom: 0.5rem;
+  font-size: 0.68rem;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* --- graph nodes ---------------------------------------------------------- */
+
+.gnode {
+  border: 1.5px solid color-mix(in srgb, currentColor 28%, transparent);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  min-width: 8rem;
+  max-width: 13rem;
+}
+
+.gpackage {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary, #2f6fed) 55%, transparent);
+}
+
+.gcapability {
+  border-style: dashed;
+}
+
+.gcapPriv {
+  border-color: #dc2626;
+}
+
+.gnodeTitle {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gnodeSub {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
+  font-size: 0.68rem;
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gbadge {
+  font-size: 0.62rem;
+  padding: 0.02rem 0.3rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.gbadgePriv {
+  background: color-mix(in srgb, #dc2626 24%, transparent);
+}
+
+.dim {
+  opacity: 0.28;
+}
+
+.mono {
+  font-family: ui-monospace, monospace;
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+
+/* --- skill status rings (graph nodes + page badges) ----------------------- */
+
+.st_promoted {
+  border-color: #16a34a;
+  border-style: solid;
+}
+
+.st_candidate {
+  border-color: #d97706;
+  border-style: solid;
+}
+
+.st_retired {
+  border-color: color-mix(in srgb, currentColor 30%, transparent);
+  border-style: dashed;
+  opacity: 0.75;
+}
+
+/* --- node wiki page ------------------------------------------------------- */
+
+.pageBar {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.backBtn {
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-state-business-primary, #2f6fed);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.pageScroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.8rem 1rem;
+}
+
+.page {
+  max-width: 52rem;
+}
+
+.pageHead {
+  margin-bottom: 0.8rem;
+}
+
+.pageTitle {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.pageBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.3rem;
+}
+
+.pageId {
+  word-break: break-all;
+  opacity: 0.6;
+  font-size: 0.68rem;
+}
+
+.badge {
+  font-size: 0.66rem;
+  padding: 0.08rem 0.4rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.badgePriv {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.badgeMuted {
+  opacity: 0.55;
+}
+
+.sect {
+  margin: 0.9rem 0;
+}
+
+.sect h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  opacity: 0.75;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pre {
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  font-family: ui-monospace, monospace;
+  font-size: 0.72rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* --- evidence ------------------------------------------------------------- */
+
+.evRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.8rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px dashed color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.evLabel {
+  min-width: 6rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.evNums {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.74rem;
+}
+
+.ablation {
+  margin-top: 0.5rem;
+}
+
+.ablationRungs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 0.3rem;
+}
+
+.rung {
+  font-family: ui-monospace, monospace;
+  font-size: 0.72rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
+/* --- requires / capability chips ------------------------------------------ */
+
+.reqRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.capChip {
+  border: 1px dashed color-mix(in srgb, currentColor 35%, transparent);
+  border-radius: 0.4rem;
+  padding: 0.15rem 0.45rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.capChipPriv {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.wontTransfer {
+  font-size: 0.72rem;
+  color: #dc2626;
+}
+
+/* --- typed-edge link rows ------------------------------------------------- */
+
+.linkRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.edgeLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.4rem;
+  padding: 0.12rem 0.4rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.edgeRel {
+  font-weight: 700;
+  font-size: 0.66rem;
+}
+
+.edgeDir {
+  opacity: 0.5;
+}
+
+.edgeOther {
+  opacity: 0.85;
+}
+
+/* --- tags / key-value ----------------------------------------------------- */
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.tag {
+  font-size: 0.72rem;
+  padding: 0.08rem 0.4rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.tagAlt {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #2f6fed) 16%, transparent);
+}
+
+.kv {
+  font-size: 0.76rem;
+  margin-bottom: 0.25rem;
+}
+
+.kvLabel {
+  opacity: 0.6;
+  margin-right: 0.3rem;
+}
+
+.doc {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}

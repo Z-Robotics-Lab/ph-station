@@ -2,6 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from 'react'
 import clsx from 'clsx'
+import { IconNewChatOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId, SessionListState, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
   ConversationSessionHeaderSlotProps, ConversationSessionSlotProps,
@@ -65,7 +66,7 @@ function equalBreadcrumbs(left: readonly Breadcrumb[], right: readonly Breadcrum
  */
 export function ConversationSessionHeader({
   sessionId, useSession, useSessions, useStore, actions,
-  renderSlot, views, open, t,
+  renderSlot, views, open, startSession, t,
 }: ConversationSessionHeaderProps) {
   useSyncExternalStore(views.subscribe, views.version)
   const tabs = views.list()
@@ -142,22 +143,37 @@ export function ConversationSessionHeader({
               {renderSlot('conversation.session.header.utilities', {})}
             </div>
           </div>
-          {tabs.length > 1 && (
-            <div className={css.tabs} role="tablist">
-              {tabs.map(viewTab => (
-                <button
-                  key={viewTab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={viewTab.id === active?.id}
-                  className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
-                  onClick={() => { actions.setView(viewTab.id) }}
-                >
-                  {viewTab.label}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* The view-tab strip always carries a persistent New Conversation
+              affordance (the operator's "+新会话" tab), even when a session has
+              a single view — so starting a fresh conversation never requires
+              finding the sidebar. The tablist itself only appears with >1 view. */}
+          <div className={css.tabsRow}>
+            {tabs.length > 1 ? (
+              <div className={css.tabs} role="tablist">
+                {tabs.map(viewTab => (
+                  <button
+                    key={viewTab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={viewTab.id === active?.id}
+                    className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
+                    onClick={() => { actions.setView(viewTab.id) }}
+                  >
+                    {viewTab.label}
+                  </button>
+                ))}
+              </div>
+            ) : <span />}
+            <button
+              type="button"
+              className={css.newConversation}
+              aria-label={t('session.new')}
+              onClick={() => { startSession() }}
+            >
+              <IconNewChatOutline16 size={14} />
+              <span>{t('session.new')}</span>
+            </button>
+          </div>
         </>
       )}
     </header>

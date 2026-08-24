@@ -21,7 +21,10 @@ import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 // The Typert-generated ./typert and ./remote artifacts import Zod at runtime.
 import type {} from 'zod'
-import type { BoardRuntimeEventsRequest, BoardSessionRequest, BoardStoreRequest } from './types.ts'
+import type {
+  BoardRuntimeEventsRequest, BoardSessionRequest, BoardStoreRequest,
+  BoardVaultNeighborsRequest, BoardVaultNodeRequest,
+} from './types.ts'
 
 export type * from './types.ts'
 
@@ -182,6 +185,37 @@ export class BoardBridge extends TypertRemoteService {
     const after = Math.trunc(request.afterSeq ?? 0)
     return this.run('runtime_events', request.name,
       ['--after', String(Number.isFinite(after) && after > 0 ? after : 0)])
+  }
+
+  /**
+   * The whole skill vault: the deterministic fold over sealed SkillRecords,
+   * manifest cards, and the capability catalog as a typed wiki graph.
+   * @returns board.vault.build_graph(...) verbatim ({schema_version, nodes, edges}).
+   */
+  @Remote('vault')
+  vault(): Promise<JsonValue> {
+    return this.run('vault')
+  }
+
+  /**
+   * One vault node as a wiki page: the node plus its `out` edges and `backlinks`.
+   * @param request - the node id (skill digest / package dir / capability seam).
+   * @returns board.vault.node(...) verbatim, or an {error: 'unknown node'} dict.
+   */
+  @Remote('vaultNode')
+  vaultNode(request: BoardVaultNodeRequest): Promise<JsonValue> {
+    return this.run('vault_node', request.id)
+  }
+
+  /**
+   * Adjacency (both directions) for one vault node, optionally one relation.
+   * @param request - the node id plus an optional `rel` restriction.
+   * @returns board.vault.neighbors(...) verbatim, or an {error: 'unknown node'} dict.
+   */
+  @Remote('vaultNeighbors')
+  vaultNeighbors(request: BoardVaultNeighborsRequest): Promise<JsonValue> {
+    const extra = request.relation === undefined ? [] : ['--relation', request.relation]
+    return this.run('vault_neighbors', request.id, extra)
   }
 
   /** Spawn the harness CLI face and forward its stdout JSON verbatim. */

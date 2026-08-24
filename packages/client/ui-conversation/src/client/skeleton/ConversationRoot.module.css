@@ -137,6 +137,15 @@
   display: none;
 }
 
+/* The tab strip row: tablist on the left, the persistent New Conversation
+   affordance pinned to the right end so it is always in reach. */
+.tabsRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 /* figma Tab_Group 34:11441: 35px strip, gap 36, pad-left 8, tabs bottom-aligned. */
 .tabs {
   position: relative;
@@ -145,6 +154,31 @@
   gap: 36px;
   margin-top: 4px;
   padding-left: 8px;
+}
+
+/* New Conversation "+": a quiet ghost button that brightens on hover, sized to
+   sit on the tab baseline without adding strip height. */
+.newConversation {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  margin-bottom: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--dsw-alias-line-border-standard, color-mix(in srgb, currentColor 20%, transparent));
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.newConversation:hover {
+  color: var(--dsw-alias-state-business-primary);
+  border-color: var(--dsw-alias-state-business-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 8%, transparent);
 }
 
 /* figma .Tab 34:11442: 13/16 text (figma wt510, rendered 500), gap 8 to the 2px bar. */
