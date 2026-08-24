@@ -184,6 +184,9 @@
 /* figma .Tab 34:11442: 13/16 text (figma wt510, rendered 500), gap 8 to the 2px bar. */
 .tab {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 0 0 11px;
   border: none;
   background: transparent;

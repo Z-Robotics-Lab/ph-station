@@ -90,6 +90,21 @@ const PYTHON_METADATA: Record<string, { license: string; repo: string; role: str
 
 type PythonMetadata = typeof PYTHON_METADATA
 
+/**
+ * Third-party source copied into a workspace package rather than resolved from
+ * npm, so it never appears in a manifest and this file must name it directly.
+ * Each entry records the vendoring package and the pinned upstream release.
+ */
+const VENDORED_ASSETS = [
+  {
+    name: '@tabler/icons',
+    license: 'MIT',
+    repo: 'https://github.com/tabler/tabler-icons',
+    version: '3.31.0',
+    usedBy: '`@deepseek-ai/dsh-client-ui-ph-icons` (outline glyph path data copied into React components)',
+  },
+] as const
+
 /** Tools fetched by scripts at build time, keyed by the pin the script owns. */
 const BUILD_TIME_TOOLS = [
   {
@@ -735,6 +750,14 @@ ${python.map(dep => `| [\`${dep.name}\`](${dep.repo}) | ${dep.license} | ${dep.r
 | Package | License | Role |
 | --- | --- | --- |
 ${BUILD_TIME_TOOLS.map(tool => `| [\`${tool.name}\`](${tool.repo}) | ${tool.license} | ${tool.role} |`).join('\n')}
+
+## Vendored icon assets
+
+Icon glyph path data copied into a workspace package's source rather than resolved from npm. The upstream release is pinned; the copied paths carry the upstream license.
+
+| Package | License | Pinned version | Used by |
+| --- | --- | --- | --- |
+${VENDORED_ASSETS.map(asset => `| [\`${asset.name}\`](${asset.repo}) | ${asset.license} | ${asset.version} | ${asset.usedBy} |`).join('\n')}
 
 ## First-party native packages
 

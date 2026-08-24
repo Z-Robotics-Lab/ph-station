@@ -24,6 +24,9 @@
       "path": "../ui-primitives"
     },
     {
+      "path": "../ui-ph-icons"
+    },
+    {
       "path": "../ui-renderer"
     },
     {

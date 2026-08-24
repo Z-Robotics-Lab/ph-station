@@ -190,6 +190,14 @@ Direct dependencies of the `pyproject.toml` manifests, plus `uv` as the developm
 | --- | --- | --- |
 | [`@yao-pkg/pkg`](https://github.com/yao-pkg/pkg) | MIT | invoked by `scripts/build-exe-for-python-sdk.ts` to assemble the single-file SDK runtime executable |
 
+## Vendored icon assets
+
+Icon glyph path data copied into a workspace package's source rather than resolved from npm. The upstream release is pinned; the copied paths carry the upstream license.
+
+| Package | License | Pinned version | Used by |
+| --- | --- | --- | --- |
+| [`@tabler/icons`](https://github.com/tabler/tabler-icons) | MIT | 3.31.0 | `@deepseek-ai/dsh-client-ui-ph-icons` (outline glyph path data copied into React components) |
+
 ## First-party native packages
 
 `@deepseek-ai/node-addon-landlock-run` (and its platform packages) is built and released from this repository under BSD 3-Clause. It is listed here for completeness; it is first-party, not third-party.

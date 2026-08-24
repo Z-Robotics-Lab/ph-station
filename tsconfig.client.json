@@ -87,6 +87,7 @@
     { "path": "./packages/client/ui-settings-plugins" },
     { "path": "./packages/client/ui-user-questions" },
     { "path": "./packages/client/ui-trajectory" },
+    { "path": "./packages/client/ui-ph-icons" },
     { "path": "./packages/client/ui-ph-battle" },
     { "path": "./packages/client/ui-ph-livegraph" },
     { "path": "./packages/client/ui-ph-vault" },

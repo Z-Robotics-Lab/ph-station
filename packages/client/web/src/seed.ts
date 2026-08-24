@@ -13,6 +13,7 @@ import * as ReactDomClient from 'react-dom/client'
 import * as Cordis from '@deepseek-ai/cordis'
 import * as UiSlots from '@deepseek-ai/dsh-client-ui-slots'
 import * as UiPrimitives from '@deepseek-ai/dsh-client-ui-primitives'
+import * as UiPhIcons from '@deepseek-ai/dsh-client-ui-ph-icons'
 import type { PlatformModule } from './platform.ts'
 
 /**
@@ -31,5 +32,6 @@ export function getStaticModules(): Record<string, unknown> {
     '@deepseek-ai/cordis': Cordis,
     '@deepseek-ai/dsh-client-ui-slots': UiSlots,
     '@deepseek-ai/dsh-client-ui-primitives': UiPrimitives,
+    '@deepseek-ai/dsh-client-ui-ph-icons': UiPhIcons,
   } satisfies Record<PlatformModule, unknown>
 }

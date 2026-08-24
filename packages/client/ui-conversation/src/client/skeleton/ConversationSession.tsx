@@ -3,6 +3,10 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import clsx from 'clsx'
 import { IconNewChatOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconBook, IconBooks, IconBox, IconLayoutDashboard, IconMessage,
+  IconReport, IconRoute, IconSitemap, IconTrendingUp, type IconComponent,
+} from '@deepseek-ai/dsh-client-ui-ph-icons'
 import type { SessionId, SessionListState, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
   ConversationSessionHeaderSlotProps, ConversationSessionSlotProps,
@@ -23,6 +27,23 @@ interface Breadcrumb {
 }
 
 const DEFAULT_VIEW_ID = 'chat'
+
+// A glyph per view-tab id, keyed to the conversation.view entries the cockpit
+// registers. An unmapped id renders label-only (the pre-icon behavior), so a
+// build contributing its own view is never forced to supply an icon.
+// ponytail: central id→icon map is the deliberate shortcut; the upgrade path,
+// if a build needs its own glyph, is an optional `icon` on the view registration.
+const VIEW_TAB_ICONS: Readonly<Record<string, IconComponent>> = {
+  lab: IconLayoutDashboard,
+  chat: IconMessage,
+  trajectory: IconRoute,
+  livegraph: IconSitemap,
+  battle: IconReport,
+  evolution: IconTrendingUp,
+  cards: IconBox,
+  ledger: IconBook,
+  vault: IconBooks,
+}
 
 /** Resolve by id; with no valid selection, default to the leftmost tab (tabs are
  * order-sorted) so a build can make its own view the first-screen default, and
@@ -154,18 +175,22 @@ export function ConversationSessionHeader({
           <div className={css.tabsRow}>
             {tabs.length > 1 ? (
               <div className={css.tabs} role="tablist">
-                {tabs.map(viewTab => (
-                  <button
-                    key={viewTab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={viewTab.id === active?.id}
-                    className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
-                    onClick={() => { actions.setView(viewTab.id) }}
-                  >
-                    {viewTab.label}
-                  </button>
-                ))}
+                {tabs.map((viewTab) => {
+                  const TabIcon = VIEW_TAB_ICONS[viewTab.id]
+                  return (
+                    <button
+                      key={viewTab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={viewTab.id === active?.id}
+                      className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
+                      onClick={() => { actions.setView(viewTab.id) }}
+                    >
+                      {TabIcon !== undefined && <TabIcon size={14} />}
+                      {viewTab.label}
+                    </button>
+                  )
+                })}
               </div>
             ) : <span />}
             <button
