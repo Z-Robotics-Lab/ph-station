@@ -196,6 +196,12 @@ export function SidebarRoot({
         })}
       </div>
 
+      {/* Persistent operator-information sections pinned below the browser and
+          above the foot; occupants render a compact rail form when !wide. */}
+      <div className={css.sectionArea}>
+        {renderSlot('sidebar.section', { wide })}
+      </div>
+
       {/* Footer actions stack above Settings in both sidebar widths. */}
       <div className={css.footArea}>
         <div className={css.footerActions}>

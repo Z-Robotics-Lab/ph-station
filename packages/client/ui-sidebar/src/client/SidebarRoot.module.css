@@ -296,6 +296,22 @@
   padding-left: 0;
 }
 
+/* Operator-information sections: natural height below the browser, above the
+   foot. Occupants own their card chrome; the shell only seats them and caps the
+   height so a tall section scrolls rather than crowding the browser out. */
+.sectionArea {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  max-height: 55%;
+  overflow-y: auto;
+}
+
+.collapsed .sectionArea {
+  align-items: center;
+  overflow: visible;
+}
+
 /* Footer seats: additive actions stack above Settings. Each occupant owns its
    button geometry and hover chrome. */
 .footArea {

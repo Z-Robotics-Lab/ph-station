@@ -44,6 +44,16 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * package's 'sidebar' entry; each action receives only the column state.
      */
     'sidebar.footer.action': { kind: 'list'; scope: 'root'; owner: SidebarFooterActionOwnerProps }
+    /**
+     * Persistent operator-information sections stacked below the workspace
+     * browser and above the foot — the "richer sidebar of panels" seat. Declared
+     * by this package's 'sidebar' entry; occupants (e.g. ui-ph-ops' operator
+     * rail) register at-a-glance cards that read their own data. A list so
+     * several packages can contribute, ordered by their register `order`. Each
+     * section receives only the column fold state so it can render a compact rail
+     * form when the column is an icon rail.
+     */
+    'sidebar.section': { kind: 'list'; scope: 'root'; owner: SidebarInfoSectionOwnerProps }
   }
 }
 
@@ -86,6 +96,16 @@ export interface SidebarFooterActionOwnerProps {
 }
 
 /**
+ * Owner share of a persistent operator-information section (`sidebar.section`):
+ * the column fold state the occupant renders against — wide cards vs a compact
+ * rail summary. Data and actions arrive through the section's own inject.
+ */
+export interface SidebarInfoSectionOwnerProps {
+  /** Whether the sidebar renders wide content (false = 56px rail). */
+  wide: boolean
+}
+
+/**
  * Registrant-private injected share (arrives via the register inject
  * factory). The shell keeps only its own controls: starting a Session from
  * the New Session button and toggling the column.
@@ -114,5 +134,13 @@ export type SidebarRootComponentProps =
     | 'sidebar.workspaces'
     | 'sidebar.settings'
     | 'sidebar.footer.action'
+    | 'sidebar.section'
   >
   & SidebarRootInjected & PropsLocale<'sidebar'>
+
+/**
+ * Runtime props an occupant of `sidebar.section` receives (owner fold state +
+ * the global seat). Mirrors ui-conversation's `ConvViewProps`; a registrant
+ * intersects it with its own `InjectFace<…>` and locale seat.
+ */
+export type SidebarSectionProps = PropsRuntime<'sidebar.section'>
