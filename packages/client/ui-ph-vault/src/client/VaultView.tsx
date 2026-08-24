@@ -18,7 +18,7 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  ALL_KINDS, ALL_RELS, ALL_STATUSES, backlinks, indexNodes, layout, outEdges,
+  ALL_KINDS, ALL_RELS, ALL_STATUSES, backlinks, indexNodes, layout, NODE_SIZE, outEdges,
 } from './graph.ts'
 import type {
   CapabilityNode, EvidenceBlock, PackageNode, SkillNode, SkillStatus,
@@ -441,6 +441,10 @@ export function VaultView({
         <ReactFlow
           nodes={flow.nodes.map(n => ({
             id: n.id, type: n.type, position: n.position, data: n.data,
+            // Fixed dimensions so React Flow routes edges without waiting on its
+            // ResizeObserver (which never fires in a backgrounded/headless tab,
+            // leaving nodes measurement-hidden and every edge unrendered).
+            width: NODE_SIZE[n.type].width, height: NODE_SIZE[n.type].height,
             draggable: false, connectable: false, selectable: true,
           }))}
           edges={flow.edges.map(e => ({
