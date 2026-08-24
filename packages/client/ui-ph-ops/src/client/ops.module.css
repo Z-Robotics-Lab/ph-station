@@ -284,6 +284,9 @@
 
 .vitalRow, .evoRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
 .vitalLabel { color: var(--ph-dim); font-size: 11px; white-space: nowrap; }
+/* Jargon term: a `?` badge revealing a plain-language tooltip on hover/focus. */
+.term { cursor: help; text-decoration: underline dotted; text-underline-offset: 2px; }
+.termMark { font-size: 0.7em; opacity: 0.6; margin-left: 1px; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
 .dim { color: var(--ph-dim); }
 .evoTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
