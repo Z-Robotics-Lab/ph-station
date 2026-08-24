@@ -94,61 +94,82 @@
   pointer-events: none;
 }
 
-/* --- graph nodes ---------------------------------------------------------- */
+/* --- graph nodes: per-kind SVG silhouettes -------------------------------- */
 
+/* Each node's footprint is the fixed NODE_SIZE React Flow was handed; the
+   silhouette SVG fills it and the content column sits on top. `color` is set
+   inline to the kind hue so currentColor (glyph, accents) follows the kind. */
 .gnode {
-  border: 1.5px solid color-mix(in srgb, currentColor 28%, transparent);
-  border-radius: 0.5rem;
-  padding: 0.4rem 0.55rem;
-  background: color-mix(in srgb, currentColor 6%, transparent);
-  min-width: 8rem;
-  max-width: 13rem;
+  position: relative;
+  width: 100%;
+  height: 100%;
 }
 
-.gpackage {
-  border-style: solid;
-  border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary, #2f6fed) 55%, transparent);
+.gsvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
-.gcapability {
-  border-style: dashed;
+.gbody {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.15rem;
+  /* Clear the left accent bar / folded corner so text never overlaps it. */
+  padding: 0.25rem 0.55rem 0.25rem 0.85rem;
+  color: var(--dsw-alias-label-primary, inherit);
 }
 
-.gcapPriv {
-  border-color: #dc2626;
+.k_package .gbody,
+.k_skill .gbody {
+  padding-left: 1rem;
 }
 
-.gnodeTitle {
+.gtitle {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
   font-weight: 600;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.gnodeSub {
-  display: flex;
-  gap: 0.3rem;
-  margin-top: 0.2rem;
-  font-size: 0.68rem;
-  opacity: 0.75;
+.gtitle span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.gbadge {
-  font-size: 0.62rem;
-  padding: 0.02rem 0.3rem;
-  border-radius: 0.5rem;
-  background: color-mix(in srgb, currentColor 12%, transparent);
+.gsub {
+  display: flex;
+  gap: 0.3rem;
+  font-size: 0.66rem;
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.gbadgePriv {
-  background: color-mix(in srgb, #dc2626 24%, transparent);
+/* Skill status rides a secondary channel: a small tinted chip, not the hue. */
+.gstatus {
+  font-size: 0.6rem;
+  padding: 0.02rem 0.32rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  color: var(--dsw-alias-label-secondary, inherit);
+}
+
+.gpriv {
+  color: #dc2626;
+  background: color-mix(in srgb, #dc2626 18%, transparent);
 }
 
 .dim {
-  opacity: 0.28;
+  opacity: 0.3;
 }
 
 /* Edge anchor handles: required for React Flow to route edges, but muted — the
@@ -166,22 +187,24 @@
   opacity: 0.85;
 }
 
-/* --- skill status rings (graph nodes + page badges) ----------------------- */
+/* --- skill status (secondary channel): node chip + page badge tint -------- */
 
 .st_promoted {
+  color: #16a34a;
   border-color: #16a34a;
-  border-style: solid;
+  background: color-mix(in srgb, #16a34a 16%, transparent);
 }
 
 .st_candidate {
+  color: #d97706;
   border-color: #d97706;
-  border-style: solid;
+  background: color-mix(in srgb, #d97706 16%, transparent);
 }
 
 .st_retired {
+  color: color-mix(in srgb, currentColor 55%, transparent);
   border-color: color-mix(in srgb, currentColor 30%, transparent);
   border-style: dashed;
-  opacity: 0.75;
 }
 
 /* --- node wiki page ------------------------------------------------------- */
@@ -413,4 +436,155 @@
   margin: 0.4rem 0 0;
   font-size: 0.8rem;
   opacity: 0.85;
+}
+
+/* --- cluster containers (kind regions + skill task families) -------------- */
+
+/* Background boxes behind the nodes. Translucent so cross-region edges show
+   through; pointer-events are disabled on the React Flow node so clicks reach
+   the leaf nodes above. Border/background hue is set inline per kind. */
+.cluster {
+  box-sizing: border-box;
+  border-radius: 0.6rem;
+  border: 1px solid;
+}
+
+.clusterBand {
+  border-style: solid;
+  border-radius: 0.75rem;
+}
+
+.clusterTask {
+  border-style: dashed;
+}
+
+.clusterTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.5rem 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.clusterTask .clusterTitle {
+  font-size: 0.64rem;
+  font-weight: 600;
+  opacity: 0.85;
+  text-transform: none;
+}
+
+/* --- always-visible legend ------------------------------------------------ */
+
+.legend {
+  position: absolute;
+  left: 0.6rem;
+  bottom: 0.6rem;
+  width: 12.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-1, #fff) 88%, transparent);
+  backdrop-filter: blur(3px);
+  font-size: 0.66rem;
+  z-index: 5;
+  overflow: hidden;
+}
+
+.legendHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  border: none;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  color: inherit;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+
+.legendToggle {
+  opacity: 0.6;
+  font-weight: 700;
+}
+
+.legendBody {
+  padding: 0.45rem 0.5rem 0.5rem;
+}
+
+.legendKinds {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+}
+
+.legendKind {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Miniature silhouettes echoing the node shapes: card, notched box, pill. */
+.legendShape {
+  width: 1.35rem;
+  height: 0.8rem;
+  flex: none;
+  border: 1.5px solid currentColor;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.ls_skill {
+  border-radius: 0.2rem;
+  border-left-width: 0.32rem;
+}
+
+.ls_package {
+  border-radius: 0.1rem;
+  clip-path: polygon(28% 0, 100% 0, 100% 100%, 0 100%, 0 30%);
+}
+
+.ls_capability {
+  border-radius: 0.4rem;
+}
+
+.legendName {
+  color: var(--dsw-alias-label-primary, inherit);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.legendSub {
+  margin: 0.15rem 0 0.25rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  opacity: 0.55;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.legendRelGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.15rem 0.5rem;
+}
+
+.legendRel {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.58rem;
+  color: var(--dsw-alias-label-secondary, inherit);
+}
+
+.legendLine {
+  width: 0.8rem;
+  height: 0.14rem;
+  flex: none;
+  border-radius: 1px;
 }

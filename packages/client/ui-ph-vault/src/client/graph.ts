@@ -7,8 +7,9 @@
  * The vault is a typed, backlinked graph over three node kinds (skill /
  * package / capability) and a fixed nine-relation edge vocabulary. This module
  * mirrors board/vault.py's output as TypeScript, filters it by the operator's
- * kind/status/relation chips, and lays the survivors out left-to-right through
- * dagre so lineage (DESCENDS_FROM) reads as a chain.
+ * kind/status/relation chips, and lays the survivors out grouped by kind into
+ * titled regions (skills sub-clustered by task family), each region running its
+ * own dagre left-to-right pass so lineage (DESCENDS_FROM) reads as a chain.
  */
 
 import dagre from '@dagrejs/dagre'
@@ -138,6 +139,30 @@ export const ALL_KINDS: readonly VaultKind[] = ['skill', 'package', 'capability'
 /** The three derived skill statuses, in reading order. */
 export const ALL_STATUSES: readonly SkillStatus[] = ['promoted', 'candidate', 'retired']
 
+/** Edge stroke per relation; legible in both themes via the token sheet with a
+ * literal fallback. One source for the canvas edges, the legend, and the node
+ * pages' backlink rows. */
+export const REL_COLOR: Record<VaultRel, string> = {
+  DESCENDS_FROM: 'var(--dsw-alias-state-business-primary, #2f6fed)',
+  GOVERNS: 'var(--dsw-alias-state-success-primary, #2e9e5b)',
+  REQUIRES: 'var(--dsw-alias-state-error-primary, #d94040)',
+  PROVIDES: 'var(--dsw-alias-label-secondary, #6b7280)',
+  BINDS: 'var(--dsw-alias-label-tertiary, #9aa1ac)',
+  EVIDENCED_BY: 'var(--dsw-alias-label-tertiary, #9aa1ac)',
+  CLAIMS: 'var(--dsw-alias-state-business-primary, #2f6fed)',
+  SUPERSEDES: 'var(--dsw-alias-state-warning-primary, #d98a1f)',
+  MOUNTED_IN: 'var(--dsw-alias-label-tertiary, #9aa1ac)',
+}
+
+/** Primary hue per node kind, orthogonal to skill status: skill=blue,
+ * package=green, capability=violet. Drives the node silhouette stroke, the kind
+ * container tint, and the legend. Status rides a secondary channel (§5.4). */
+export const KIND_COLOR: Record<VaultKind, string> = {
+  skill: 'var(--dsw-alias-state-business-primary, #2f6fed)',
+  package: 'var(--dsw-alias-state-success-primary, #2e9e5b)',
+  capability: 'var(--dsw-alias-state-purple-primary, #8b5cf6)',
+}
+
 /** Whether a node passes the current kind/status/search filters. */
 export function nodeVisible(node: VaultNode, f: VaultFilters): boolean {
   if (f.kinds.size > 0 && !f.kinds.has(node.kind)) return false
@@ -168,6 +193,27 @@ export interface LaidOutEdge {
   label: string
 }
 
+/** A background cluster rectangle drawn behind the nodes: one `band` per kind
+ * region (技能/机箱卡/能力) plus one `task` sub-container per skill task family.
+ * Non-interactive; its title and hue come from `kind`. `title` carries the task
+ * name for `task` variants and is unused (derived from `kind`) for `band`. */
+export interface LaidOutContainer {
+  id: string
+  kind: VaultKind
+  variant: 'band' | 'task'
+  title: string
+  position: { x: number; y: number }
+  width: number
+  height: number
+}
+
+/** Everything the canvas draws: positioned nodes, labeled edges, cluster boxes. */
+export interface VaultLayout {
+  nodes: LaidOutNode[]
+  edges: LaidOutEdge[]
+  containers: LaidOutContainer[]
+}
+
 /** Fixed node footprints for the deterministic dagre pass (React Flow measures
  * after mount, but the layout wants stable inputs). */
 export const NODE_SIZE: Record<VaultKind, { width: number; height: number }> = {
@@ -176,17 +222,103 @@ export const NODE_SIZE: Record<VaultKind, { width: number; height: number }> = {
   capability: { width: 180, height: 52 },
 }
 
+/** Spacing for the grouped layout (px). Kind regions stack top-to-bottom; skill
+ * task families pack left-to-right inside the skill region. */
+const BAND_GAP = 44
+const BAND_TITLE_H = 30
+const BAND_PAD = 18
+const TASK_TITLE_H = 20
+const TASK_PAD = 12
+const TASK_GAP = 26
+
+/** One dagre LR pass over a sub-group, normalized to a (0,0) top-left origin.
+ * Only edges internal to the sub-group influence the pass — cross-group edges
+ * route freely afterward and must not distort a cluster's internal ranking.
+ * @param members - the nodes in this sub-group.
+ * @param edges - the full surviving edge set (filtered to internal here).
+ * @returns each member's top-left position plus the sub-group's extent.
+ */
+function dagreSub(
+  members: VaultNode[], edges: VaultEdge[],
+): { pos: Map<string, { x: number; y: number }>; width: number; height: number } {
+  if (members.length === 0) return { pos: new Map(), width: 0, height: 0 }
+  const ids = new Set(members.map(n => n.id))
+  const g = new dagre.graphlib.Graph()
+  g.setGraph({ rankdir: 'LR', nodesep: 20, ranksep: 80, marginx: 6, marginy: 6 })
+  g.setDefaultEdgeLabel(() => ({}))
+  for (const n of members) g.setNode(n.id, { ...NODE_SIZE[n.kind] })
+  for (const e of edges) if (ids.has(e.src) && ids.has(e.dst)) g.setEdge(e.src, e.dst)
+  dagre.layout(g)
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  const raw = new Map<string, { x: number; y: number }>()
+  for (const n of members) {
+    const p = g.node(n.id)
+    const x = p.x - p.width / 2, y = p.y - p.height / 2
+    raw.set(n.id, { x, y })
+    minX = Math.min(minX, x); minY = Math.min(minY, y)
+    maxX = Math.max(maxX, x + p.width); maxY = Math.max(maxY, y + p.height)
+  }
+  const pos = new Map<string, { x: number; y: number }>()
+  for (const [id, r] of raw) pos.set(id, { x: r.x - minX, y: r.y - minY })
+  return { pos, width: maxX - minX, height: maxY - minY }
+}
+
+/** Wrap an edgeless group into a compact row grid (dagre would stack same-rank
+ * nodes into one tall column, wasting vertical space and colliding with the
+ * legend). Rows of at most `PER_ROW`, normalized to a (0,0) origin.
+ * @param members - the nodes in this sub-group.
+ * @returns each member's top-left position plus the grid's extent.
+ */
+function rowLayout(
+  members: VaultNode[],
+): { pos: Map<string, { x: number; y: number }>; width: number; height: number } {
+  const GAP_X = 26, GAP_Y = 20, PER_ROW = 4
+  const pos = new Map<string, { x: number; y: number }>()
+  let x = 0, y = 0, rowH = 0, col = 0, right = 0, bottom = 0
+  for (const n of members) {
+    const size = NODE_SIZE[n.kind]
+    pos.set(n.id, { x, y })
+    right = Math.max(right, x + size.width)
+    bottom = Math.max(bottom, y + size.height)
+    x += size.width + GAP_X
+    rowH = Math.max(rowH, size.height)
+    if (++col === PER_ROW) { x = 0; y += rowH + GAP_Y; rowH = 0; col = 0 }
+  }
+  return { pos, width: right, height: bottom }
+}
+
+/** Position a sub-group: dagre LR when it has internal edges (lineage reads as a
+ * chain), else a compact row grid. Normalized to a (0,0) top-left origin.
+ * @param members - the nodes in this sub-group.
+ * @param edges - the full surviving edge set (filtered to internal here).
+ * @returns each member's top-left position plus the sub-group's extent.
+ */
+function packGroup(
+  members: VaultNode[], edges: VaultEdge[],
+): { pos: Map<string, { x: number; y: number }>; width: number; height: number } {
+  const ids = new Set(members.map(n => n.id))
+  const hasInternal = edges.some(e => ids.has(e.src) && ids.has(e.dst))
+  return hasInternal ? dagreSub(members, edges) : rowLayout(members)
+}
+
+/** Task family of a skill node; untasked skills share one bucket. */
+function taskOf(n: SkillNode): string {
+  return n.task && n.task.trim() !== '' ? n.task : '—'
+}
+
 /**
- * Fold the graph into a dagre left-to-right layout over the FILTERED subset.
- * An edge survives only when both endpoints do and its relation is selected;
- * a node dimmed by search still lays out (context) but renders muted.
+ * Fold the graph into a GROUPED layout over the FILTERED subset: each kind
+ * (skill / package / capability) lays out through its own pass (dagre LR when it
+ * has internal edges, else a packed row grid) and stacks as a titled region;
+ * skill nodes sub-cluster by task family. Cross-group
+ * edges route between regions unchanged, so all nine relations stay visible.
+ * An edge survives only when both endpoints do and its relation is selected; a
+ * node dimmed by search still lays out (context) but renders muted.
  * @param graph - the board vault payload.
  * @param f - the live filter selection.
- * @returns positioned nodes + labeled edges for React Flow.
+ * @returns positioned nodes, labeled edges, and the cluster background boxes.
  */
-export function layout(graph: VaultGraph, f: VaultFilters): { nodes: LaidOutNode[]; edges: LaidOutEdge[] } {
-  // Kind/status gate first (search only dims, so a searched node keeps its
-  // neighborhood on screen). Then keep edges whose both ends survive.
+export function layout(graph: VaultGraph, f: VaultFilters): VaultLayout {
   const kindPass = new Map(graph.nodes
     .filter(n => (f.kinds.size === 0 || f.kinds.has(n.kind))
       && !(n.kind === 'skill' && f.statuses.size > 0 && !f.statuses.has(n.status)))
@@ -194,29 +326,90 @@ export function layout(graph: VaultGraph, f: VaultFilters): { nodes: LaidOutNode
   const relOk = (rel: VaultRel): boolean => f.rels.size === 0 || f.rels.has(rel)
   const edges = graph.edges.filter(e => relOk(e.rel) && kindPass.has(e.src) && kindPass.has(e.dst))
 
-  const g = new dagre.graphlib.Graph()
-  g.setGraph({ rankdir: 'LR', nodesep: 22, ranksep: 90, marginx: 12, marginy: 12 })
-  g.setDefaultEdgeLabel(() => ({}))
-
-  for (const [id, node] of kindPass) g.setNode(id, { ...NODE_SIZE[node.kind] })
-  for (const e of edges) g.setEdge(e.src, e.dst)
-  dagre.layout(g)
-
+  const survivors = [...kindPass.values()]
   const q = f.search.trim().toLowerCase()
-  const nodes: LaidOutNode[] = [...kindPass.values()].map((node) => {
-    const pos = g.node(node.id)
-    return {
-      id: node.id,
-      type: node.kind,
-      position: { x: pos.x - pos.width / 2, y: pos.y - pos.height / 2 },
+  const nodes: LaidOutNode[] = []
+  const containers: LaidOutContainer[] = []
+  const emit = (node: VaultNode, x: number, y: number): void => {
+    nodes.push({
+      id: node.id, type: node.kind, position: { x, y },
       data: { node, dimmed: q !== '' && !nodeVisible(node, f) },
+    })
+  }
+
+  let bandY = 0
+  let widest = 0
+
+  // --- skill region: task-family sub-clusters packed left-to-right ----------
+  const skills = survivors.filter((n): n is SkillNode => n.kind === 'skill')
+  if (skills.length > 0) {
+    const families = new Map<string, SkillNode[]>()
+    for (const s of skills) {
+      const key = taskOf(s)
+      const bucket = families.get(key)
+      if (bucket) bucket.push(s)
+      else families.set(key, [s])
     }
-  })
+    let cursorX = BAND_PAD
+    let maxFamH = 0
+    for (const [task, members] of families) {
+      const sub = packGroup(members, edges)
+      const famX = cursorX
+      const famTop = bandY + BAND_TITLE_H + TASK_PAD
+      const nodeX = famX + TASK_PAD
+      const nodeY = famTop + TASK_TITLE_H + TASK_PAD
+      for (const m of members) {
+        const p = sub.pos.get(m.id) ?? { x: 0, y: 0 }
+        emit(m, nodeX + p.x, nodeY + p.y)
+      }
+      const famW = sub.width + TASK_PAD * 2
+      const famH = TASK_TITLE_H + TASK_PAD + sub.height + TASK_PAD
+      containers.push({
+        id: `task:${task}`, kind: 'skill', variant: 'task', title: task,
+        position: { x: famX, y: famTop }, width: famW, height: famH,
+      })
+      maxFamH = Math.max(maxFamH, famH)
+      cursorX = famX + famW + TASK_GAP
+    }
+    const bandW = cursorX - TASK_GAP + BAND_PAD
+    const bandH = BAND_TITLE_H + TASK_PAD + maxFamH + BAND_PAD
+    containers.push({
+      id: 'band:skill', kind: 'skill', variant: 'band', title: '',
+      position: { x: 0, y: bandY }, width: bandW, height: bandH,
+    })
+    widest = Math.max(widest, bandW)
+    bandY += bandH + BAND_GAP
+  }
+
+  // --- package + capability regions: one packed row grid each ---------------
+  for (const kind of ['package', 'capability'] as const) {
+    const members = survivors.filter(n => n.kind === kind)
+    if (members.length === 0) continue
+    const sub = packGroup(members, edges)
+    const nodeX = BAND_PAD
+    const nodeY = bandY + BAND_TITLE_H + BAND_PAD
+    for (const m of members) {
+      const p = sub.pos.get(m.id) ?? { x: 0, y: 0 }
+      emit(m, nodeX + p.x, nodeY + p.y)
+    }
+    const bandW = BAND_PAD * 2 + sub.width
+    const bandH = BAND_TITLE_H + BAND_PAD + sub.height + BAND_PAD
+    containers.push({
+      id: `band:${kind}`, kind, variant: 'band', title: '',
+      position: { x: 0, y: bandY }, width: bandW, height: bandH,
+    })
+    widest = Math.max(widest, bandW)
+    bandY += bandH + BAND_GAP
+  }
+
+  // Align every region to the widest so the three lanes read as full-width rows.
+  for (const c of containers) if (c.variant === 'band') c.width = widest
+
   const laidEdges: LaidOutEdge[] = edges.map(e => ({
     id: `${e.rel}:${e.src}->${e.dst}`,
     source: e.src, target: e.dst, rel: e.rel, label: e.rel,
   }))
-  return { nodes, edges: laidEdges }
+  return { nodes, edges: laidEdges, containers }
 }
 
 /** In-edges (backlinks) of one node. */

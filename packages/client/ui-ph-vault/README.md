@@ -5,12 +5,18 @@ sealed knowledge. One `conversation.view` tab rendering the deterministic,
 typed-relation graph the board vault fold emits (`board/vault.py`), plus a wiki
 page per node:
 
-- **relation graph** — a `@xyflow/react` canvas of every skill / package /
-  capability node, edges **labeled by relation type** (DESCENDS_FROM, GOVERNS,
-  REQUIRES, PROVIDES, BINDS, EVIDENCED_BY, CLAIMS, SUPERSEDES, MOUNTED_IN) and
-  colored per relation; skill nodes are colored by derived status
-  (promoted=green, candidate=amber, retired=grey). Filter chips per kind /
-  status / relation, plus a client-side substring search over id/task/label.
+- **relation graph** — a `@xyflow/react` canvas **grouped into one titled region
+  per kind** (技能 / 机箱卡 / 能力), with skill nodes sub-clustered by task
+  family. Each kind is a distinct SVG silhouette in its own hue so it reads apart
+  by shape and color, not just its label: skill = a blue rounded card with a left
+  accent bar, package = a green box with a folded (notched) corner, capability =
+  a violet stadium pill; each carries its kind glyph (bulb / box / plug), and
+  skill status (promoted / candidate / retired) rides a secondary chip. Edges are
+  **labeled by relation type** (DESCENDS_FROM, GOVERNS, REQUIRES, PROVIDES, BINDS,
+  EVIDENCED_BY, CLAIMS, SUPERSEDES, MOUNTED_IN) and colored per relation, routing
+  across region boundaries. An always-visible legend keys the three kind
+  shapes/hues and the nine relation colors; filter chips per kind / status /
+  relation and a client-side substring search over id/task/label sit alongside.
 - **node pages** — click a node for its wiki page: a skill page quotes the
   sealed evidence **verbatim** (held-out governed vs base rate, p-value, n, the
   ablation ladder, dev judgement), shows its lineage (DESCENDS_FROM), governed
@@ -20,8 +26,11 @@ page per node:
   capability pages render their contributions, claims, flags, and backlinks.
 
 Pure consumer: the graph, every status, and every number come verbatim from the
-board vault Remote; the fold (`src/client/graph.ts`) filters and lays out
-(dagre, left-to-right) and computes nothing (charter: TS renders only). The
+board vault Remote; the fold (`src/client/graph.ts`) filters and lays out (each
+kind through its own pass — dagre left-to-right where it has internal edges, else
+a packed row grid — then stacked into titled regions) and computes nothing
+(charter: TS renders only). The custom node silhouettes, the cluster containers,
+and the legend live in `src/client/VaultGraphCanvas.tsx`. The
 vault is small (single-digit stores, nine cards, nine capabilities), so it is
 fetched whole once with a slow background refresh and the node pages derive from
 that same payload client-side.
