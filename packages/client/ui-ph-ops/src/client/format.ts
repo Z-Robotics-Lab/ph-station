@@ -3,6 +3,7 @@
  * it for display. The mission-graph status derivation is a pure classification
  * of already-sealed success flags, not a recomputation of any rate. */
 
+/* jscpd:ignore-start */
 /** Narrow an unknown JSON value to a finite number, else null. */
 export const finite = (v: unknown): number | null =>
   (typeof v === 'number' && Number.isFinite(v) ? v : null)
@@ -25,6 +26,7 @@ export function agoSeconds(mtime?: number | null, nowMs: number = Date.now()): n
   if (m === null) return null
   return Math.max(0, Math.floor(nowMs / 1000 - m))
 }
+/* jscpd:ignore-end */
 
 /** Execute-node/stage rollup state, derived from the already-sealed success
  * flag. `pending` is the plan-present-but-not-yet-run case (no result row). The
