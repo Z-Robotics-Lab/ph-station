@@ -13,17 +13,17 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Background, Handle, Position, ReactFlow } from '@xyflow/react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  ALL_KINDS, ALL_RELS, ALL_STATUSES, backlinks, indexNodes, layout, NODE_SIZE, outEdges,
+  ALL_KINDS, ALL_RELS, ALL_STATUSES, backlinks, indexNodes, outEdges, REL_COLOR,
 } from './graph.ts'
 import type {
   CapabilityNode, EvidenceBlock, PackageNode, SkillNode, SkillStatus,
   VaultEdge, VaultFilters, VaultGraph, VaultKind, VaultNode, VaultRel,
 } from './graph.ts'
+import { VaultGraphCanvas } from './VaultGraphCanvas.tsx'
 import css from './VaultView.module.css'
 
 /** The single board read this view drives. */
@@ -34,72 +34,9 @@ export interface VaultInjected {
 /** Background refresh: the vault changes only when a campaign seals (rare). */
 const REFRESH_MS = 15000
 
-/** Edge stroke per relation (kept legible in both themes via the token sheet). */
-const REL_COLOR: Record<VaultRel, string> = {
-  DESCENDS_FROM: 'var(--dsw-alias-state-business-primary)',
-  GOVERNS: 'var(--dsw-alias-state-success-primary, #2e9e5b)',
-  REQUIRES: 'var(--dsw-alias-state-error-primary, #d94040)',
-  PROVIDES: 'var(--dsw-alias-label-secondary)',
-  BINDS: 'var(--dsw-alias-label-tertiary)',
-  EVIDENCED_BY: 'var(--dsw-alias-label-tertiary)',
-  CLAIMS: 'var(--dsw-alias-state-business-primary)',
-  SUPERSEDES: 'var(--dsw-alias-state-warning-primary, #d98a1f)',
-  MOUNTED_IN: 'var(--dsw-alias-label-tertiary)',
-}
-
 /** Show a board number exactly as it arrived (no rounding the fold did not do). */
 function fmt(v: number | undefined | null): string {
   return v === undefined || v === null ? '—' : String(v)
-}
-
-// --- custom graph nodes ------------------------------------------------------
-
-/** Left target + right source handles: React Flow v12 drops any edge whose
- * endpoints expose no handle, so every custom node must carry them (LR flow →
- * target on the left, source on the right). Non-interactive and visually muted. */
-function NodeHandles() {
-  return (
-    <>
-      <Handle type="target" position={Position.Left} isConnectable={false} className={css.handle} />
-      <Handle type="source" position={Position.Right} isConnectable={false} className={css.handle} />
-    </>
-  )
-}
-
-function SkillGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
-  const n = data.node as SkillNode
-  return (
-    <div className={`${css.gnode} ${css.gskill} ${css[`st_${n.status}`] ?? ''} ${data.dimmed ? css.dim : ''}`}>
-      <NodeHandles />
-      <div className={css.gnodeTitle}>{n.label ?? n.id.slice(0, 10)}</div>
-      <div className={css.gnodeSub}>
-        <span className={css.gbadge}>{n.status}</span>
-        {n.privilege ? <span className={`${css.gbadge} ${css.gbadgePriv}`}>priv {n.privilege}</span> : null}
-      </div>
-    </div>
-  )
-}
-
-function PackageGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
-  const n = data.node as PackageNode
-  return (
-    <div className={`${css.gnode} ${css.gpackage} ${data.dimmed ? css.dim : ''}`}>
-      <NodeHandles />
-      <div className={css.gnodeTitle}>{n.name ?? n.id}</div>
-      <div className={`${css.gnodeSub} ${css.mono}`}>{n.id}</div>
-    </div>
-  )
-}
-
-function CapabilityGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
-  const n = data.node as CapabilityNode
-  return (
-    <div className={`${css.gnode} ${css.gcapability} ${n.privileged ? css.gcapPriv : ''} ${data.dimmed ? css.dim : ''}`}>
-      <NodeHandles />
-      <div className={`${css.gnodeTitle} ${css.mono}`}>{n.id}</div>
-      {n.privileged ? <div className={css.gnodeSub}>privileged</div> : null}
-    </div>
-  )
 }
 
 // --- chip helpers ------------------------------------------------------------
@@ -387,14 +324,10 @@ export function VaultView({
   /* jscpd:ignore-end */
 
   const filters: VaultFilters = useMemo(() => ({ kinds, statuses, rels, search }), [kinds, statuses, rels, search])
-  const flow = useMemo(() => (graph === null ? null : layout(graph, filters)), [graph, filters])
   const byId = useMemo(() => (graph === null ? new Map<string, VaultNode>() : indexNodes(graph)), [graph])
-  const nodeTypes = useMemo(() => ({
-    skill: SkillGraphNode, package: PackageGraphNode, capability: CapabilityGraphNode,
-  }), [])
 
   if (online === false) return <div className={css.empty}>{t('unavailable')} — {errRef.current}</div>
-  if (graph === null || flow === null) return <div className={css.empty}>{t('loading')}</div>
+  if (graph === null) return <div className={css.empty}>{t('loading')}</div>
   if (graph.nodes.length === 0) return <div className={css.empty}>{t('empty')}</div>
 
   const current = selected === null ? undefined : byId.get(selected)
@@ -441,42 +374,7 @@ export function VaultView({
           ))}
         </div>
       </div>
-      <div className={css.canvas}>
-        <ReactFlow
-          nodes={flow.nodes.map(n => ({
-            id: n.id, type: n.type, position: n.position, data: n.data,
-            // Fixed dimensions so React Flow routes edges without waiting on its
-            // ResizeObserver (which never fires in a backgrounded/headless tab,
-            // leaving nodes measurement-hidden and every edge unrendered).
-            width: NODE_SIZE[n.type].width, height: NODE_SIZE[n.type].height,
-            draggable: false, connectable: false, selectable: true,
-          }))}
-          edges={flow.edges.map(e => ({
-            id: e.id, source: e.source, target: e.target,
-            type: 'default', label: e.label,
-            labelShowBg: true,
-            labelBgPadding: [4, 2] as [number, number],
-            labelBgStyle: { fill: 'var(--dsw-alias-bg-layer-1, #fff)', fillOpacity: 0.85 },
-            labelStyle: { fill: REL_COLOR[e.rel], fontSize: 9, fontWeight: 600 },
-            style: { stroke: REL_COLOR[e.rel], strokeWidth: 1.4 },
-            markerEnd: { type: 'arrowclosed', color: REL_COLOR[e.rel], width: 14, height: 14 } as unknown as string,
-            animated: e.rel === 'DESCENDS_FROM',
-          }))}
-          nodeTypes={nodeTypes}
-          onNodeClick={(_e, node) => { setSelected(node.id) }}
-          fitView
-          fitViewOptions={{ padding: 0.18, maxZoom: 1 }}
-          minZoom={0.15}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          zoomOnScroll={false}
-          panOnScroll
-          proOptions={{ hideAttribution: false }}
-        >
-          <Background gap={18} size={1} />
-        </ReactFlow>
-        <div className={css.graphHint}>{t('graph.hint')}</div>
-      </div>
+      <VaultGraphCanvas graph={graph} filters={filters} onSelect={setSelected} t={t} />
     </div>
   )
 }

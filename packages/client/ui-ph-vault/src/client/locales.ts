@@ -51,6 +51,8 @@ export type PhVaultKey =
   | 'ev.noise'
   | 'ev.none'
   | 'legend.node'
+  | 'legend.title'
+  | 'legend.relations'
   | 'graph.hint'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -108,6 +110,8 @@ export const zh: Record<PhVaultKey, string> = {
   'ev.noise': '噪声',
   'ev.none': '无',
   'legend.node': '节点',
+  'legend.title': '图例',
+  'legend.relations': '关系',
   'graph.hint': '点击节点查看词条页',
 }
 
@@ -159,5 +163,7 @@ export const en: Record<PhVaultKey, string> = {
   'ev.noise': 'noise',
   'ev.none': 'none',
   'legend.node': 'node',
+  'legend.title': 'Legend',
+  'legend.relations': 'Relations',
   'graph.hint': 'Click a node for its wiki page',
 }
