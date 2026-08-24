@@ -504,3 +504,167 @@
   opacity: 0.7;
   line-height: 1.5;
 }
+
+/* --- 实验台 lab + split pane ------------------------------------------------ */
+
+.lab {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  font-size: 0.85rem;
+}
+
+.split {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.splitPane {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The right pane (ticker) gets a seam so the two panes read as distinct. */
+.splitH .splitPane:last-child {
+  border-left: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.splitV .splitPane:last-child {
+  border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.gutter {
+  position: relative;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  transition: background 0.12s ease;
+  touch-action: none;
+}
+
+.gutter:hover,
+.gutter:active {
+  background: color-mix(in srgb, #2563eb 45%, transparent);
+}
+
+.gutterH {
+  cursor: col-resize;
+}
+
+.gutterV {
+  cursor: row-resize;
+}
+
+/* A centered grip line so the thin gutter is discoverable. */
+.gutter::after {
+  content: '';
+  position: absolute;
+  inset: 50% 50%;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 45%, transparent);
+}
+
+.gutterH::after {
+  width: 2px;
+  height: 1.6rem;
+  transform: translate(-50%, -50%);
+}
+
+.gutterV::after {
+  width: 1.6rem;
+  height: 2px;
+  transform: translate(-50%, -50%);
+}
+
+/* --- 过程流 ticker --------------------------------------------------------- */
+
+.ticker {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.tickerList {
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem 0.4rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.tkRow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding: 0.22rem 0.45rem;
+  border-radius: 0.4rem;
+  border-left: 2px solid transparent;
+  line-height: 1.35;
+}
+
+.tkRow:hover {
+  background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
+.tkIcon {
+  flex: none;
+  width: 1rem;
+  text-align: center;
+  font-size: 0.72rem;
+  opacity: 0.8;
+}
+
+.tkText {
+  flex: 1;
+  min-width: 0;
+}
+
+.tkSub {
+  font-family: ui-monospace, monospace;
+  font-size: 0.72rem;
+  opacity: 0.6;
+}
+
+.tkCurrent {
+  flex: none;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.02rem 0.32rem;
+  border-radius: 0.5rem;
+  background: #2563eb;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+
+/* Tone accents (left bar + icon color), matching the graph's status vocabulary. */
+.tkOk .tkIcon { color: #16a34a; opacity: 1; }
+.tkFail .tkIcon { color: #dc2626; opacity: 1; }
+.tkWarn .tkIcon { color: #d97706; opacity: 1; }
+.tkRun .tkIcon { color: #2563eb; opacity: 1; }
+
+.tkActive {
+  background: color-mix(in srgb, #2563eb 12%, transparent);
+  border-left-color: #2563eb;
+}
+
+.tkActive .tkText {
+  font-weight: 600;
+}
+
+.tickerEmpty {
+  margin: auto;
+  max-width: 20rem;
+  padding: 1.5rem;
+  text-align: center;
+  opacity: 0.7;
+  line-height: 1.5;
+}

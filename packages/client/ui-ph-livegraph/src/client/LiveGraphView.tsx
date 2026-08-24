@@ -14,28 +14,20 @@
  * Poll cadence: ~1.2s while a task is in flight, ~4s idle, paused while hidden.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Background, Handle, Position, ReactFlow } from '@xyflow/react'
-import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { foldEvents, foldRuns, isRunning, layout } from './graph.ts'
-import type { LiveGraphModel, NodeStatus, OpEvent, PlanNodeState, RoutingRow, RunInfo } from './graph.ts'
+import type { LiveGraphModel, NodeStatus, PlanNodeState, RoutingRow, RunInfo } from './graph.ts'
+import { useLiveFeed } from './useLiveFeed.ts'
+import type { FeedInjected } from './useLiveFeed.ts'
 import css from './LiveGraphView.module.css'
 
-/** The board reads the graph drives. */
-export interface LiveGraphInjected {
-  fetchSessions: () => Promise<RemoteResult<unknown>>
-  fetchSession: (name: string) => Promise<RemoteResult<unknown>>
-  fetchRuntimeEvents: (name: string, afterSeq: number) => Promise<RemoteResult<unknown>>
-}
+/** The board reads the graph drives (the shared feed face). */
+export type LiveGraphInjected = FeedInjected
 
-const FAST_MS = 1200
-const SLOW_MS = 4000
 const PLAY_MS = 300
-
-interface EventsPayload { events?: OpEvent[]; last_seq?: number; error?: string }
-interface SessionSummary { name?: string }
 
 const STATUS_CLASS: Record<NodeStatus, string> = {
   pending: css.stPending ?? '',
@@ -234,15 +226,9 @@ function Scrubber({
 export function LiveGraphView({
   fetchSessions, fetchSession, fetchRuntimeEvents, t,
 }: ConvViewProps & InjectFace<LiveGraphInjected> & PropsLocale<'phlivegraph'>) {
-  const [online, setOnline] = useState<boolean | null>(null)
-  const [sessionName, setSessionName] = useState<string | null>(null)
-  const [feedVersion, setFeedVersion] = useState(0)
-  // Cursor + accumulated feed live in refs: polling appends, the fold derives.
-  const cursor = useRef(0)
-  const feed = useRef<OpEvent[]>([])
-  const sessionRows = useRef<unknown>(null)
-  const knownSession = useRef<string | null>(null)
-  const tickNo = useRef(0)
+  const fastRef = useRef(false)
+  const { online, sessionName, feed, sessionRows, version } =
+    useLiveFeed({ fetchSessions, fetchSession, fetchRuntimeEvents }, fastRef)
 
   // Replay controls. playhead === null means "follow the live tail".
   const [playhead, setPlayhead] = useState<number | null>(null)
@@ -251,47 +237,7 @@ export function LiveGraphView({
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
 
-  const load = useCallback(async () => {
-    // One Python storecli spawn per tick on the fast lane (the events cursor);
-    // session discovery + routing rows refresh on a slower stride.
-    tickNo.current += 1
-    if (knownSession.current === null || tickNo.current % 4 === 1) {
-      const s = await fetchSessions()
-      if (!s.ok) { setOnline(false); return }
-      setOnline(true)
-      knownSession.current = ((s.value as SessionSummary[])[0])?.name ?? null
-      setSessionName(knownSession.current)
-    }
-    const name = knownSession.current
-    if (name === null) return
-
-    const ev = await fetchRuntimeEvents(name, cursor.current)
-    if (ev.ok) {
-      const payload = ev.value as EventsPayload
-      const lastSeq = payload.last_seq ?? 0
-      if (lastSeq < cursor.current) {
-        cursor.current = 0
-        feed.current = []
-        const again = await fetchRuntimeEvents(name, 0)
-        if (again.ok) {
-          const p2 = again.value as EventsPayload
-          feed.current = p2.events ?? []
-          cursor.current = p2.last_seq ?? 0
-        }
-        setFeedVersion(v => v + 1)
-      } else if (payload.events?.length) {
-        feed.current = [...feed.current, ...payload.events]
-        cursor.current = lastSeq
-        setFeedVersion(v => v + 1)
-      }
-    }
-    if (sessionRows.current === null || tickNo.current % 4 === 1) {
-      const d = await fetchSession(name)
-      if (d.ok) { sessionRows.current = d.value; setFeedVersion(v => v + 1) }
-    }
-  }, [fetchSessions, fetchSession, fetchRuntimeEvents])
-
-  const runs = useMemo(() => foldRuns(feed.current), [feedVersion])
+  const runs = useMemo(() => foldRuns(feed.current), [feed, version])
   const live = playhead === null && (runIndex === null || runIndex === runs.length - 1)
   const effIndex = runIndex ?? (runs.length > 0 ? runs.length - 1 : 0)
   const run: RunInfo | undefined = runs[effIndex]
@@ -300,28 +246,10 @@ export function LiveGraphView({
   const model = useMemo(() => {
     const slice = headSeq === Infinity ? feed.current : feed.current.filter(e => e.seq <= headSeq)
     return foldEvents(sessionRows.current, slice)
-  }, [feedVersion, headSeq])
+  }, [feed, sessionRows, version, headSeq])
 
   const running = live && isRunning(model)
-  // Adaptive cadence: reschedule after every tick; hidden documents skip fetch.
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined
-    let alive = true
-    const tick = async () => {
-      if (!alive) return
-      if (!document.hidden) await load()
-      if (!alive) return
-      timer = setTimeout(tick, running ? FAST_MS : SLOW_MS)
-    }
-    void tick()
-    const onVisible = () => { if (!document.hidden) void load() }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => {
-      alive = false
-      if (timer !== undefined) clearTimeout(timer)
-      document.removeEventListener('visibilitychange', onVisible)
-    }
-  }, [load, running])
+  fastRef.current = running
 
   // Playback: step the playhead forward through the run's events, ~PLAY_MS each.
   useEffect(() => {

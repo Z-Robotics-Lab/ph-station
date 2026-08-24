@@ -7,7 +7,25 @@ export const NS = 'phlivegraph'
 /** The phlivegraph dictionary key set (source of truth for both locales). */
 export type PhLiveGraphKey =
   | 'view.livegraph'
+  | 'view.lab'
   | 'sub'
+  | 'process'
+  | 'processSub'
+  | 'tickerEmpty'
+  | 'tk.claimed'
+  | 'tk.planned'
+  | 'tk.replan'
+  | 'tk.enter'
+  | 'tk.stage'
+  | 'tk.pass'
+  | 'tk.fail'
+  | 'tk.act'
+  | 'tk.stepsUnit'
+  | 'tk.verified'
+  | 'tk.failed'
+  | 'tk.done'
+  | 'tk.taskFailed'
+  | 'tk.current'
   | 'loading'
   | 'unavailable'
   | 'sealedFallback'
@@ -54,7 +72,25 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh: Record<PhLiveGraphKey, string> = {
   'view.livegraph': '执行图谱',
+  'view.lab': '实验台',
   'sub': '计划 · 执行路线 · 当前步 · 结果，一张图看全',
+  'process': '过程流',
+  'processSub': '本次任务的事件时间线：规划→节点→阶段→结果',
+  'tickerEmpty': '任务一开跑，这里就按时间列出：规划完成 → 进入节点 → 阶段通过/失败 → 结果。',
+  'tk.claimed': '领取任务',
+  'tk.planned': '规划完成',
+  'tk.replan': '重规划',
+  'tk.enter': '进入节点',
+  'tk.stage': '阶段',
+  'tk.pass': '通过',
+  'tk.fail': '失败',
+  'tk.act': '执行',
+  'tk.stepsUnit': '步',
+  'tk.verified': '节点通过',
+  'tk.failed': '节点失败',
+  'tk.done': '任务完成',
+  'tk.taskFailed': '任务失败',
+  'tk.current': '当前',
   'loading': '加载中…',
   'unavailable': '数据面不可用（board bridge 未挂载）',
   'sealedFallback': '实时流不可用（运行时早于 runtime_events）— 显示链上最后一次任务',
@@ -95,7 +131,25 @@ export const zh: Record<PhLiveGraphKey, string> = {
 /** English dictionary. */
 export const en: Record<PhLiveGraphKey, string> = {
   'view.livegraph': 'Execution Graph',
+  'view.lab': 'Lab',
   'sub': 'Plan · route · current step · result, one canvas',
+  'process': 'Process',
+  'processSub': 'This task’s event timeline: plan → node → stage → result',
+  'tickerEmpty': 'Once a task runs it lists here in order: plan built → node entered → stage passed/failed → result.',
+  'tk.claimed': 'claimed',
+  'tk.planned': 'plan built',
+  'tk.replan': 'replan',
+  'tk.enter': 'enter node',
+  'tk.stage': 'stage',
+  'tk.pass': 'passed',
+  'tk.fail': 'failed',
+  'tk.act': 'actuated',
+  'tk.stepsUnit': 'steps',
+  'tk.verified': 'node verified',
+  'tk.failed': 'node failed',
+  'tk.done': 'task done',
+  'tk.taskFailed': 'task failed',
+  'tk.current': 'current',
   'loading': 'Loading…',
   'unavailable': 'Data plane unavailable (board bridge not mounted)',
   'sealedFallback': 'Live feed unavailable (runtime pre-dates runtime_events) — showing the last sealed task',
