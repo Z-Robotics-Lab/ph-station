@@ -1,0 +1,42 @@
+# @deepseek-ai/dsh-client-ui-ph-livegraph
+
+执行图 — the live execution-graph panel for the physical-harness console. One
+`conversation.view` tab composing three layers over the newest runtime session:
+
+- **capability routing** — the session chain's `capability.resolve` rows
+  (consumer → capability → provider ref), deduped to the current mount;
+- **task plan** — `plan_built`'s full node graph from the operational feed, or
+  the newest sealed `task.plan_complete` when the feed is absent;
+- **live state** — node/stage lifecycle animated from the board Remote's
+  `runtimeEvents` incremental feed (`runs/<session>/runtime_events.jsonl`,
+  written by `harness.opstream`; truncated per boot, `last_seq < cursor` means
+  reboot → reset and re-read).
+
+Pure consumer: every status is copied verbatim from board payloads; the fold
+(`src/client/graph.ts`) assembles rendering state and computes nothing
+(charter: TS renders only). Poll cadence is ~1.5s while a task is in flight,
+~8s idle, paused while the document is hidden.
+
+Graph rendering is `@xyflow/react` (React Flow v12, MIT) with `@dagrejs/dagre`
+(MIT) layered layout — the component pair sanctioned by
+`physical-harness/docs/ph-ui-redesign.md` §5, shared with the mission-cockpit
+redesign so both surfaces speak one graph idiom. React Flow's structural
+stylesheet is vendored at `src/client/xyflow-base.css` (MIT, from
+`@xyflow/react/dist/style.css`) and injected through the `?inline` channel for
+the plugin lifetime, because the client bundler's CSS pipeline is package-local.
+
+## Model Experience
+
+None. Browser-only rendering plugin: contributes no tools, no prompt sections,
+and no session events; nothing it does is model-visible.
+
+## Known Limitations and Deferred Work
+
+- The vendored `xyflow-base.css` must be refreshed when `@xyflow/react` is
+  upgraded (the bundler's `?inline` channel does not resolve `node_modules`
+  specifiers).
+- The panel binds to the newest session only; a session picker arrives with the
+  ui-redesign operator rail, which owns session switching.
+- Stage events are attributed to the currently running node by feed order
+  (the resident runtime processes briefs serially); concurrent tasks would need
+  a node id on `stage_transition`.

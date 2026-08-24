@@ -555,10 +555,22 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'board.store.read_session(...) verbatim, or an {error} dict.',
       },
       {
+        signature: '@Remote(\'sessionProgress\') sessionProgress(request: BoardSessionRequest): Promise<JsonValue>',
+        description: 'One session\'s mission-progress aggregate over its task.plan_complete rows (task tallies, total replans/faults, stage pass-rate, latest task tree). The fold lives in Python (charter: statistics in board/); this forwards it.',
+        parameters: [{ name: 'request', description: 'the session name (guarded by storecli\'s safe_child).' }],
+        returns: 'board.store.session_progress(...) verbatim, or an {error} dict.',
+      },
+      {
         signature: '@Remote(\'runtimeStatus\') runtimeStatus(request: BoardSessionRequest): Promise<JsonValue>',
         description: 'One runtime session\'s LIVE status (pid/render/mode/boot_ts/display), overwritten each boot. Live operational state, not the sealed boot-row seal.',
         parameters: [{ name: 'request', description: 'the session name (guarded by storecli\'s safe_child).' }],
         returns: 'board.store.read_runtime_status(...) verbatim, or null when absent.',
+      },
+      {
+        signature: '@Remote(\'runtimeEvents\') runtimeEvents(request: BoardRuntimeEventsRequest): Promise<JsonValue>',
+        description: 'One runtime session\'s OPERATIONAL event feed (runtime_events.jsonl, written by harness.opstream): events with seq > afterSeq plus last_seq. A last_seq below the caller\'s cursor means the runtime re-booted (feed truncated); the poller resets its cursor to 0 and re-reads. Live progress, never chain evidence.',
+        parameters: [{ name: 'request', description: 'session name (guarded by storecli\'s safe_child) + cursor.' }],
+        returns: 'board.store.read_runtime_events(...) verbatim, or an {error} dict.',
       },
     ],
   },
@@ -3073,6 +3085,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'BashEnvVariableInfo',
     declaration: 'export interface BashEnvVariableInfo extends BashEnvVariable {\n    contributor: string;\n    key: DshEnvironmentKey;\n}',
+  },
+  {
+    name: 'BoardRuntimeEventsRequest',
+    declaration: 'export interface BoardRuntimeEventsRequest {\n    readonly name: string;\n    readonly afterSeq?: number;\n}',
   },
   {
     name: 'BoardSessionRequest',
