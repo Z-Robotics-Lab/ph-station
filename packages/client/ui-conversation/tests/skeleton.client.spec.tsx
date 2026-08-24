@@ -487,24 +487,26 @@ describe('ConversationRoot resident composer', () => {
     expect(b.view.getByRole('textbox')).toBeTruthy()
   })
 
-  it('keeps the Chat fallback selected by id when a view is inserted before it', () => {
+  it('falls back to the leftmost view when the persisted id is unknown', () => {
     const viewTabs: ViewTab[] = [
       { id: 'chat', label: 'Chat' },
       { id: 'trajectory', label: 'Trajectory' },
     ]
     const b = mount(conversationSnapshot(), undefined, undefined, { viewTabs })
-    // A removed dynamic view leaves its persisted id behind. The visible
-    // fallback is Chat and must stay Chat when another lower-order view lands.
+    // A removed dynamic view leaves its persisted id behind. With no valid
+    // selection the first-screen default is the leftmost tab (resolveActiveView),
+    // so a build can seat its own view there; here that is Chat.
     act(() => { b.chat.actions.setView('removed-view') })
     expect(b.view.getByTestId('view-chat')).toBeTruthy()
 
+    // A lower-order view landing becomes the new leftmost default.
     viewTabs.unshift({ id: 'new-view', label: 'New view' })
     b.rerender()
 
-    expect(b.view.getByTestId('view-chat')).toBeTruthy()
-    expect(b.view.queryByTestId('view-new-view')).toBeNull()
-    expect(b.view.getByRole('tab', { name: 'Chat' }).getAttribute('aria-selected')).toBe('true')
-    expect(b.view.getByRole('tab', { name: 'New view' }).getAttribute('aria-selected')).toBe('false')
+    expect(b.view.getByTestId('view-new-view')).toBeTruthy()
+    expect(b.view.queryByTestId('view-chat')).toBeNull()
+    expect(b.view.getByRole('tab', { name: 'New view' }).getAttribute('aria-selected')).toBe('true')
+    expect(b.view.getByRole('tab', { name: 'Chat' }).getAttribute('aria-selected')).toBe('false')
   })
 
   it('rolls the pending workspace label back when switching fails', async () => {
