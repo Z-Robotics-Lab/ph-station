@@ -137,9 +137,55 @@ export const IconBooks: IconComponent = props => (
   </Svg>
 )
 
+/** tabler `layout-off`. */
+export const IconLayoutOff: IconComponent = props => (
+  <Svg {...props}>
+    <path d="M8 4a2 2 0 0 1 2 2m-1.162 2.816a1.993 1.993 0 0 1 -.838 .184h-2a2 2 0 0 1 -2 -2v-1c0 -.549 .221 -1.046 .58 -1.407" />
+    <path d="M4 13m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v3a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" />
+    <path d="M14 10v-4a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v10m-.595 3.423a2 2 0 0 1 -1.405 .577h-2a2 2 0 0 1 -2 -2v-4" />
+    <path d="M3 3l18 18" />
+  </Svg>
+)
+
+/** tabler `timeline`. */
+export const IconTimeline: IconComponent = props => (
+  <Svg {...props}>
+    <path d="M4 16l6 -7l5 5l5 -6" />
+    <path d="M15 14m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
+    <path d="M10 9m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
+    <path d="M4 16m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
+    <path d="M20 8m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
+  </Svg>
+)
+
+/** tabler `broadcast`. */
+export const IconBroadcast: IconComponent = props => (
+  <Svg {...props}>
+    <path d="M18.364 19.364a9 9 0 1 0 -12.728 0" />
+    <path d="M15.536 16.536a5 5 0 1 0 -7.072 0" />
+    <path d="M12 13m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
+  </Svg>
+)
+
+/** tabler `player-play`. */
+export const IconPlayerPlay: IconComponent = props => (
+  <Svg {...props}>
+    <path d="M7 4v16l13 -8z" />
+  </Svg>
+)
+
+/** tabler `player-pause`. */
+export const IconPlayerPause: IconComponent = props => (
+  <Svg {...props}>
+    <path d="M6 5m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z" />
+    <path d="M14 5m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z" />
+  </Svg>
+)
+
 /** Every icon keyed by its tabler outline name, for lookup by string. */
 export const Icon: Readonly<Record<string, IconComponent>> = {
   'layout-dashboard': IconLayoutDashboard,
+  'layout-off': IconLayoutOff,
   'message': IconMessage,
   'route': IconRoute,
   'sitemap': IconSitemap,
@@ -148,4 +194,8 @@ export const Icon: Readonly<Record<string, IconComponent>> = {
   'box': IconBox,
   'book': IconBook,
   'books': IconBooks,
+  'timeline': IconTimeline,
+  'broadcast': IconBroadcast,
+  'player-play': IconPlayerPlay,
+  'player-pause': IconPlayerPause,
 }

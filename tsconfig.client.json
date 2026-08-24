@@ -89,6 +89,7 @@
     { "path": "./packages/client/ui-trajectory" },
     { "path": "./packages/client/ui-ph-icons" },
     { "path": "./packages/client/ui-ph-battle" },
+    { "path": "./packages/client/ui-ph-dash" },
     { "path": "./packages/client/ui-ph-livegraph" },
     { "path": "./packages/client/ui-ph-vault" },
     { "path": "./packages/client/ui-ph-panels" },
