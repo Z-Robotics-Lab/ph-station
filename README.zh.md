@@ -1,80 +1,62 @@
-# DeepSeek Harness
+# physical-harness 操作台 (ph-station)
 
 [English](README.md) | 中文
 
-DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
+`ph-station` 是 **physical-harness** 的操作台（实验室控制台）——一个在
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`，MIT）
+之上换标扩展的 fork。它把上游 harness 作为接口层保留，并新增了一组只读面板，
+将主机（motherboard）的演进证据直接呈现在对话旁边。
 
-它采用**一切皆插件**的架构，并由 [Cordis](https://github.com/cordiverse/cordis) 驱动，其设计参见论文 [_A Programming Paradigm for Spatiotemporal Composability_](https://github.com/cordiverse/paper)。
+## 与上游的关系
 
-## 开发者预览
-
-DeepSeek Harness 目前处于 _开发者预览_ 阶段，正在快速迭代。**未来将出现破坏兼容性的变更。**
-
-<a id="run"></a>
+- 与上游一致，采用 [MIT](LICENSE) 许可；完整保留上游署名与
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+- 保留 `upstream` git remote（`deepseek-ai/deepseek-harness`），以便向前合并上游的
+  修复与特性。
+- fork 的全部新增内容都落在三个 package 以及控制台品牌里：
+  - `packages/host/dsh-ph-board` —— 只读的 `board` Host Remote，把面板桥接到主机的
+    证据层。
+  - `packages/client/ui-ph-battle` —— 战报面板。
+  - `packages/client/ui-ph-panels` —— 演进 / 机箱 / 账本 面板、任务台 chips 以及
+    状态栏。
+  - **品牌** —— `packages/client/ui-brand-official` 中的 `physical-harness` 字标与
+    `PH` 徽标。
 
 ## 运行
 
-### 通过 `npm` 运行
-
-安装 `Node.js`，然后运行：
-
-```sh
-npx @deepseek-ai/dsh web
-```
-
-该命令默认会在 `http://127.0.0.1:3080` 启动 Web UI，本机启动时还会用默认浏览器打开页面。通过 SSH 启动时只打印宿主机 URL，因为本地转发地址由 SSH 客户端或编辑器持有。传入 `--no-open` 可仅运行服务器而不打开浏览器。详见 [Web UI 指南](docs/user/guide/index.zh.md)。
-
-<a id="run-from-source"></a>
-
-### 从源码运行
-
-如需从仓库源码运行：
+本实验室中，控制台**不单独启动**。它由主机的 cockpit 脚本拉起：该脚本会构建本
+fork、注入 `PH_BOARD_*` 路径，并在 `http://127.0.0.1:3080` 提供 Web UI：
 
 ```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
-cd deepseek-harness
-pnpm install
-pnpm run build
-pnpm dsh web
+/home/yusenzlabpc/Desktop/physical-harness/scripts/cockpit
 ```
-
-`pnpm run build` 会准备仓库产物。`pnpm dsh web` 会直接使用这些已构建产物，不会重新构建。
-
-## 社区与支持
-
-- 欢迎通过 [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions) 提交反馈或 bug 报告。
-- 为你的插件仓库添加 [`dsh-plugin`](https://github.com/topics/dsh-plugin) 话题，便于被发现。
-- 欢迎加入 DeepSeek Harness 企微群：扫码添加企微小助手并填写入群问卷，完成后小助手会邀请你入群。
-
-<table>
-  <thead>
-    <tr>
-      <th align="center">企微小助手</th>
-      <th align="center">入群问卷</th>
-      <th align="center">微信公众号</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="center"><img src="https://cdn.deepseek.com/harness/readme/community-wecom-assistant.png" alt="DeepSeek Harness 企微小助手二维码" width="180" height="180"></td>
-      <td align="center"><a href="https://trtgsjkv6r.feishu.cn/share/base/form/shrcnIt5twSVdLGD52KJBckGCgg"><img src="https://cdn.deepseek.com/harness/readme/community-wecom-survey.png" alt="DeepSeek Harness 入群问卷二维码" width="180" height="180"></a></td>
-      <td align="center"><img src="https://cdn.deepseek.com/harness/readme/community-wechat-official-account.png" alt="DeepSeek Harness 团队微信公众号二维码" width="180" height="180"></td>
-    </tr>
-  </tbody>
-</table>
-
-## 参与贡献
-
-参见 [CONTRIBUTING.md](CONTRIBUTING.zh.md)。
 
 ## 开发
 
-请先阅读[开发指南](docs/development.zh.md)与[架构文档](docs/architecture.zh.md)。
+```sh
+pnpm install     # install workspace dependencies
+pnpm run build   # tsc emits lib/types, tsdown bundles the runtime
+pnpm run dev:web # watch-mode Web UI for panel development
+```
 
-面向 agent：请遵循 [AGENTS.md](AGENTS.md)。
+仓库约定见 [AGENTS.md](AGENTS.md)。
+
+## 面板
+
+所有面板都是对话旁的只读操作面；每个数字都来自 `board` Remote
+（`board.store` / `board.cards`），由它读取主机证据层。TypeScript 只做格式化，
+不做任何计算。
+
+- **任务台** —— 输入框上方的预设 chips，用于预填一段可编辑的任务提示词（永不自动
+  发送）。
+- **战报** —— 单次 campaign 的战报：paired gate、McNemar fixed/broken、held-out 徽标、
+  每代 Δpp。
+- **演进** —— RSI 监视器：每代 Δpp 条形图，以及进度 feed。
+- **机箱** —— 从 plugin manifest 读取的机箱卡片网格。
+- **账本** —— seed-block 账本表格。
+- **状态栏** —— MODE、boot 事实、心跳、board 可达性，以及取景窗（render）chip。
 
 ## 许可证
 
-[MIT](LICENSE)
-
-第三方依赖及其许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+[MIT](LICENSE)。第三方依赖及其许可证见
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

@@ -25,5 +25,5 @@ prompt, token, or KV-cache effect.
   `usePolledLoad` (marked with `jscpd:ignore`); the two fork panel packages
   stay independent rather than couple for eight lines. Extract to a shared
   package if a third ph panel package appears.
-- 演进 / 机箱 / 账本 panels and the status bar are deferred (see
-  `docs/ph-station-design.md` §7); this package ships only 战报.
+- This package ships only 战报; the 演进 / 机箱 / 账本 panels and the status bar
+  live in the sibling `@deepseek-ai/dsh-client-ui-ph-panels` package.

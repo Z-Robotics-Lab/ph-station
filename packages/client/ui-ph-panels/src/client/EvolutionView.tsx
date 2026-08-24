@@ -96,6 +96,8 @@ export function EvolutionView({
 
   return (
     <div className={css.panel}>
+      {/* Deliberately independent per panel: the two ph panel packages stay decoupled rather than share this sidebar. */}
+      {/* jscpd:ignore-start */}
       <aside className={css.sidebar}>
         <div className={css.sidebarHead}>{t('stores')}</div>
         {stores.map(store => (
@@ -112,6 +114,7 @@ export function EvolutionView({
           </button>
         ))}
       </aside>
+      {/* jscpd:ignore-end */}
 
       <section className={css.detail}>
         <div className={css.sectionHead}>{t('generations')}</div>
