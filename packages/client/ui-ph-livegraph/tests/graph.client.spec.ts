@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { foldEvents, foldRuns, layout, type OpEvent } from '../src/client/graph.ts'
+import { runWindow } from '../src/client/RunFeed.tsx'
 
 /** A two-run feed: run A (seed 0) fails once then retries and fails; run B
  * (seed 1) succeeds first try. Mirrors the real runtime_events shape. */
@@ -83,5 +84,37 @@ describe('foldEvents replay', () => {
     const mid = foldEvents(null, prefix(5))
     const l = layout(mid, false)
     expect(l.edges.some(e => e.active === true)).toBe(true)
+  })
+})
+
+describe('runWindow — the per-experiment ticker slice', () => {
+  const runs = foldRuns(FEED)
+
+  it('confines the ticker to the selected run, live (headSeq = run.lastSeq)', () => {
+    const runA = runs[0]!
+    const win = runWindow(FEED, runA, runA.lastSeq)
+    // Every event lands inside run A's span, and none of run B's leaks in.
+    expect(win.every(e => e.seq >= runA.firstSeq && e.seq <= runA.lastSeq)).toBe(true)
+    expect(win.some(e => e.seq === 16)).toBe(false) // run B's task_claimed
+    expect(win[0]!.seq).toBe(runA.firstSeq)
+    expect(win.at(-1)!.seq).toBe(runA.lastSeq)
+  })
+
+  it('selecting a later run shows only that run', () => {
+    const runB = runs[1]!
+    const win = runWindow(FEED, runB, runB.lastSeq)
+    expect(win.every(e => e.seq >= runB.firstSeq && e.seq <= runB.lastSeq)).toBe(true)
+    expect(win.map(e => e.kind)).toContain('node_verified')
+  })
+
+  it('truncates to the scrubber playhead in replay', () => {
+    const runA = runs[0]!
+    const win = runWindow(FEED, runA, 6) // paused mid-first-attempt
+    expect(win.every(e => e.seq <= 6)).toBe(true)
+    expect(win.some(e => e.kind === 'node_failed')).toBe(false)
+  })
+
+  it('yields nothing when no run is selected', () => {
+    expect(runWindow(FEED, undefined, Infinity)).toEqual([])
   })
 })

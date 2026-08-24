@@ -1,0 +1,18 @@
+/* PH tint over the dockview theme: map its chrome variables to currentColor
+   mixes so tab bars, borders, and sashes read as PH-neutral and adapt to the
+   app's light/dark palette without a second theme switch. Applied on the
+   `.dv-ph` class the DashView puts on the dockview root, alongside dockview's
+   own theme class. */
+
+.dv-ph {
+  --dv-background-color: transparent;
+  --dv-group-view-background-color: transparent;
+  --dv-tabs-and-actions-container-background-color: color-mix(in srgb, currentColor 4%, transparent);
+  --dv-activegroup-visiblepanel-tab-background-color: color-mix(in srgb, currentColor 9%, transparent);
+  --dv-inactivegroup-visiblepanel-tab-background-color: transparent;
+  --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
+  --dv-separator-border: color-mix(in srgb, currentColor 12%, transparent);
+  --dv-active-sash-color: color-mix(in srgb, currentColor 28%, transparent);
+  --dv-icon-hover-background-color: color-mix(in srgb, currentColor 10%, transparent);
+  --dv-paneview-header-border-color: color-mix(in srgb, currentColor 12%, transparent);
+}

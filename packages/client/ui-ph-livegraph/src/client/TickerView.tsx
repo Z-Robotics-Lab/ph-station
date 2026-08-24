@@ -1,17 +1,18 @@
 /**
- * 过程流 — the execution-process ticker: the same runtime feed the graph folds,
- * rendered as a newest-first timeline (plan built → node entered → stage passed
- * or failed → result). The row of the node currently running is accented and
- * tagged 当前, matching the graph's live highlight. Renders only — every line is
- * a board event copied verbatim.
+ * 过程流 — the execution-process ticker for ONE experiment. It reads the shared
+ * {@link useRunFeed} selection, so it shows exactly the run the graph shows:
+ * the `task_claimed → task_done` window of the selected run, truncated to the
+ * scrubber playhead in replay. Newest-first (plan built → node entered → stage
+ * passed/failed → result); the running node's row is accented and tagged 当前,
+ * matching the graph's live highlight. A header line names which experiment this
+ * is. Renders only — every line is a board event copied verbatim.
  */
 
-import { useMemo, useRef } from 'react'
-import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import { useMemo } from 'react'
+import { IconTimeline } from '@deepseek-ai/dsh-client-ui-ph-icons'
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { OpEvent } from './graph.ts'
-import type { LiveGraphInjected } from './LiveGraphView.tsx'
-import { useLiveFeed } from './useLiveFeed.ts'
+import { runWindow, useRunFeed } from './RunFeed.tsx'
 import css from './LiveGraphView.module.css'
 
 type T = PropsLocale<'phlivegraph'>['t']
@@ -75,25 +76,30 @@ function activeSeq(feed: readonly OpEvent[]): number | null {
   return open?.seq ?? null
 }
 
-export function TickerView({
-  fetchSessions, fetchSession, fetchRuntimeEvents, t,
-}: ConvViewProps & InjectFace<LiveGraphInjected> & PropsLocale<'phlivegraph'>) {
-  const fastRef = useRef(false)
-  const { online, feed, version } = useLiveFeed({ fetchSessions, fetchSession, fetchRuntimeEvents }, fastRef)
+export function TickerView({ t }: PropsLocale<'phlivegraph'>) {
+  const { online, feed, version, run, runIndex, headSeq, live } = useRunFeed()
 
-  const active = useMemo(() => activeSeq(feed.current), [feed, version])
-  fastRef.current = active !== null
+  const events = useMemo(
+    () => runWindow(feed.current, run, headSeq),
+    [feed, version, run, headSeq],
+  )
+  const active = useMemo(() => activeSeq(events), [events])
   const rows = useMemo(() => {
     const out: Row[] = []
-    for (const e of feed.current) { const r = tickerRow(e, t); if (r) out.push(r) }
+    for (const e of events) { const r = tickerRow(e, t); if (r) out.push(r) }
     return out.reverse()
-  }, [feed, version, t])
+  }, [events, t])
+
+  const label = run
+    ? `${t('experiment')} ${runIndex + 1} · ${run.task ?? '?'} #${run.seed ?? '?'} · ${live ? t('live') : t('replay')}`
+    : t('processSub')
 
   return (
     <div className={css.ticker}>
       <div className={css.header}>
+        <IconTimeline size={14} />
         <span className={css.headTitle}>{t('process')}</span>
-        <span className={css.headSub}>{t('processSub')}</span>
+        <span className={css.headSub}>{label}</span>
       </div>
       {rows.length === 0
         ? <div className={css.tickerEmpty}>{t(online === false ? 'unavailable' : 'tickerEmpty')}</div>

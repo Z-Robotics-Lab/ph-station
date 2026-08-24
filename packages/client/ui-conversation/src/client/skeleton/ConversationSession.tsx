@@ -9,7 +9,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-ph-icons'
 import type { SessionId, SessionListState, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
-  ConversationSessionHeaderSlotProps, ConversationSessionSlotProps,
+  ConversationSessionHeaderSlotProps, ConversationSessionSlotProps, ConvViewOwnerProps,
 } from '../contract/slots.ts'
 import type { ViewTab } from '../contract/views.ts'
 import css from './ConversationRoot.module.css'
@@ -243,12 +243,18 @@ export function ConversationSession({
   }, [releaseSessionImages, sessionId])
 
   if (blank && composerPhase === 'blank') return null
+  // The owner share handed to the active view. `renderView` lets a composite
+  // view (the 实验台 dashboard) render its sibling views by id through this
+  // same authorized renderSlot — the slot is declared once (here), so a docked
+  // view could not declare it itself; delegation is plain props passing.
+  const ownerProps: ConvViewOwnerProps = {
+    inspect,
+    onInspectDone: () => { actions.setInspect(null) },
+    renderView: (id: string) => renderSlot('conversation.view', ownerProps, { only: id }),
+  }
   return (
     <div className={css.viewArea}>
-      {active !== undefined && renderSlot('conversation.view', {
-        inspect,
-        onInspectDone: () => { actions.setInspect(null) },
-      }, { only: active.id })}
+      {active !== undefined && renderSlot('conversation.view', ownerProps, { only: active.id })}
     </div>
   )
 }

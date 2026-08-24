@@ -329,6 +329,12 @@
     - id: ui-ph-livegraph
       name: '@deepseek-ai/dsh-client-ui-ph-livegraph'
 
+    # physical-harness 实验台 dashboard: a dockview drag-composable host that
+    # docks the conversation.view panels (chat, 执行图谱, 过程流, …) on one screen
+    # with a persisted per-workspace layout.
+    - id: ui-ph-dash
+      name: '@deepseek-ai/dsh-client-ui-ph-dash'
+
     # physical-harness 技能库 skill-vault wiki panel over the board Remote's
     # vault fold (typed-relation graph + per-node wiki pages).
     - id: ui-ph-vault

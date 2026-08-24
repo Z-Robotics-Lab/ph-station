@@ -16,18 +16,16 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Background, Handle, Position, ReactFlow } from '@xyflow/react'
-import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { foldEvents, foldRuns, isRunning, layout } from './graph.ts'
+import { IconBroadcast, IconPlayerPause, IconPlayerPlay } from '@deepseek-ai/dsh-client-ui-ph-icons'
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import { foldEvents, layout } from './graph.ts'
 import type { LiveGraphModel, NodeStatus, PlanNodeState, RoutingRow, RunInfo } from './graph.ts'
-import { useLiveFeed } from './useLiveFeed.ts'
 import type { FeedInjected } from './useLiveFeed.ts'
+import { useRunFeed } from './RunFeed.tsx'
 import css from './LiveGraphView.module.css'
 
 /** The board reads the graph drives (the shared feed face). */
 export type LiveGraphInjected = FeedInjected
-
-const PLAY_MS = 300
 
 const STATUS_CLASS: Record<NodeStatus, string> = {
   pending: css.stPending ?? '',
@@ -179,7 +177,7 @@ function Scrubber({
         onClick={onGoLive}
         title={t(live ? 'liveOn' : 'liveOff')}
       >
-        <span className={css.liveDot} />{t(live ? 'live' : 'history')}
+        <IconBroadcast size={12} />{t(live ? 'live' : 'history')}
       </button>
       {runs.length > 0 ? (
         <select
@@ -195,7 +193,7 @@ function Scrubber({
         </select>
       ) : null}
       <button type="button" className={css.playBtn} onClick={onTogglePlay} disabled={!run} aria-label={t(playing ? 'pause' : 'play')}>
-        {playing ? '❚❚' : '▶'}
+        {playing ? <IconPlayerPause size={13} /> : <IconPlayerPlay size={13} />}
       </button>
       <div
         ref={trackRef}
@@ -223,17 +221,17 @@ function Scrubber({
   )
 }
 
-export function LiveGraphView({
-  fetchSessions, fetchSession, fetchRuntimeEvents, t,
-}: ConvViewProps & InjectFace<LiveGraphInjected> & PropsLocale<'phlivegraph'>) {
-  const fastRef = useRef(false)
+export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
   const canvasRef = useRef<HTMLDivElement>(null)
   // A zero-arg refit closure captured in `onInit`, so the fit options bind to
   // the instance's own node generic (a typed `fitView` ref would fight the
   // literal `draggable: false` node type).
   const fitRef = useRef<(() => void) | null>(null)
-  const { online, sessionName, feed, sessionRows, version } =
-    useLiveFeed({ fetchSessions, fetchSession, fetchRuntimeEvents }, fastRef)
+  const {
+    online, sessionName, feed, sessionRows, version,
+    runs, runIndex: effIndex, run, headSeq, live, playing,
+    pick, seek, goLive, togglePlay,
+  } = useRunFeed()
 
   // Refit the graph when its canvas resizes: embedded in the 实验台 split pane
   // React Flow's initial `fitView` runs before the pane settles to its real
@@ -250,41 +248,13 @@ export function LiveGraphView({
     return () => { cancelAnimationFrame(raf); ro.disconnect() }
   }, [])
 
-  // Replay controls. playhead === null means "follow the live tail".
-  const [playhead, setPlayhead] = useState<number | null>(null)
-  const [runIndex, setRunIndex] = useState<number | null>(null)
   const [showRouting, setShowRouting] = useState(false)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
-  const [playing, setPlaying] = useState(false)
-
-  const runs = useMemo(() => foldRuns(feed.current), [feed, version])
-  const live = playhead === null && (runIndex === null || runIndex === runs.length - 1)
-  const effIndex = runIndex ?? (runs.length > 0 ? runs.length - 1 : 0)
-  const run: RunInfo | undefined = runs[effIndex]
-  const headSeq = playhead ?? (run ? run.lastSeq : Infinity)
 
   const model = useMemo(() => {
     const slice = headSeq === Infinity ? feed.current : feed.current.filter(e => e.seq <= headSeq)
     return foldEvents(sessionRows.current, slice)
   }, [feed, sessionRows, version, headSeq])
-
-  const running = live && isRunning(model)
-  fastRef.current = running
-
-  // Playback: step the playhead forward through the run's events, ~PLAY_MS each.
-  useEffect(() => {
-    if (!playing || !run) return
-    const seqs = feed.current.filter(e => e.seq >= run.firstSeq && e.seq <= run.lastSeq).map(e => e.seq)
-    const id = setInterval(() => {
-      setPlayhead((prev) => {
-        const from = prev ?? run.firstSeq
-        const next = seqs.find(s => s > from)
-        if (next === undefined) { setPlaying(false); return run.lastSeq }
-        return next
-      })
-    }, PLAY_MS)
-    return () => { clearInterval(id) }
-  }, [playing, run])
 
   const flow = useMemo(() => layout(model, showRouting), [model, showRouting])
   const nodeTypes = useMemo(() => ({
@@ -294,9 +264,7 @@ export function LiveGraphView({
   }), [t])
 
   const selectedNode = selectedKey ? model.planNodes.find(n => n.key === selectedKey) : undefined
-  const pickRun = (i: number) => { setRunIndex(i); setPlayhead(runs[i] ? runs[i].lastSeq : null); setPlaying(false); setSelectedKey(null) }
-  const seek = (seq: number) => { setPlayhead(seq); setRunIndex(effIndex) }
-  const goLive = () => { setPlayhead(null); setRunIndex(null); setPlaying(false) }
+  const pickRun = (i: number) => { pick(i); setSelectedKey(null) }
 
   if (online === false) return <div className={css.empty}>{t('unavailable')}</div>
   if (sessionName === null) return <div className={css.empty}>{t('loading')}</div>
@@ -329,7 +297,7 @@ export function LiveGraphView({
       <Scrubber
         runs={runs} runIndex={effIndex} run={run} playhead={headSeq === Infinity ? (run?.lastSeq ?? 0) : headSeq}
         live={live} playing={playing} showRouting={showRouting} t={t}
-        onPick={pickRun} onSeek={seek} onTogglePlay={() => { setPlaying(p => !p) }} onGoLive={goLive}
+        onPick={pickRun} onSeek={seek} onTogglePlay={togglePlay} onGoLive={goLive}
         onToggleRouting={() => { setShowRouting(s => !s) }}
       />
       <div className={css.canvas} ref={canvasRef}>

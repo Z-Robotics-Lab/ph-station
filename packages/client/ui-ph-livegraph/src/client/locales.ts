@@ -54,6 +54,8 @@ export type PhLiveGraphKey =
   | 'liveOn'
   | 'liveOff'
   | 'run'
+  | 'experiment'
+  | 'replay'
   | 'play'
   | 'pause'
   | 'legend.pending'
@@ -119,6 +121,8 @@ export const zh: Record<PhLiveGraphKey, string> = {
   'liveOn': '实时跟随中：显示最新事件',
   'liveOff': '已暂停在历史某刻，点此跳回实时',
   'run': '运行',
+  'experiment': '实验',
+  'replay': '回放',
   'play': '播放',
   'pause': '暂停',
   'legend.pending': '待执行',
@@ -178,6 +182,8 @@ export const en: Record<PhLiveGraphKey, string> = {
   'liveOn': 'Following live: showing the newest events',
   'liveOff': 'Paused at a past moment — click to jump back to live',
   'run': 'run',
+  'experiment': 'Experiment',
+  'replay': 'REPLAY',
   'play': 'play',
   'pause': 'pause',
   'legend.pending': 'pending',

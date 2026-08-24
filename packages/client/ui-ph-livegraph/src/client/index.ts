@@ -14,8 +14,9 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 // Type-only: the generated ctx.remote merge, including the board namespace.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { en, NS, zh } from './locales.ts'
-import { LiveGraphView, type LiveGraphInjected } from './LiveGraphView.tsx'
+import type { LiveGraphInjected } from './LiveGraphView.tsx'
 import { LabView } from './LabView.tsx'
+import { LiveGraphTab, TickerTab } from './tabs.tsx'
 import xyflowBase from './xyflow-base.css?inline'
 
 const PLUGIN_ID = '@deepseek-ai/dsh-client-ui-ph-livegraph'
@@ -66,5 +67,17 @@ export function apply(ctx: Context): void {
     locale: NS,
     label: () => t('view.livegraph'),
     inject,
-  }, LiveGraphView))
+  }, LiveGraphTab))
+
+  // 过程流: the per-experiment process ticker as a standalone panel, so the
+  // dashboard can dock it beside the graph. It shares the graph's run selection
+  // through the RunFeedProvider context (§3.3), not a second poll.
+  ctx.slots.inject('conversation.view', () => ctx.slots.register({
+    name: 'conversation.view',
+    id: 'ticker',
+    order: 18,
+    locale: NS,
+    label: () => t('process'),
+    inject,
+  }, TickerTab))
 }

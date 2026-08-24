@@ -347,6 +347,14 @@ export interface ConvViewOwnerProps {
   inspect?: { callId: CallId } | null
   /** Acknowledge the inspect request once applied (clears the store field). */
   onInspectDone?: () => void
+  /**
+   * Render another registered view by id through the skeleton's authorized
+   * `renderSlot('conversation.view')`. The skeleton hands this down so a
+   * composite view (the 实验台 dashboard) can dock its sibling views without
+   * re-declaring the singly-declared slot (delegation is plain props passing;
+   * the authorizing identity stays the skeleton). Absent = no host support.
+   */
+  renderView?: (id: string) => ReactNode
 }
 
 /**
