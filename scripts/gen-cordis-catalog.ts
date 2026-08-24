@@ -565,6 +565,7 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   BashEnvVariableInfo: 'service-local metadata type is owned by packages/shell/tool-bash/src/index.ts',
   BoardStoreRequest: 'name-addressed board read request is owned by packages/host/dsh-ph-board/src/types.ts',
   BoardSessionRequest: 'name-addressed board read request is owned by packages/host/dsh-ph-board/src/types.ts',
+  BoardRuntimeEventsRequest: 'name-addressed board read request is owned by packages/host/dsh-ph-board/src/types.ts',
   CompactionAgentContext: 'compaction service input is owned by packages/compaction/compaction/src/index.ts',
   ManualCompactAgentContext: 'manual compaction service input is owned by packages/compaction/compaction/src/index.ts',
   ClientResponse: 'wire response message is owned by packages/host/apiproxy/src/api/rpc.ts',
