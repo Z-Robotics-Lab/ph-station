@@ -71,11 +71,17 @@ export function EvolutionView({
   const [open, setOpen] = useState<number | null>(null)
 
   const load = useCallback(async () => {
-    const [s, r] = await Promise.all([fetchStores(), fetchRounds()])
-    if (!s.ok) { setError(s.error.message); return }
-    setError(null)
-    setStores(s.value as StoreSummary[])
-    if (r.ok) setRounds(r.value as Round[])
+    try {
+      const [s, r] = await Promise.all([fetchStores(), fetchRounds()])
+      if (!s.ok) { setError(s.error.message); return }
+      setError(null)
+      setStores(s.value as StoreSummary[])
+      if (r.ok) setRounds(r.value as Round[])
+    } catch (cause) {
+      // A rejected Remote read (assembly fault, not carrier `ok: false`) must
+      // fold into the offline state, never leave stores null on 加载中 forever.
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
   }, [fetchStores, fetchRounds])
 
   usePolledLoad(load)

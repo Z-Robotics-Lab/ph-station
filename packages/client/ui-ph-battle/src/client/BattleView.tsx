@@ -107,10 +107,17 @@ export function BattleView({
   const [heldout, setHeldout] = useState<HeldoutBlocks | null>(null)
 
   const loadStores = useCallback(async () => {
-    const carried = await fetchStores()
-    if (!carried.ok) { setError(carried.error.message); return }
-    setError(null)
-    setStores(carried.value as StoreSummary[])
+    try {
+      const carried = await fetchStores()
+      if (!carried.ok) { setError(carried.error.message); return }
+      setError(null)
+      setStores(carried.value as StoreSummary[])
+    } catch (cause) {
+      // A Remote read folds carrier failures into `ok: false`, but assembly
+      // faults (arg/codec/Context) reject; without this a rejected poll would
+      // leave stores null with no error and render 加载中 forever.
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
   }, [fetchStores])
 
   // Human-cadence poll, paused while the tab is hidden (a background console

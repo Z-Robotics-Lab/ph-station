@@ -33,10 +33,16 @@ export function LedgerView({
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    const l = await fetchLedger()
-    if (!l.ok) { setError(l.error.message); return }
-    setError(null)
-    setBlocks(l.value as Block[])
+    try {
+      const l = await fetchLedger()
+      if (!l.ok) { setError(l.error.message); return }
+      setError(null)
+      setBlocks(l.value as Block[])
+    } catch (cause) {
+      // A rejected Remote read (assembly fault, not carrier `ok: false`) must
+      // fold into the offline state, never leave blocks null on 加载中 forever.
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
   }, [fetchLedger])
 
   usePolledLoad(load)

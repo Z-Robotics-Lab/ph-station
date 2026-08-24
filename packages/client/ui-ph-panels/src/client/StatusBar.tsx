@@ -52,20 +52,27 @@ export function StatusBar({
   const [now, setNow] = useState(() => Date.now())
 
   const load = useCallback(async () => {
-    const s = await fetchSessions()
-    if (!s.ok) { setOnline(false); return }
-    setOnline(true)
-    // discover_sessions is already newest-first (Python); index 0, no TS sort.
-    const list = s.value as SessionSummary[]
-    const top = list[0] ?? null
-    setLatest(top)
-    // The 取景窗 source is polled with the sessions so a reboot's new pid/render
-    // shows without a page reload; absent/null or a failed fetch → no chip.
-    if (top?.name) {
-      const r = await fetchRuntimeStatus(top.name)
-      setRtStatus(r.ok ? ((r.value as RuntimeStatus | null) ?? null) : null)
-    } else {
-      setRtStatus(null)
+    try {
+      const s = await fetchSessions()
+      if (!s.ok) { setOnline(false); return }
+      setOnline(true)
+      // discover_sessions is already newest-first (Python); index 0, no TS sort.
+      const list = s.value as SessionSummary[]
+      const top = list[0] ?? null
+      setLatest(top)
+      // The 取景窗 source is polled with the sessions so a reboot's new pid/render
+      // shows without a page reload; absent/null or a failed fetch → no chip.
+      if (top?.name) {
+        const r = await fetchRuntimeStatus(top.name)
+        setRtStatus(r.ok ? ((r.value as RuntimeStatus | null) ?? null) : null)
+      } else {
+        setRtStatus(null)
+      }
+    } catch {
+      // A Remote read folds carrier failures into `ok: false`, but assembly
+      // faults (arg/codec/Context) reject; a rejected poll must read as board
+      // offline, never leave the strip stuck on 模式 未知 / 无会话.
+      setOnline(false)
     }
   }, [fetchSessions, fetchRuntimeStatus])
 

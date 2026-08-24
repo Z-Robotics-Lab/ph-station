@@ -40,10 +40,16 @@ export function CardsView({
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    const c = await fetchCards()
-    if (!c.ok) { setError(c.error.message); return }
-    setError(null)
-    setCards(c.value as Card[])
+    try {
+      const c = await fetchCards()
+      if (!c.ok) { setError(c.error.message); return }
+      setError(null)
+      setCards(c.value as Card[])
+    } catch (cause) {
+      // A rejected Remote read (assembly fault, not carrier `ok: false`) must
+      // fold into the offline state, never leave cards null on 加载中 forever.
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
   }, [fetchCards])
 
   usePolledLoad(load)
