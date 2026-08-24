@@ -151,6 +151,15 @@
   opacity: 0.28;
 }
 
+/* Edge anchor handles: required for React Flow to route edges, but muted — the
+   relation is carried by the labeled edge, not the dot. */
+.handle {
+  width: 5px;
+  height: 5px;
+  border: none;
+  background: color-mix(in srgb, currentColor 30%, transparent);
+}
+
 .mono {
   font-family: ui-monospace, monospace;
   font-size: 0.72rem;

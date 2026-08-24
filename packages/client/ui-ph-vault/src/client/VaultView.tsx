@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Background, ReactFlow } from '@xyflow/react'
+import { Background, Handle, Position, ReactFlow } from '@xyflow/react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -54,10 +54,23 @@ function fmt(v: number | undefined | null): string {
 
 // --- custom graph nodes ------------------------------------------------------
 
+/** Left target + right source handles: React Flow v12 drops any edge whose
+ * endpoints expose no handle, so every custom node must carry them (LR flow →
+ * target on the left, source on the right). Non-interactive and visually muted. */
+function NodeHandles() {
+  return (
+    <>
+      <Handle type="target" position={Position.Left} isConnectable={false} className={css.handle} />
+      <Handle type="source" position={Position.Right} isConnectable={false} className={css.handle} />
+    </>
+  )
+}
+
 function SkillGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
   const n = data.node as SkillNode
   return (
     <div className={`${css.gnode} ${css.gskill} ${css[`st_${n.status}`] ?? ''} ${data.dimmed ? css.dim : ''}`}>
+      <NodeHandles />
       <div className={css.gnodeTitle}>{n.label ?? n.id.slice(0, 10)}</div>
       <div className={css.gnodeSub}>
         <span className={css.gbadge}>{n.status}</span>
@@ -71,6 +84,7 @@ function PackageGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean }
   const n = data.node as PackageNode
   return (
     <div className={`${css.gnode} ${css.gpackage} ${data.dimmed ? css.dim : ''}`}>
+      <NodeHandles />
       <div className={css.gnodeTitle}>{n.name ?? n.id}</div>
       <div className={`${css.gnodeSub} ${css.mono}`}>{n.id}</div>
     </div>
@@ -81,6 +95,7 @@ function CapabilityGraphNode({ data }: { data: { node: VaultNode; dimmed: boolea
   const n = data.node as CapabilityNode
   return (
     <div className={`${css.gnode} ${css.gcapability} ${n.privileged ? css.gcapPriv : ''} ${data.dimmed ? css.dim : ''}`}>
+      <NodeHandles />
       <div className={`${css.gnodeTitle} ${css.mono}`}>{n.id}</div>
       {n.privileged ? <div className={css.gnodeSub}>privileged</div> : null}
     </div>
