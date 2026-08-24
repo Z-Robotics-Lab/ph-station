@@ -17,6 +17,7 @@ import { LiveGraphView } from './LiveGraphView.tsx'
 import type { LiveGraphInjected } from './LiveGraphView.tsx'
 import { TickerView } from './TickerView.tsx'
 import { SplitPane } from './SplitPane.tsx'
+import { RunFeedProvider } from './RunFeed.tsx'
 import css from './LiveGraphView.module.css'
 
 /** Below this container width the graph | ticker split stacks vertically. */
@@ -40,13 +41,15 @@ export function LabView(
   }, [])
 
   return (
-    <div ref={ref} className={css.lab}>
-      <SplitPane
-        vertical={vertical}
-        storageKey={vertical ? 'ph.lab.split.v' : 'ph.lab.split.h'}
-        left={<LiveGraphView {...props} />}
-        right={<TickerView {...props} />}
-      />
-    </div>
+    <RunFeedProvider inject={props}>
+      <div ref={ref} className={css.lab}>
+        <SplitPane
+          vertical={vertical}
+          storageKey={vertical ? 'ph.lab.split.v' : 'ph.lab.split.h'}
+          left={<LiveGraphView t={props.t} />}
+          right={<TickerView t={props.t} />}
+        />
+      </div>
+    </RunFeedProvider>
   )
 }
