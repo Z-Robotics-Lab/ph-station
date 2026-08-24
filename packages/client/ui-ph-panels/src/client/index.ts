@@ -82,6 +82,7 @@ export function apply(ctx: Context): void {
     inject: (): StatusInjected => ({
       fetchSessions: () => board.sessions(),
       fetchSession: (name: string) => board.session({ name }),
+      fetchRuntimeStatus: (name: string) => board.runtimeStatus({ name }),
     }),
   }, StatusBar))
 

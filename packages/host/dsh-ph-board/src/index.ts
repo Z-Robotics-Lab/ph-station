@@ -145,6 +145,17 @@ export class BoardBridge extends TypertRemoteService {
     return this.run('session', request.name)
   }
 
+  /**
+   * One runtime session's LIVE status (pid/render/mode/boot_ts/display),
+   * overwritten each boot. Live operational state, not the sealed boot-row seal.
+   * @param request - the session name (guarded by storecli's safe_child).
+   * @returns board.store.read_runtime_status(...) verbatim, or null when absent.
+   */
+  @Remote('runtimeStatus')
+  runtimeStatus(request: BoardSessionRequest): Promise<JsonValue> {
+    return this.run('runtime_status', request.name)
+  }
+
   /** Spawn the harness CLI face and forward its stdout JSON verbatim. */
   private async run(fn: string, name?: string): Promise<JsonValue> {
     const args = ['-m', 'board.storecli', fn]
