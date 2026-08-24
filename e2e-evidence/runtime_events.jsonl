@@ -1,0 +1,61 @@
+{"ts": 1787543656.122, "seq": 1, "kind": "boot", "pid": 1975949, "mode": "execution", "render": false}
+{"ts": 1787544101.746, "seq": 2, "kind": "task_claimed", "brief": "brief-livegraph-e2e.json", "task": "stack", "campaign": null, "seed": 90901}
+{"ts": 1787544101.809, "seq": 3, "kind": "plan_built", "replan": 0, "valid": true, "msg": null, "goal": "stack cubeA on cubeB", "nodes": [{"id": "stack-0", "skill": "stack", "args": {"object": "cubeA", "target": "cubeB"}}], "verify": [{"after": "stack-0", "predicate": "stack_success"}]}
+{"ts": 1787544101.809, "seq": 4, "kind": "node_start", "node": "stack-0", "skill": "stack", "actuation": 1}
+{"ts": 1787544101.809, "seq": 5, "kind": "actuation_start", "node": "stack-0", "actuation": 1}
+{"ts": 1787544103.307, "seq": 6, "kind": "stage_transition", "stage": "grasp", "success": true, "entered_step": 0, "exited_step": 92}
+{"ts": 1787544103.625, "seq": 7, "kind": "stage_transition", "stage": "place", "success": true, "entered_step": 92, "exited_step": 177}
+{"ts": 1787544103.644, "seq": 8, "kind": "actuation_end", "node": "stack-0", "actuation": 1, "success": true, "steps": 177}
+{"ts": 1787544103.644, "seq": 9, "kind": "node_verified", "node": "stack-0", "stages": ["grasp", "place"]}
+{"ts": 1787544103.644, "seq": 10, "kind": "plan_complete", "success": true, "goal": "stack cubeA on cubeB", "replans": 0, "actuations": 1}
+{"ts": 1787544103.644, "seq": 11, "kind": "task_done", "brief": "brief-livegraph-e2e.json", "task": "stack"}
+{"ts": 1787544137.653, "seq": 12, "kind": "task_claimed", "brief": "brief-livegraph-e2e-2.json", "task": "stack", "campaign": null, "seed": 90902}
+{"ts": 1787544137.654, "seq": 13, "kind": "plan_built", "replan": 0, "valid": true, "msg": null, "goal": "stack cubeA on cubeB", "nodes": [{"id": "stack-0", "skill": "stack", "args": {"object": "cubeA", "target": "cubeB"}}], "verify": [{"after": "stack-0", "predicate": "stack_success"}]}
+{"ts": 1787544137.655, "seq": 14, "kind": "node_start", "node": "stack-0", "skill": "stack", "actuation": 1}
+{"ts": 1787544137.655, "seq": 15, "kind": "actuation_start", "node": "stack-0", "actuation": 1}
+{"ts": 1787544138.209, "seq": 16, "kind": "stage_transition", "stage": "grasp", "success": true, "entered_step": 0, "exited_step": 92}
+{"ts": 1787544138.529, "seq": 17, "kind": "stage_transition", "stage": "place", "success": true, "entered_step": 92, "exited_step": 177}
+{"ts": 1787544138.55, "seq": 18, "kind": "actuation_end", "node": "stack-0", "actuation": 1, "success": true, "steps": 177}
+{"ts": 1787544138.55, "seq": 19, "kind": "node_verified", "node": "stack-0", "stages": ["grasp", "place"]}
+{"ts": 1787544138.55, "seq": 20, "kind": "plan_complete", "success": true, "goal": "stack cubeA on cubeB", "replans": 0, "actuations": 1}
+{"ts": 1787544138.55, "seq": 21, "kind": "task_done", "brief": "brief-livegraph-e2e-2.json", "task": "stack"}
+{"ts": 1787544384.121, "seq": 22, "kind": "task_claimed", "brief": "brief-livegraph-e2e-3.json", "task": "stack", "campaign": null, "seed": 90903}
+{"ts": 1787544384.123, "seq": 23, "kind": "plan_built", "replan": 0, "valid": true, "msg": null, "goal": "stack cubeA on cubeB", "nodes": [{"id": "stack-0", "skill": "stack", "args": {"object": "cubeA", "target": "cubeB"}}], "verify": [{"after": "stack-0", "predicate": "stack_success"}]}
+{"ts": 1787544384.123, "seq": 24, "kind": "node_start", "node": "stack-0", "skill": "stack", "actuation": 1}
+{"ts": 1787544384.123, "seq": 25, "kind": "actuation_start", "node": "stack-0", "actuation": 1}
+{"ts": 1787544384.679, "seq": 26, "kind": "stage_transition", "stage": "grasp", "success": true, "entered_step": 0, "exited_step": 92}
+{"ts": 1787544384.997, "seq": 27, "kind": "stage_transition", "stage": "place", "success": true, "entered_step": 92, "exited_step": 177}
+{"ts": 1787544385.021, "seq": 28, "kind": "actuation_end", "node": "stack-0", "actuation": 1, "success": true, "steps": 177}
+{"ts": 1787544385.021, "seq": 29, "kind": "node_verified", "node": "stack-0", "stages": ["grasp", "place"]}
+{"ts": 1787544385.021, "seq": 30, "kind": "plan_complete", "success": true, "goal": "stack cubeA on cubeB", "replans": 0, "actuations": 1}
+{"ts": 1787544385.021, "seq": 31, "kind": "task_done", "brief": "brief-livegraph-e2e-3.json", "task": "stack"}
+{"ts": 1787544713.62, "seq": 32, "kind": "task_claimed", "brief": "brief-lg-clear.json", "task": "clear_table", "campaign": null, "seed": 90904}
+{"ts": 1787544713.621, "seq": 33, "kind": "plan_built", "replan": 0, "valid": true, "msg": null, "goal": "clear the table: pick the can, then the milk", "nodes": [{"id": "pick-can", "skill": "pick", "args": {"object": "can"}}, {"id": "pick-milk", "skill": "pick", "args": {"object": "milk"}}], "verify": [{"after": "pick-can", "predicate": "pick_success"}, {"after": "pick-milk", "predicate": "pick_success"}]}
+{"ts": 1787544713.621, "seq": 34, "kind": "node_start", "node": "pick-can", "skill": "pick", "actuation": 1}
+{"ts": 1787544713.621, "seq": 35, "kind": "actuation_start", "node": "pick-can", "actuation": 1}
+{"ts": 1787544714.269, "seq": 36, "kind": "stage_transition", "stage": "grasp", "success": true, "entered_step": 0, "exited_step": 100}
+{"ts": 1787544714.291, "seq": 37, "kind": "actuation_end", "node": "pick-can", "actuation": 1, "success": true, "steps": 100}
+{"ts": 1787544714.291, "seq": 38, "kind": "node_verified", "node": "pick-can", "stages": ["grasp"]}
+{"ts": 1787544714.291, "seq": 39, "kind": "node_start", "node": "pick-milk", "skill": "pick", "actuation": 2}
+{"ts": 1787544714.291, "seq": 40, "kind": "actuation_start", "node": "pick-milk", "actuation": 2}
+{"ts": 1787544714.884, "seq": 41, "kind": "stage_transition", "stage": "grasp", "success": false, "entered_step": 0, "exited_step": 100}
+{"ts": 1787544714.906, "seq": 42, "kind": "actuation_end", "node": "pick-milk", "actuation": 2, "success": false, "steps": 100}
+{"ts": 1787544714.906, "seq": 43, "kind": "node_failed", "node": "pick-milk", "failed": ["grasp", "pick_success"], "done": []}
+{"ts": 1787544714.906, "seq": 44, "kind": "replan", "replan": 1, "fault_kind": "node_failure", "node": "pick-milk", "msg": "node 'pick-milk' failed: stages ['grasp'], predicates ['pick_success']; done []"}
+{"ts": 1787544714.906, "seq": 45, "kind": "plan_built", "replan": 1, "valid": true, "msg": null, "goal": "clear the table: pick the can, then the milk", "nodes": [{"id": "pick-can", "skill": "pick", "args": {"object": "can"}}, {"id": "pick-milk", "skill": "pick", "args": {"object": "milk"}}], "verify": [{"after": "pick-can", "predicate": "pick_success"}, {"after": "pick-milk", "predicate": "pick_success"}]}
+{"ts": 1787544714.906, "seq": 46, "kind": "node_start", "node": "pick-milk", "skill": "pick", "actuation": 3}
+{"ts": 1787544714.906, "seq": 47, "kind": "actuation_start", "node": "pick-milk", "actuation": 3}
+{"ts": 1787544715.499, "seq": 48, "kind": "stage_transition", "stage": "grasp", "success": false, "entered_step": 0, "exited_step": 100}
+{"ts": 1787544715.52, "seq": 49, "kind": "actuation_end", "node": "pick-milk", "actuation": 3, "success": false, "steps": 100}
+{"ts": 1787544715.52, "seq": 50, "kind": "node_failed", "node": "pick-milk", "failed": ["grasp", "pick_success"], "done": []}
+{"ts": 1787544715.52, "seq": 51, "kind": "replan", "replan": 2, "fault_kind": "node_failure", "node": "pick-milk", "msg": "node 'pick-milk' failed: stages ['grasp'], predicates ['pick_success']; done []"}
+{"ts": 1787544715.52, "seq": 52, "kind": "plan_built", "replan": 2, "valid": true, "msg": null, "goal": "clear the table: pick the can, then the milk", "nodes": [{"id": "pick-can", "skill": "pick", "args": {"object": "can"}}, {"id": "pick-milk", "skill": "pick", "args": {"object": "milk"}}], "verify": [{"after": "pick-can", "predicate": "pick_success"}, {"after": "pick-milk", "predicate": "pick_success"}]}
+{"ts": 1787544715.52, "seq": 53, "kind": "node_start", "node": "pick-milk", "skill": "pick", "actuation": 4}
+{"ts": 1787544715.52, "seq": 54, "kind": "actuation_start", "node": "pick-milk", "actuation": 4}
+{"ts": 1787544716.113, "seq": 55, "kind": "stage_transition", "stage": "grasp", "success": false, "entered_step": 0, "exited_step": 100}
+{"ts": 1787544716.135, "seq": 56, "kind": "actuation_end", "node": "pick-milk", "actuation": 4, "success": false, "steps": 100}
+{"ts": 1787544716.135, "seq": 57, "kind": "node_failed", "node": "pick-milk", "failed": ["grasp", "pick_success"], "done": []}
+{"ts": 1787544716.135, "seq": 58, "kind": "replan", "replan": 3, "fault_kind": "node_failure", "node": "pick-milk", "msg": "node 'pick-milk' failed: stages ['grasp'], predicates ['pick_success']; done []"}
+{"ts": 1787544716.136, "seq": 59, "kind": "plan_built", "replan": 3, "valid": true, "msg": null, "goal": "clear the table: pick the can, then the milk", "nodes": [{"id": "pick-can", "skill": "pick", "args": {"object": "can"}}, {"id": "pick-milk", "skill": "pick", "args": {"object": "milk"}}], "verify": [{"after": "pick-can", "predicate": "pick_success"}, {"after": "pick-milk", "predicate": "pick_success"}]}
+{"ts": 1787544716.136, "seq": 60, "kind": "plan_complete", "success": false, "goal": "clear the table: pick the can, then the milk", "replans": 3, "actuations": 4}
+{"ts": 1787544716.136, "seq": 61, "kind": "task_done", "brief": "brief-lg-clear.json", "task": "clear_table"}

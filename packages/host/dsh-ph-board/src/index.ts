@@ -21,7 +21,7 @@ import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 // The Typert-generated ./typert and ./remote artifacts import Zod at runtime.
 import type {} from 'zod'
-import type { BoardSessionRequest, BoardStoreRequest } from './types.ts'
+import type { BoardRuntimeEventsRequest, BoardSessionRequest, BoardStoreRequest } from './types.ts'
 
 export type * from './types.ts'
 
@@ -168,11 +168,27 @@ export class BoardBridge extends TypertRemoteService {
     return this.run('runtime_status', request.name)
   }
 
+  /**
+   * One runtime session's OPERATIONAL event feed (runtime_events.jsonl, written
+   * by harness.opstream): events with seq > afterSeq plus last_seq. A last_seq
+   * below the caller's cursor means the runtime re-booted (feed truncated);
+   * the poller resets its cursor to 0 and re-reads. Live progress, never chain
+   * evidence.
+   * @param request - session name (guarded by storecli's safe_child) + cursor.
+   * @returns board.store.read_runtime_events(...) verbatim, or an {error} dict.
+   */
+  @Remote('runtimeEvents')
+  runtimeEvents(request: BoardRuntimeEventsRequest): Promise<JsonValue> {
+    const after = Math.trunc(request.afterSeq ?? 0)
+    return this.run('runtime_events', request.name,
+      ['--after', String(Number.isFinite(after) && after > 0 ? after : 0)])
+  }
+
   /** Spawn the harness CLI face and forward its stdout JSON verbatim. */
-  private async run(fn: string, name?: string): Promise<JsonValue> {
+  private async run(fn: string, name?: string, extraArgs: readonly string[] = []): Promise<JsonValue> {
     const args = ['-m', 'board.storecli', fn]
     if (name !== undefined) args.push(name)
-    args.push('--runs', this.config.runsDir)
+    args.push('--runs', this.config.runsDir, ...extraArgs)
     const { stdout } = await execFileAsync(this.config.pythonPath, args, { cwd: this.config.repoRoot })
     return JSON.parse(stdout) as JsonValue
   }

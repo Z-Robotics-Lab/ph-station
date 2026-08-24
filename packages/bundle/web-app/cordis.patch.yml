@@ -324,6 +324,11 @@
     - id: ui-ph-ops
       name: '@deepseek-ai/dsh-client-ui-ph-ops'
 
+    # physical-harness 执行图 live execution-graph panel over the board Remote's
+    # runtimeEvents feed.
+    - id: ui-ph-livegraph
+      name: '@deepseek-ai/dsh-client-ui-ph-livegraph'
+
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #
 # Every row below composes what ONE agent contributes to the host registries:
