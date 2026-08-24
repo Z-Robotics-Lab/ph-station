@@ -216,12 +216,35 @@ describe('the shipped Web composition', () => {
     }
   })
 
-  it('supplies both shipped presets, and only those, from the system root', async () => {
+  it('supplies the shipped presets, and only those, from the system root', async () => {
     const listed = await ctx.agentPresets.list()
 
-    expect(listed.map(preset => preset.id).sort()).toEqual(['code', 'cordis', 'minimal', 'standard'])
+    expect(listed.map(preset => preset.id).sort()).toEqual(['code', 'cordis', 'minimal', 'physical', 'standard'])
     expect(listed.every(preset => preset.trust === 'system')).toBe(true)
     expect(ctx.agentPresets.defaultId).toBe('standard')
+  })
+
+  it('composes a slim operator from `physical` — no shell, no filesystem', async () => {
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('preset-physical'),
+      setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'physical').then(() => undefined),
+    })
+    try {
+      // The design: a task dispatcher that CANNOT preflight-verify or hand-poll,
+      // because it mounts no shell and no filesystem. The harness MCP tools it
+      // actually drives (`run_task`, the read tools) are host-plane, so they are
+      // absent from this hermetic composition — this asserts the preset's own
+      // contribution: ask-user, and nothing that could run a preflight bash.
+      const tools = toolNames(ctx, handle.agent)
+      expect(tools).toContain('ask_user_question')
+      for (const forbidden of ['bash', 'read', 'write', 'edit', 'skill', 'glob', 'grep']) {
+        expect(tools).not.toContain(forbidden)
+      }
+      // Unlike `minimal`, the operator preset keeps context compaction.
+      expect(ctx.agentPresets.serviceFor(handle.agent, 'compaction')).toBeDefined()
+    } finally {
+      await handle.dispose()
+    }
   })
 
   it('composes the full agent from `standard`', async () => {

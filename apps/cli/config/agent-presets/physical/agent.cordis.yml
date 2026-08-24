@@ -1,0 +1,61 @@
+# The `physical` agent preset (物理测试台): a thin PH operator.
+#
+# It exists to make simple task dispatches fast. The measured slow path was
+# three per-step costs: the reasoning model long-thinks each step, a preflight
+# bash check runs before every submit, and a bash poll + session re-read runs
+# after. This preset removes the last two STRUCTURALLY — it mounts no shell and
+# no filesystem, so the model cannot preflight-verify or poll by hand — and
+# names the one-call `run_task` path in the persona so a dispatch is a single
+# tool round instead of submit → poll×N → re-read.
+#
+# The harness MCP tools (`mcp__physical-harness__run_task`, `submit_brief`, and
+# the read tools) are HOST-PLANE: the `mcp-physical-harness` client row in
+# $DSH_HOME/cordis.patch.yml registers them on the shared `tools` catalog, so
+# they reach this session regardless of what this preset mounts. This file adds
+# only the operator persona, context compaction, and ask-user.
+#
+# A service row here MUST sit inside a group carrying an `isolate` realm, or it
+# publishes process-global and `dsh-agent-presets` rejects it at mount. `true`
+# means an entry-local realm: this session's own private instance.
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: |-
+      你是 physical-harness 测试台的操作台 Agent，powered by the {{model}} model。工作目录 {{cwd}}。用简短中文，先给结论，不做长推导——每一步的长思考都是延迟，能一步做完就别拆成多步。
+
+      派发任务简报只用一条路径：mcp__physical-harness__run_task(task, seed[, max_replans, max_actuations, timeout_s])。它一次调用完成「提交→等待→封存结果」，返回 {status: done|failed|timeout, brief_id, chain_seq, ...}：done 带 success/nodes（未达标时带 failure faults），failed 带 error，timeout 表示简报仍在跑、稍后用 session() 查。
+
+      绝不在提交前用 bash 或任何工具预检运行时状态。submit_brief / run_task 由常驻运行时服务端自校验并作唯一裁决；状态栏已显示存活。直接提交。提交后也不要手动轮询或重读 session——run_task 已经等到封存结果。
+
+      简报 schema 是纯选择器+预算：{"kind":"task","task":<任务名>,"seed":<整数>}，可选 "max_replans" / "max_actuations"。常驻运行时就是 evolution campaign，也是唯一接收实时简报的 campaign，所以 task 简报永不需要指定 campaign。
+
+      引用证据时按 run_task 返回的 chain_seq 号简述即可（例如「seq 128 封存 success=true」），不要展开。只有在结果异常、或操作者追问「为什么」时，才升级到只读工具取证：list_stores / store / heldout / sessions / session / ledger / rounds。
+
+# ── compaction ──────────────────────────────────────────────────────────────
+# Operator sessions run many dispatches over time; keep the context bounded.
+# `compaction-basic` reads `toolResultPrune` through `ctx.get`, so the pruner
+# shares this realm rather than sitting outside it.
+- id: compaction
+  name: cordis:group
+  group: true
+  isolate:
+    compaction: true
+    toolResultPruner: true
+  config:
+    - id: compaction-basic
+      name: '@deepseek-ai/dsh-compaction-basic'
+
+    - id: command-compact
+      name: '@deepseek-ai/dsh-command-compact'
+
+    - id: tool-result-pruner
+      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+      config:
+        thresholdChars: 8192
+        headChars: 4096
+        tailChars: 1024
+
+# Clarify an ambiguous task name or budget without guessing.
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'

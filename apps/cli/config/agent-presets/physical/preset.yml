@@ -1,0 +1,3 @@
+name: 物理测试台
+description: PH 操作台 Agent：用 run_task 一步派发任务简报（提交→等待→封存结果），按 seq 号引用链证据，异常时才升级到只读工具。为简单派发去掉预检与轮询。
+order: 0
