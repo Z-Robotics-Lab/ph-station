@@ -502,6 +502,67 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'board',
+    summary: 'Read-only Remote over board.store via the storecli subprocess.',
+    description: 'Read-only Remote over board.store via the storecli subprocess. The gateway auto-serves each @Remote method at POST /api/board/<name>.',
+    methods: [
+      {
+        signature: '@Remote(\'stores\') stores(): Promise<JsonValue>',
+        description: 'Every campaign store under runs/, newest first (summary cards).',
+        parameters: [],
+        returns: 'board.store.list_stores(runs) verbatim.',
+      },
+      {
+        signature: '@Remote(\'store\') store(request: BoardStoreRequest): Promise<JsonValue>',
+        description: 'Full structured view of one campaign store by name.',
+        parameters: [{ name: 'request', description: 'the store name (guarded by storecli\'s safe_child).' }],
+        returns: 'board.store.store_detail(...) verbatim, or an {error} dict.',
+      },
+      {
+        signature: '@Remote(\'heldout\') heldout(request: BoardStoreRequest): Promise<JsonValue>',
+        description: 'Multi-block held-out comparison for a campaign (its block + rescores).',
+        parameters: [{ name: 'request', description: 'the store name (guarded by storecli\'s safe_child).' }],
+        returns: 'board.store.heldout_blocks(...) verbatim, or an {error} dict.',
+      },
+      {
+        signature: '@Remote(\'cards\') cards(): Promise<JsonValue>',
+        description: 'Every installed 机箱 card (each plugin\'s `manifest.toml`), manifest read as data.',
+        parameters: [],
+        returns: 'board.cards.list_cards() verbatim.',
+      },
+      {
+        signature: '@Remote(\'rounds\') rounds(): Promise<JsonValue>',
+        description: 'The progress.md rounds feed (`## Round N - DATE - TITLE` sections), latest first.',
+        parameters: [],
+        returns: 'board.store.parse_rounds(...) verbatim (演进 timeline).',
+      },
+      {
+        signature: '@Remote(\'ledger\') ledger(): Promise<JsonValue>',
+        description: 'The STATUS.md seed-block ledger (each range\'s burn state + source line).',
+        parameters: [],
+        returns: 'board.store.parse_ledger(...) verbatim (账本 table).',
+      },
+      {
+        signature: '@Remote(\'sessions\') sessions(): Promise<JsonValue>',
+        description: 'Every runtime session under runs/, newest first (summary cards, no rows).',
+        parameters: [],
+        returns: 'board.store.discover_sessions(runs) verbatim (status-bar heartbeat).',
+      },
+      {
+        signature: '@Remote(\'session\') session(request: BoardSessionRequest): Promise<JsonValue>',
+        description: 'One runtime session by name: its note payloads grouped by kind + chain check.',
+        parameters: [{ name: 'request', description: 'the session name (guarded by storecli\'s safe_child).' }],
+        returns: 'board.store.read_session(...) verbatim, or an {error} dict.',
+      },
+      {
+        signature: '@Remote(\'runtimeStatus\') runtimeStatus(request: BoardSessionRequest): Promise<JsonValue>',
+        description: 'One runtime session\'s LIVE status (pid/render/mode/boot_ts/display), overwritten each boot. Live operational state, not the sealed boot-row seal.',
+        parameters: [{ name: 'request', description: 'the session name (guarded by storecli\'s safe_child).' }],
+        returns: 'board.store.read_runtime_status(...) verbatim, or null when absent.',
+      },
+    ],
+  },
+  {
     key: 'clientModules',
     summary: 'The web plugin table service: incremental `dsh.client` scan + wire composition + bundle route + index injection rows.',
     description: 'The web plugin table service: incremental `dsh.client` scan + wire composition + bundle route + index injection rows. Construction runs the activation scan synchronously — a malformed declaration or missing bundle among the already-loaded entries aggregates into one loud throw (FAILED fiber; the boot activation audit reports it).',
@@ -3012,6 +3073,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'BashEnvVariableInfo',
     declaration: 'export interface BashEnvVariableInfo extends BashEnvVariable {\n    contributor: string;\n    key: DshEnvironmentKey;\n}',
+  },
+  {
+    name: 'BoardSessionRequest',
+    declaration: 'export interface BoardSessionRequest {\n    readonly name: string;\n}',
+  },
+  {
+    name: 'BoardStoreRequest',
+    declaration: 'export interface BoardStoreRequest {\n    readonly name: string;\n}',
   },
   {
     name: 'Branded',
