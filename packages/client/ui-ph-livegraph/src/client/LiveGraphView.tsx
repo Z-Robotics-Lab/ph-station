@@ -227,8 +227,28 @@ export function LiveGraphView({
   fetchSessions, fetchSession, fetchRuntimeEvents, t,
 }: ConvViewProps & InjectFace<LiveGraphInjected> & PropsLocale<'phlivegraph'>) {
   const fastRef = useRef(false)
+  const canvasRef = useRef<HTMLDivElement>(null)
+  // A zero-arg refit closure captured in `onInit`, so the fit options bind to
+  // the instance's own node generic (a typed `fitView` ref would fight the
+  // literal `draggable: false` node type).
+  const fitRef = useRef<(() => void) | null>(null)
   const { online, sessionName, feed, sessionRows, version } =
     useLiveFeed({ fetchSessions, fetchSession, fetchRuntimeEvents }, fastRef)
+
+  // Refit the graph when its canvas resizes: embedded in the 实验台 split pane
+  // React Flow's initial `fitView` runs before the pane settles to its real
+  // width (and again on every gutter drag), so nodes would sit panned off-view.
+  useEffect(() => {
+    const el = canvasRef.current
+    if (!el) return
+    let raf = 0
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => { fitRef.current?.() })
+    })
+    ro.observe(el)
+    return () => { cancelAnimationFrame(raf); ro.disconnect() }
+  }, [])
 
   // Replay controls. playhead === null means "follow the live tail".
   const [playhead, setPlayhead] = useState<number | null>(null)
@@ -312,9 +332,10 @@ export function LiveGraphView({
         onPick={pickRun} onSeek={seek} onTogglePlay={() => { setPlaying(p => !p) }} onGoLive={goLive}
         onToggleRouting={() => { setShowRouting(s => !s) }}
       />
-      <div className={css.canvas}>
+      <div className={css.canvas} ref={canvasRef}>
         <ReactFlow
           key={`${sessionName}:${effIndex}:${flow.nodes.length}:${showRouting}`}
+          onInit={(inst) => { fitRef.current = () => { inst.fitView({ padding: 0.16, maxZoom: 1 }) } }}
           nodes={flow.nodes.map(n => ({ ...n, draggable: false, connectable: false, selectable: true }))}
           edges={flow.edges.map(e => ({
             id: e.id, source: e.source, target: e.target,
