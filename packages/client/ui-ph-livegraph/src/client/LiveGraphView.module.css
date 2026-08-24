@@ -530,6 +530,17 @@
   flex-direction: column;
 }
 
+/* Bound the axis the inline template does NOT set, else the single implicit
+   track sizes to content (the ticker's tall list) and both panes overflow the
+   container — which stretched the graph canvas and broke its fitView. */
+.splitH {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.splitV {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 /* The right pane (ticker) gets a seam so the two panes read as distinct. */
 .splitH .splitPane:last-child {
   border-left: 1px solid color-mix(in srgb, currentColor 12%, transparent);
