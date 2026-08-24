@@ -10,17 +10,17 @@ The ph read panels (战报/演进/机箱/账本 tabs and the frame-wide status b
 
 ## Decision
 
-Every panel poll callback — `loadStores` in `BattleView` and `load` in `EvolutionView`, `CardsView`, `LedgerView`, and `StatusBar` — wraps its board reads in `try/catch` and routes a rejection to the same offline sink its `ok: false` branch already uses: `setError(message)` for the four list panels (rendered as the existing "数据面不可用" state) and `setOnline(false)` for the status bar. A board read that rejects for any reason now reads as board-unavailable, never an infinite 加载中. The gateway keeps its loud rejections for assembly faults; the consumers own the fold, honoring the panels' own expectation that a failed load surfaces as offline.
+Every panel poll callback — `loadStores` in `BattleView`, `load` in `EvolutionView`, `CardsView`, `LedgerView`, and `StatusBar`, and `load` in `OperatorRail` (`packages/client/ui-ph-ops`, the sidebar rail cards) — wraps its board reads in `try/catch` and routes a rejection to the same offline sink its `ok: false` branch already uses: `setError(message)` for the four list panels (rendered as the existing "数据面不可用" state) and `setOnline(false)` for the status bar and the rail. A board read that rejects for any reason now reads as board-unavailable, never an infinite 加载中 (panels) or a stuck 模式 未知 / 技能 0 (rail); the next healthy poll clears the offline state — `setOnline(true)` and the `set*` calls run again — so every consumer returns to live data. The gateway keeps its loud rejections for assembly faults; the consumers own the fold, honoring the panels' own expectation that a failed load surfaces as offline.
 
 ## Alternatives considered
 
 **Fold assembly faults into `ok: false` inside `ClientRemoteService.invoke`.** Rejected: the gateway rejects a wrong argument count, a bad codec input, or a missing Context deliberately so those programmer errors fail loud for the caller; `packages/api/gateway/tests/gateway.client.spec.ts` pins that behavior and every Remote consumer relies on it. Silencing it app-wide to fix one consumer trades a loud programmer-error signal for a hidden one.
 
-**A shared guard helper wrapping every injected `board.*()` at the two inject faces.** Rejected: it touches more call sites (eleven) than the five poll gates, and the two ph client packages are deliberately decoupled with no shared module (the same reason `BattleView` inlines its own poll), so the helper would duplicate across packages anyway; the per-view `try/catch` sits exactly at the loading→data/error transition it protects.
+**A shared guard helper wrapping every injected `board.*()` at the inject faces.** Rejected: it touches more call sites than the six poll gates, and the ph client packages are deliberately decoupled with no shared module (the same reason `BattleView` and `OperatorRail` inline their own poll), so the helper would duplicate across packages anyway; the per-view `try/catch` sits exactly at the loading→data/error transition it protects.
 
 ## Consequences
 
-A board read that rejects degrades to the visible offline state instead of a permanent spinner, at the cost of five near-identical `try/catch` blocks across two decoupled packages — consistent with their already-duplicated inline poll. The list panels keep their last-good data on a failed poll (data stays set, only `error` updates); the status bar marks board offline. Detail-drill reads (store/heldout on select) already degrade to their empty state and are unchanged.
+A board read that rejects degrades to the visible offline state instead of a permanent spinner (panels) or a stuck 模式 未知 / 技能 0 (rail), at the cost of six near-identical `try/catch` blocks across three decoupled packages — consistent with their already-duplicated inline poll. The list panels keep their last-good data on a failed poll (data stays set, only `error` updates); the status bar and the rail mark board offline. Every consumer recovers on the next successful poll, which reruns its `set*` calls. Detail-drill reads (store/heldout on select) already degrade to their empty state and are unchanged.
 
 ## Testing
 

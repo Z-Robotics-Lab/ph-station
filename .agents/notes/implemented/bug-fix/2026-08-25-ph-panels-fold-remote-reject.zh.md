@@ -10,17 +10,17 @@ ph 只读面板（战报/演进/机箱/账本 标签页与横跨全框的状态�
 
 ## Decision
 
-每个面板轮询回调——`BattleView` 中的 `loadStores`，以及 `EvolutionView`、`CardsView`、`LedgerView`、`StatusBar` 中的 `load`——都用 `try/catch` 包住其 board 读取，并把拒绝导向其 `ok: false` 分支已在使用的同一离线出口：四个列表面板用 `setError(message)`（渲染为既有的“数据面不可用”状态），状态栏用 `setOnline(false)`。任何原因导致的 board 读取拒绝现在都读作 board 不可用，绝不会是无尽的 加载中。网关对装配类故障保留其响亮的拒绝；由消费者负责折叠，与面板自身“加载失败即呈现为离线”的预期一致。
+每个面板轮询回调——`BattleView` 中的 `loadStores`，`EvolutionView`、`CardsView`、`LedgerView`、`StatusBar` 中的 `load`，以及 `OperatorRail`（`packages/client/ui-ph-ops`，侧栏机架卡片）中的 `load`——都用 `try/catch` 包住其 board 读取，并把拒绝导向其 `ok: false` 分支已在使用的同一离线出口：四个列表面板用 `setError(message)`（渲染为既有的“数据面不可用”状态），状态栏与机架用 `setOnline(false)`。任何原因导致的 board 读取拒绝现在都读作 board 不可用，绝不会是无尽的 加载中（面板）或卡死的 模式 未知 / 技能 0（机架）；下一次健康轮询会清除离线状态——`setOnline(true)` 与各 `set*` 调用重新运行——因此每个消费者都会回到实时数据。网关对装配类故障保留其响亮的拒绝；由消费者负责折叠，与面板自身“加载失败即呈现为离线”的预期一致。
 
 ## Alternatives considered
 
 **在 `ClientRemoteService.invoke` 内部把装配类故障折叠为 `ok: false`。** 已否决：网关刻意拒绝参数个数不符、错误的 codec 输入、或缺失的 Context，好让这些编程错误对调用方响亮暴露；`packages/api/gateway/tests/gateway.client.spec.ts` 固定了该行为，且每个 Remote 消费者都依赖它。为修复一个消费者而在全应用范围内将其静默，等于把响亮的编程错误信号换成隐藏的信号。
 
-**在两个 inject 面处用一个共享 guard 辅助函数包住每个注入的 `board.*()`。** 已否决：它触及的调用点（十一处）多于五个轮询出口，且两个 ph 客户端包被刻意解耦、没有共享模块（`BattleView` 内联自己的轮询也出于同一原因），因此该辅助函数无论如何都会跨包重复；而每个视图的 `try/catch` 恰好落在它所保护的 加载→数据/错误 转换点上。
+**在 inject 面处用一个共享 guard 辅助函数包住每个注入的 `board.*()`。** 已否决：它触及的调用点多于六个轮询出口，且 ph 客户端包被刻意解耦、没有共享模块（`BattleView` 与 `OperatorRail` 内联自己的轮询也出于同一原因），因此该辅助函数无论如何都会跨包重复；而每个视图的 `try/catch` 恰好落在它所保护的 加载→数据/错误 转换点上。
 
 ## Consequences
 
-被拒的 board 读取会退化为可见的离线状态而非永久转圈，代价是两个解耦包中五段几乎相同的 `try/catch`——这与它们已重复的内联轮询保持一致。列表面板在一次失败轮询后保留其最后可用数据（数据保持已设置，仅 `error` 更新）；状态栏标记 board 离线。选中时的明细钻取读取（store/heldout）本就退化为其空状态，不受影响。
+被拒的 board 读取会退化为可见的离线状态，而非永久转圈（面板）或卡死的 模式 未知 / 技能 0（机架），代价是三个解耦包中六段几乎相同的 `try/catch`——这与它们已重复的内联轮询保持一致。列表面板在一次失败轮询后保留其最后可用数据（数据保持已设置，仅 `error` 更新）；状态栏与机架标记 board 离线。每个消费者都会在下一次成功轮询时恢复，该轮询会重新运行其 `set*` 调用。选中时的明细钻取读取（store/heldout）本就退化为其空状态，不受影响。
 
 ## Testing
 

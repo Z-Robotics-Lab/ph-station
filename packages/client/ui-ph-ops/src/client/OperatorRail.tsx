@@ -58,23 +58,31 @@ export function OperatorRail({
 
   /* jscpd:ignore-start */
   const load = useCallback(async () => {
-    const s = await fetchSessions()
-    if (!s.ok) { setOnline(false); return }
-    setOnline(true)
-    const list = s.value as SessionSummary[]
-    const top = list.find(x => x.name === pickDefault(list)) ?? null
-    /* jscpd:ignore-end */
-    setLatest(top)
-    if (top?.name === undefined) { setDetail(null); setProgress(null); setRtStatus(null); return }
-    const [d, p, r, st, rd] = await Promise.all([
-      fetchSession(top.name), fetchSessionProgress(top.name), fetchRuntimeStatus(top.name),
-      fetchStores(), fetchRounds(),
-    ])
-    if (d.ok) setDetail(d.value as SessionDetail)
-    if (p.ok) setProgress(p.value as SessionProgress)
-    setRtStatus(r.ok ? ((r.value as RuntimeStatus | null) ?? null) : null)
-    if (st.ok) setStores(st.value as StoreSummary[])
-    if (rd.ok) setRounds(rd.value as Round[])
+    try {
+      const s = await fetchSessions()
+      if (!s.ok) { setOnline(false); return }
+      setOnline(true)
+      const list = s.value as SessionSummary[]
+      const top = list.find(x => x.name === pickDefault(list)) ?? null
+      /* jscpd:ignore-end */
+      setLatest(top)
+      if (top?.name === undefined) { setDetail(null); setProgress(null); setRtStatus(null); return }
+      const [d, p, r, st, rd] = await Promise.all([
+        fetchSession(top.name), fetchSessionProgress(top.name), fetchRuntimeStatus(top.name),
+        fetchStores(), fetchRounds(),
+      ])
+      if (d.ok) setDetail(d.value as SessionDetail)
+      if (p.ok) setProgress(p.value as SessionProgress)
+      setRtStatus(r.ok ? ((r.value as RuntimeStatus | null) ?? null) : null)
+      if (st.ok) setStores(st.value as StoreSummary[])
+      if (rd.ok) setRounds(rd.value as Round[])
+    } catch {
+      // A board read folds carrier failures into `ok: false`, but assembly
+      // faults (arg/codec/Context) reject; a rejected poll must read as board
+      // offline, never leave the rail stuck on 模式 未知 / 技能 0. The next
+      // healthy poll sets online + detail again, so the cards return to live.
+      setOnline(false)
+    }
   }, [fetchSessions, fetchSession, fetchSessionProgress, fetchRuntimeStatus, fetchStores, fetchRounds])
 
   usePolledLoad(load)
