@@ -132,7 +132,10 @@ function ShapeFrame({ kind, dimmed, children }: { kind: VaultKind; dimmed: boole
 
 function SkillGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
   const n = data.node as SkillNode
-  const delta = n.evidence?.heldout_delta
+  // Round the raw held-out delta: the board sends a full-precision float
+  // (0.65 - 0.585 = 0.06500000000000006) that reads as noise in a node body.
+  const rawDelta = n.evidence?.heldout_delta
+  const delta = rawDelta === undefined ? undefined : Number(rawDelta.toFixed(3))
   return (
     <ShapeFrame kind="skill" dimmed={data.dimmed}>
       <div className={css.gtitle}><KindGlyph kind="skill" /><span>{n.label ?? n.id.slice(0, 12)}</span></div>
