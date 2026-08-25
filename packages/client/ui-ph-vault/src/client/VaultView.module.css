@@ -438,45 +438,7 @@
   opacity: 0.85;
 }
 
-/* --- cluster containers (kind regions + skill task families) -------------- */
-
-/* Background boxes behind the nodes. Translucent so cross-region edges show
-   through; pointer-events are disabled on the React Flow node so clicks reach
-   the leaf nodes above. Border/background hue is set inline per kind. */
-.cluster {
-  box-sizing: border-box;
-  border-radius: 0.6rem;
-  border: 1px solid;
-}
-
-.clusterBand {
-  border-style: solid;
-  border-radius: 0.75rem;
-}
-
-.clusterTask {
-  border-style: dashed;
-}
-
-.clusterTitle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.28rem 0.5rem 0;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.clusterTask .clusterTitle {
-  font-size: 0.64rem;
-  font-weight: 600;
-  opacity: 0.85;
-  text-transform: none;
-}
-
-/* --- always-visible legend ------------------------------------------------ */
+/* --- collapsible legend --------------------------------------------------- */
 
 .legend {
   position: absolute;

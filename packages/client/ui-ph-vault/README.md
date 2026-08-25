@@ -5,26 +5,31 @@ sealed knowledge. One `conversation.view` tab rendering the deterministic,
 typed-relation graph the board vault fold emits (`board/vault.py`), plus a wiki
 page per node:
 
-- **relation graph** — a `@xyflow/react` canvas **grouped into one titled region
-  per kind** (技能 / 机箱卡 / 能力), with skill nodes sub-clustered by task
-  family. Each kind is a distinct SVG silhouette in its own hue so it reads apart
+- **relation graph** — a `@xyflow/react` canvas laid out through **one global
+  dagre left→right pass**, so skill lineage (DESCENDS_FROM) reads as a horizontal
+  chain and the kinds fall into left→right ranks by edge direction: packages and
+  skills feed capabilities (REQUIRES: skill→capability, PROVIDES:
+  package→capability), so capabilities settle to the right with no container
+  needed. Each kind is a distinct SVG silhouette in its own hue so it reads apart
   by shape and color, not just its label: skill = a blue rounded card with a left
   accent bar, package = a green box with a folded (notched) corner, capability =
   a violet stadium pill; each carries its kind glyph (bulb / box / plug), and
-  skill status (promoted / candidate / retired) rides a secondary chip. Edges are
-  colored per relation and routed across region boundaries, with the capability
-  band in the middle lane so the two cross-band families (REQUIRES, PROVIDES)
-  reach it without arcing across the other's band. A relation label appears only
-  under the cursor or in a focused node's edge set, never as resting mid-arc
-  text. Of the nine fold relations only five draw — GOVERNS, BINDS,
-  EVIDENCED_BY, and MOUNTED_IN target tasks/campaigns/evidence, which are not
-  node kinds, so they never render and are omitted from the legend and chips.
+  skill status (promoted / candidate / retired) rides a secondary chip. Handles
+  sit on the left (target) and right (source) sides so edges leave and enter
+  horizontally; edges are colored per relation and drawn under the nodes. A
+  relation label appears only under the cursor or in a focused node's edge set,
+  never as resting mid-arc text. React Flow's built-in `fitView`, `MiniMap`, and
+  `Controls` ride along. Of the nine fold relations only five draw — GOVERNS,
+  BINDS, EVIDENCED_BY, and MOUNTED_IN target tasks/campaigns/evidence, which are
+  not node kinds, so they never render and are omitted from the legend and chips.
   **Single-click focuses a node** (highlights its incident edges, reveals their
   labels, dims the rest); the two seven-edge families (REQUIRES, PROVIDES) start
-  collapsed and the operator opts them in per chip. A collapsible legend keys the
-  kind shapes/hues and the drawn relations with `rendered/total` tallies; filter
-  chips per kind / status / relation and a client-side substring search over
-  id/task/label sit alongside.
+  collapsed and the operator opts them in per chip. Node positions are seeded by
+  every node-to-node edge regardless of the chips, so opting a family in or out
+  paints or hides edges without ever reflowing the graph. A collapsible legend
+  keys the kind shapes/hues and the drawn relations with `rendered/total`
+  tallies; filter chips per kind / status / relation and a client-side substring
+  search over id/task/label sit alongside.
 - **node pages** — double-click a node for its wiki page: a skill page quotes the
   sealed evidence **verbatim** (held-out governed vs base rate, p-value, n, the
   ablation ladder, dev judgement), shows its lineage (DESCENDS_FROM), governed
@@ -34,14 +39,12 @@ page per node:
   capability pages render their contributions, claims, flags, and backlinks.
 
 Pure consumer: the graph, every status, and every number come verbatim from the
-board vault Remote; the fold (`src/client/graph.ts`) filters and lays out (each
-kind through its own pass — dagre left-to-right where it has internal edges, else
-a packed row grid — then stacked into titled regions) and computes nothing
-(charter: TS renders only). The custom node silhouettes, the cluster containers,
-and the legend live in `src/client/VaultGraphCanvas.tsx`. The
-vault is small (single-digit stores, nine cards, nine capabilities), so it is
-fetched whole once with a slow background refresh and the node pages derive from
-that same payload client-side.
+board vault Remote; the fold (`src/client/graph.ts`) filters and lays out (one
+global dagre left→right pass over the surviving nodes) and computes nothing
+(charter: TS renders only). The custom node silhouettes and the legend live in
+`src/client/VaultGraphCanvas.tsx`. The vault is small (single-digit stores, nine
+cards, nine capabilities), so it is fetched whole once with a slow background
+refresh and the node pages derive from that same payload client-side.
 
 Graph rendering is `@xyflow/react` (React Flow v12, MIT) with `@dagrejs/dagre`
 (MIT), the same component pair as `ui-ph-livegraph`. React Flow's structural
