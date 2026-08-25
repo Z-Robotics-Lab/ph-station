@@ -146,11 +146,17 @@
   gap: 12px;
 }
 
-/* figma Tab_Group 34:11441: 35px strip, gap 36, pad-left 8, tabs bottom-aligned. */
+/* figma Tab_Group 34:11441: 35px strip, gap 36, pad-left 8, tabs bottom-aligned.
+   The strip scrolls horizontally once the projected views outgrow the row
+   (min-width:0 lets this flex child shrink below its content so overflow-x can
+   engage) — the New-conversation button stays pinned outside it in .tabsRow. */
 .tabs {
   position: relative;
   z-index: 1;
   display: flex;
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow-x: auto;
   gap: 36px;
   margin-top: 4px;
   padding-left: 8px;
