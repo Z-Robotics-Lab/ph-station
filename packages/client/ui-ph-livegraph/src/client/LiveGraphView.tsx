@@ -233,7 +233,7 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
     pick, seek, goLive, togglePlay,
   } = useRunFeed()
 
-  // Refit the graph when its canvas resizes: embedded in the 实验台 split pane
+  // Refit the graph when its canvas resizes: embedded in the 图谱·过程流 split pane
   // React Flow's initial `fitView` runs before the pane settles to its real
   // width (and again on every gutter drag), so nodes would sit panned off-view.
   useEffect(() => {

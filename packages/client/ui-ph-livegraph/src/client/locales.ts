@@ -74,7 +74,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh: Record<PhLiveGraphKey, string> = {
   'view.livegraph': '执行图谱',
-  'view.lab': '实验台',
+  'view.lab': '图谱·过程流',
   'sub': '计划 · 执行路线 · 当前步 · 结果，一张图看全',
   'process': '过程流',
   'processSub': '本次任务的事件时间线：规划→节点→阶段→结果',
@@ -135,7 +135,7 @@ export const zh: Record<PhLiveGraphKey, string> = {
 /** English dictionary. */
 export const en: Record<PhLiveGraphKey, string> = {
   'view.livegraph': 'Execution Graph',
-  'view.lab': 'Lab',
+  'view.lab': 'Graph · Flow',
   'sub': 'Plan · route · current step · result, one canvas',
   'process': 'Process',
   'processSub': 'This task’s event timeline: plan → node → stage → result',

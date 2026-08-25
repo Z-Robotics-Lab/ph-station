@@ -1,7 +1,7 @@
 /**
  * 实验台 — the drag-composable dashboard. It reuses the conversation.view slot
  * ledger (the same entries the tab strip lists) and renders each view into a
- * dockview panel, so chat, the 实验台 cockpit (执行图谱 ‖ 过程流), 技能库, 战报 …
+ * dockview panel, so chat, the 图谱·过程流 cockpit (执行图谱 ‖ 过程流), 技能库, 战报 …
  * live on ONE screen and the operator drags them to rearrange / resize / split /
  * tab. The arrangement persists per workspace in localStorage and a toolbar
  * button resets it. Renders only — every panel is an existing view rendered

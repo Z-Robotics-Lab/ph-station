@@ -47,10 +47,10 @@ export function apply(ctx: Context): void {
     fetchRuntimeEvents: (name: string, afterSeq: number) => board.runtimeEvents({ name, afterSeq }),
   })
 
-  // 实验台: the same-screen cockpit and the session's default view. Registered
-  // before Chat (order 0) and Trajectory (order 10) so it is the leftmost tab
-  // and thus `resolveActiveView`'s no-selection default. 执行图谱 stays a
-  // standalone tab (order 19) for the graph alone.
+  // 图谱·过程流: the same-screen cockpit pane — the execution graph and the 过程流
+  // ticker under one RunFeedProvider. Ordered before Chat (0) and Trajectory (10)
+  // so the 实验台 dashboard (order -20) docks it as the default cockpit panel.
+  // 执行图谱 stays a standalone tab (order 19) for the graph alone.
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
     id: 'lab',

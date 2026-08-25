@@ -1,5 +1,5 @@
 /**
- * 实验台 — the same-screen cockpit and the session's default view: the merged
+ * 图谱·过程流 — the same-screen cockpit pane: the merged
  * execution graph and the 过程流 ticker side by side over one shared composer
  * (the conversation skeleton keeps the prompt bar docked below every view). Send
  * a prompt and watch the plan grow, the current step pulse, and the process
