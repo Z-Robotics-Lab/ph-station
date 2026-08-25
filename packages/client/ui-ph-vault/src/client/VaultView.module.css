@@ -94,6 +94,39 @@
   pointer-events: none;
 }
 
+/* MiniMap collapse toggle — floats top-right where the map sits (mirrors
+   LiveGraphView's .miniToggle look). Perched below the 116px map when expanded,
+   dropped into the corner where the map would sit when collapsed. */
+.miniToggle {
+  position: absolute;
+  right: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-1, #fff) 88%, currentColor);
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.82;
+  z-index: 6;
+}
+
+.miniToggle:hover {
+  opacity: 1;
+  background: color-mix(in srgb, #2563eb 18%, transparent);
+}
+
+.miniToggleLow {
+  top: 0.9rem;
+}
+
+.miniToggleHigh {
+  top: calc(116px + 1.4rem);
+}
+
 /* --- graph nodes: per-kind SVG silhouettes -------------------------------- */
 
 /* Each node's footprint is the fixed NODE_SIZE React Flow was handed; the

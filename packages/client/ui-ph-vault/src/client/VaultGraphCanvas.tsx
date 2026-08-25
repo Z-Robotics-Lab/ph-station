@@ -51,6 +51,44 @@ function tint(color: string, pct: number): string {
 const miniMapColor = (type: string | undefined): string =>
   KIND_COLOR[type as VaultKind] ?? 'var(--dsw-alias-label-tertiary, #9aa1ac)'
 
+/* jscpd:ignore-start */
+// Per-panel copy on purpose (LiveGraphView keeps the mirror): the MiniMap
+// collapse preference is the same UI idiom the execution graph runs, but the
+// two graph panels stay decoupled rather than import a shared hook across the
+// panel-independence boundary (same rule as this file's refit-observer twin).
+/** Persisted per-surface MiniMap collapse preference: `true`/`false` once the
+ * operator toggles, `null` while none is saved so the pane width drives the
+ * default (collapsed when narrow). Private-mode storage failures read as null. */
+function readMiniPref(surface: string): boolean | null {
+  try {
+    const v = localStorage.getItem(`ph:${surface}:minimap`)
+    return v === '1' ? true : v === '0' ? false : null
+  } catch { return null }
+}
+function writeMiniPref(surface: string, collapsed: boolean): void {
+  try { localStorage.setItem(`ph:${surface}:minimap`, collapsed ? '1' : '0') } catch { /* private mode: session-only */ }
+}
+/** Below this pane width the MiniMap defaults collapsed (it otherwise covers a
+ * narrow graph); an explicit operator toggle overrides the width default. */
+const MINI_NARROW = 1000
+/* jscpd:ignore-end */
+
+/** The map/map-off toggle glyph (tabler outline, MIT; see THIRD_PARTY_NOTICES),
+ * vendored inline like KindGlyph so this panel keeps no icons-leaf dependency. */
+function MapGlyph({ off }: { off: boolean }) {
+  return (
+    <svg
+      width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+    >
+      <path d="M3 7l6 -3l6 3l6 -3v13l-6 3l-6 -3l-6 3v-13" />
+      <path d="M9 4v13" />
+      <path d="M15 7v13" />
+      {off ? <path d="M3 3l18 18" /> : null}
+    </svg>
+  )
+}
+
 // --- kind glyphs (tabler outline path data, MIT; see THIRD_PARTY_NOTICES) ----
 
 /** A kind's tabler glyph (skill=bulb, package=box, capability=plug), inheriting
@@ -278,6 +316,8 @@ export function VaultGraphCanvas({
   // pane reaches its real width (mirrors LiveGraphView's canvas refit).
   const canvasRef = useRef<HTMLDivElement>(null)
   const fitRef = useRef<(() => void) | null>(null)
+  // Live pane width drives the MiniMap collapse default (narrow → collapsed).
+  const [paneW, setPaneW] = useState(0)
   /* jscpd:ignore-start */
   // Per-panel copy on purpose: each panel owns its own refit so no panel imports
   // another's provider or a shared hook across the panel-independence boundary
@@ -285,15 +325,26 @@ export function VaultGraphCanvas({
   useEffect(() => {
     const el = canvasRef.current
     if (!el) return
+    setPaneW(el.clientWidth)
     let raf = 0
     const ro = new ResizeObserver(() => {
       cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => { fitRef.current?.() })
+      raf = requestAnimationFrame(() => { setPaneW(el.clientWidth); fitRef.current?.() })
     })
     ro.observe(el)
     return () => { cancelAnimationFrame(raf); ro.disconnect() }
   }, [])
   /* jscpd:ignore-end */
+
+  // MiniMap collapse: operator preference wins; absent it, the pane width picks
+  // the default (collapsed when narrow), so a small pane isn't covered on load.
+  const [miniPref, setMiniPref] = useState<boolean | null>(() => readMiniPref('phvault'))
+  const miniCollapsed = miniPref ?? (paneW > 0 && paneW < MINI_NARROW)
+  const toggleMini = () => {
+    const next = !miniCollapsed
+    setMiniPref(next)
+    writeMiniPref('phvault', next)
+  }
   const shownRels = useMemo(() => flow.edges.length === 0
     ? [] : Object.keys(tallies).filter((r): r is VaultRel => tallies[r as VaultRel].rendered > 0), [tallies, flow])
 
@@ -376,14 +427,26 @@ export function VaultGraphCanvas({
         proOptions={{ hideAttribution: false }}
       >
         <Background gap={18} size={1} />
-        <MiniMap
-          position="top-right" pannable zoomable
-          nodeColor={n => miniMapColor(n.type)} nodeStrokeWidth={2}
-          bgColor="var(--dsw-alias-bg-layer-1, #fff)"
-          maskColor="color-mix(in srgb, currentColor 14%, transparent)"
-        />
+        {miniCollapsed ? null : (
+          <MiniMap
+            position="top-right" pannable zoomable
+            style={{ width: 172, height: 116 }}
+            nodeColor={n => miniMapColor(n.type)} nodeStrokeWidth={2}
+            bgColor="var(--dsw-alias-bg-layer-1, #fff)"
+            maskColor="color-mix(in srgb, currentColor 14%, transparent)"
+          />
+        )}
         <Controls showInteractive={false} />
       </ReactFlow>
+      <button
+        type="button"
+        className={`${css.miniToggle} ${miniCollapsed ? css.miniToggleLow : css.miniToggleHigh}`}
+        onClick={toggleMini}
+        title={t(miniCollapsed ? 'minimapShow' : 'minimapHide')}
+        aria-label={t(miniCollapsed ? 'minimapShow' : 'minimapHide')}
+      >
+        <MapGlyph off={!miniCollapsed} />
+      </button>
       <Legend t={t} rels={shownRels} tallies={tallies} />
       <div className={css.graphHint}>{t('graph.hint')}</div>
     </div>

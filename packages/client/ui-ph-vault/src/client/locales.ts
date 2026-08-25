@@ -54,6 +54,8 @@ export type PhVaultKey =
   | 'legend.title'
   | 'legend.relations'
   | 'graph.hint'
+  | 'minimapShow'
+  | 'minimapHide'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -113,6 +115,8 @@ export const zh: Record<PhVaultKey, string> = {
   'legend.title': '图例',
   'legend.relations': '关系',
   'graph.hint': '单击节点聚焦其连边 · 双击打开词条页',
+  'minimapShow': '显示缩略图',
+  'minimapHide': '隐藏缩略图',
 }
 
 /** English dictionary. */
@@ -166,4 +170,6 @@ export const en: Record<PhVaultKey, string> = {
   'legend.title': 'Legend',
   'legend.relations': 'Relations',
   'graph.hint': 'Click a node to focus its edges · double-click for its wiki page',
+  'minimapShow': 'Show minimap',
+  'minimapHide': 'Hide minimap',
 }
