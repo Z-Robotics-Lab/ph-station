@@ -12,7 +12,7 @@
  * board data) and under a standalone harness (mock data) for visual proofs.
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Background, Controls, Handle, MiniMap, Position, ReactFlow } from '@xyflow/react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import {
@@ -132,6 +132,10 @@ function ShapeFrame({ kind, dimmed, children }: { kind: VaultKind; dimmed: boole
 
 function SkillGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
   const n = data.node as SkillNode
+  // Round the raw held-out delta: the board sends a full-precision float
+  // (0.65 - 0.585 = 0.06500000000000006) that reads as noise in a node body.
+  const rawDelta = n.evidence?.heldout_delta
+  const delta = rawDelta === undefined ? undefined : Number(rawDelta.toFixed(3))
   return (
     <ShapeFrame kind="skill" dimmed={data.dimmed}>
       <div className={css.gtitle}><KindGlyph kind="skill" /><span>{n.label ?? n.id.slice(0, 12)}</span></div>
@@ -139,6 +143,14 @@ function SkillGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }
         <span className={`${css.gstatus} ${css[`st_${n.status}`] ?? ''}`}>{n.status}</span>
         {n.privilege ? <span className={`${css.gstatus} ${css.gpriv}`}>priv {n.privilege}</span> : null}
       </div>
+      {/* Disambiguates same-family candidates (identical label + status) by the
+          generation and held-out delta the fold already carries. */}
+      {(n.generation !== undefined || delta !== undefined) ? (
+        <div className={css.gmeta}>
+          {n.generation !== undefined ? <span>gen{n.generation}</span> : null}
+          {delta !== undefined ? <span>Δ{delta}</span> : null}
+        </div>
+      ) : null}
     </ShapeFrame>
   )
 }
@@ -223,6 +235,29 @@ export function VaultGraphCanvas({
 }: { graph: VaultGraph; filters: VaultFilters; onSelect: (id: string) => void; t: Tr }) {
   const flow = useMemo(() => layout(graph, filters), [graph, filters])
   const tallies = useMemo(() => relTallies(graph), [graph])
+
+  // Refit after the pane sizes: this canvas embeds in a dockview pane that lays
+  // out after mount, so the one-shot onInit fitView can run against a zero-size
+  // pane. A ResizeObserver rAF-debounces the refit so the frame settles once the
+  // pane reaches its real width (mirrors LiveGraphView's canvas refit).
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const fitRef = useRef<(() => void) | null>(null)
+  /* jscpd:ignore-start */
+  // Per-panel copy on purpose: each panel owns its own refit so no panel imports
+  // another's provider or a shared hook across the panel-independence boundary
+  // (LiveGraphView keeps the mirror copy).
+  useEffect(() => {
+    const el = canvasRef.current
+    if (!el) return
+    let raf = 0
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => { fitRef.current?.() })
+    })
+    ro.observe(el)
+    return () => { cancelAnimationFrame(raf); ro.disconnect() }
+  }, [])
+  /* jscpd:ignore-end */
   const shownRels = useMemo(() => flow.edges.length === 0
     ? [] : Object.keys(tallies).filter((r): r is VaultRel => tallies[r as VaultRel].rendered > 0), [tallies, flow])
 
@@ -278,7 +313,7 @@ export function VaultGraphCanvas({
   }), [flow, focus, hoverEdge])
 
   return (
-    <div className={css.canvas}>
+    <div className={css.canvas} ref={canvasRef}>
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
@@ -291,7 +326,10 @@ export function VaultGraphCanvas({
         // A headless/backgrounded tab never fires React Flow's ResizeObserver,
         // so the initial fitView can run against a zero-size pane; refit once
         // the instance is live to frame the whole left→right flow.
-        onInit={(inst) => { requestAnimationFrame(() => { void inst.fitView({ padding: 0.12, maxZoom: 1 }) }) }}
+        onInit={(inst) => {
+          fitRef.current = () => { void inst.fitView({ padding: 0.12, maxZoom: 1 }) }
+          requestAnimationFrame(() => { fitRef.current?.() })
+        }}
         fitView
         fitViewOptions={{ padding: 0.12, maxZoom: 1 }}
         minZoom={0.1}

@@ -334,15 +334,17 @@ export interface LaidOutEdge {
   label?: string
 }
 
-/** Lay the plan chain + replan lineage through dagre (rankdir TB), then place
- * the capability-routing fan beside it (two columns; dagre would flatten the
- * star into one clipped-wide row). `showRouting` gates the routing layer. */
+/** Lay the plan chain + replan lineage through dagre (rankdir LR — the plan
+ * spans the wide axis of a 16:9 panel; nodes carry left/right handles to match),
+ * then place the capability-routing fan beside it (two columns; dagre would
+ * flatten the star into one clipped-wide row). `showRouting` gates the routing
+ * layer. */
 export function layout(
   model: LiveGraphModel,
   showRouting: boolean,
 ): { nodes: LaidOutNode[]; edges: LaidOutEdge[] } {
   const g = new dagre.graphlib.Graph()
-  g.setGraph({ rankdir: 'TB', nodesep: 20, ranksep: 42, marginx: 8, marginy: 8 })
+  g.setGraph({ rankdir: 'LR', nodesep: 20, ranksep: 60, marginx: 8, marginy: 8 })
   g.setDefaultEdgeLabel(() => ({}))
 
   const nodes: LaidOutNode[] = []
@@ -388,21 +390,26 @@ export function layout(
   }
 
   dagre.layout(g)
-  let planRight = 0
+  let planLeft = 0
+  let planBottom = 0
   for (const n of nodes) {
     const pos = g.node(n.id)
     n.position = { x: pos.x - pos.width / 2, y: pos.y - pos.height / 2 }
-    planRight = Math.max(planRight, n.position.x + pos.width)
+    if (n.id === 'mission') planLeft = n.position.x
+    planBottom = Math.max(planBottom, n.position.y + pos.height)
   }
 
   if (showRouting) {
+    // Under LR the plan chain runs the wide axis, so the routing fan docks BELOW
+    // it (three columns from the left edge) — leaving mission's bottom handle it
+    // stays near its anchor instead of spanning the full plan width.
     const capW = NODE_SIZE.cap.width
     const capH = NODE_SIZE.cap.height
     model.routing.forEach((cap, i) => {
       const id = `cap:${cap.capability}`
       nodes.push({
         id, type: 'cap',
-        position: { x: planRight + 84 + (i % 2) * (capW + 20), y: 8 + Math.floor(i / 2) * (capH + 18) },
+        position: { x: planLeft + (i % 3) * (capW + 20), y: planBottom + 44 + Math.floor(i / 3) * (capH + 18) },
         data: { cap },
       })
       edges.push({

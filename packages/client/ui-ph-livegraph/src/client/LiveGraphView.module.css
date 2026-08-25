@@ -657,6 +657,14 @@
   opacity: 0.6;
 }
 
+.tkTime {
+  flex: none;
+  font-family: ui-monospace, monospace;
+  font-size: 0.66rem;
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+
 .tkCurrent {
   flex: none;
   font-size: 0.6rem;

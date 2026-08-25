@@ -236,7 +236,7 @@ export interface VaultLayout {
 /** Fixed node footprints for the deterministic dagre pass (React Flow measures
  * after mount, but the layout wants stable inputs). */
 export const NODE_SIZE: Record<VaultKind, { width: number; height: number }> = {
-  skill: { width: 210, height: 74 },
+  skill: { width: 210, height: 88 },
   package: { width: 190, height: 58 },
   capability: { width: 180, height: 52 },
 }

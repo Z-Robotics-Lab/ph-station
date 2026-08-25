@@ -154,6 +154,16 @@
   white-space: nowrap;
 }
 
+/* Generation + held-out delta line: disambiguates same-family skill candidates. */
+.gmeta {
+  display: flex;
+  gap: 0.4rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.62rem;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
 /* Skill status rides a secondary channel: a small tinted chip, not the hue. */
 .gstatus {
   font-size: 0.6rem;

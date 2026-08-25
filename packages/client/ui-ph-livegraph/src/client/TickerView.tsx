@@ -18,7 +18,7 @@ import css from './LiveGraphView.module.css'
 type T = PropsLocale<'phlivegraph'>['t']
 type Tone = 'ok' | 'fail' | 'run' | 'warn' | 'muted'
 
-interface Row { seq: number; icon: string; text: string; sub?: string; tone: Tone }
+interface Row { seq: number; icon: string; text: string; sub?: string; tone: Tone; time?: string }
 
 const TONE_CLASS: Record<Tone, string> = {
   ok: css.tkOk ?? '', fail: css.tkFail ?? '', run: css.tkRun ?? '',
@@ -51,15 +51,15 @@ function tickerRow(e: OpEvent, t: T): Row | null {
       return { seq: e.seq, icon: '✓', text: `${t('tk.verified')} ${e.node as string}`, tone: 'ok' }
     case 'node_failed':
       return { seq: e.seq, icon: '✗', text: `${t('tk.failed')} ${e.node as string}`, tone: 'fail' }
-    case 'replan':
-      return { seq: e.seq, icon: '↻', text: `${t('tk.replan')} #${(e.replan as number) ?? 0}`, tone: 'warn' }
     case 'task_done':
-    case 'plan_complete':
       return { seq: e.seq, icon: e.success === false ? '✗' : '✓',
         text: e.success === false ? t('tk.taskFailed') : t('tk.done'), tone: e.success === false ? 'fail' : 'ok' }
     case 'task_failed':
       return { seq: e.seq, icon: '✗', text: t('tk.taskFailed'), tone: 'fail' }
     default:
+      // Dropped on purpose alongside setup/unknown kinds: `replan` duplicates the
+      // `plan_built` replan>0 row (which also carries the node count) and
+      // `plan_complete` duplicates the `task_done` terminal row.
       return null
   }
 }
@@ -85,8 +85,16 @@ export function TickerView({ t }: PropsLocale<'phlivegraph'>) {
   )
   const active = useMemo(() => activeSeq(events), [events])
   const rows = useMemo(() => {
+    // Elapsed is measured from the run's first event (task_claimed ts); omit
+    // per row when either ts is absent (ts is an optional feed field).
+    const firstTs = events[0]?.ts
     const out: Row[] = []
-    for (const e of events) { const r = tickerRow(e, t); if (r) out.push(r) }
+    for (const e of events) {
+      const r = tickerRow(e, t)
+      if (!r) continue
+      if (e.ts !== undefined && firstTs !== undefined) r.time = `+${(e.ts - firstTs).toFixed(1)}s`
+      out.push(r)
+    }
     return out.reverse()
   }, [events, t])
 
@@ -110,6 +118,7 @@ export function TickerView({ t }: PropsLocale<'phlivegraph'>) {
                 <span className={css.tkIcon}>{r.icon}</span>
                 <span className={css.tkText}>{r.text}{r.sub ? <span className={css.tkSub}> {r.sub}</span> : null}</span>
                 {r.seq === active ? <span className={css.tkCurrent}>{t('tk.current')}</span> : null}
+                {r.time ? <span className={css.tkTime}>{r.time}</span> : null}
               </li>
             ))}
           </ol>

@@ -53,8 +53,8 @@ function MissionNode({ data, t }: { data: { model: LiveGraphModel } } & PropsLoc
         {status ? <span className={css.badge}>{t(status === 'running' ? 'running' : status === 'failed' ? 'failed' : 'done')}</span> : null}
         {m.replans > 0 ? <span className={`${css.badge} ${css.badgeAmber}`}>{t('replans')} {m.replans}</span> : null}
       </div>
-      <Handle type="source" position={Position.Bottom} id="out" className={css.handle} />
-      <Handle type="source" position={Position.Right} id="cap" className={css.handle} />
+      <Handle type="source" position={Position.Right} id="out" className={css.handle} />
+      <Handle type="source" position={Position.Bottom} id="cap" className={css.handle} />
     </div>
   )
 }
@@ -63,7 +63,7 @@ function PlanNode({ data, t }: { data: { node: PlanNodeState; predicate?: string
   const n = data.node
   return (
     <div className={`${css.node} ${css.plan} ${STATUS_CLASS[n.status]}`}>
-      <Handle type="target" position={Position.Top} id="in" className={css.handle} />
+      <Handle type="target" position={Position.Left} id="in" className={css.handle} />
       {n.status === 'running' ? <span className={css.cursorTag}>▶ {t('current')}</span> : null}
       <div className={css.nodeTitle}>
         {n.skill}
@@ -84,7 +84,7 @@ function PlanNode({ data, t }: { data: { node: PlanNodeState; predicate?: string
         {n.faults?.length ? <span className={`${css.meta} ${css.metaFault}`}>{t('faults')} {n.faults.length}</span> : null}
         {data.predicate ? <span className={css.predChip} title={t('verify')}>⊨ {data.predicate}</span> : null}
       </div>
-      <Handle type="source" position={Position.Bottom} id="out" className={css.handle} />
+      <Handle type="source" position={Position.Right} id="out" className={css.handle} />
     </div>
   )
 }
@@ -170,7 +170,7 @@ function Scrubber({
     if (e.currentTarget.hasPointerCapture(e.pointerId)) onSeek(seqAt(e.clientX))
   }
   return (
-    <div className={css.scrubBar}>
+    <div className={css.scrubBar} title={t('keys')}>
       <button
         type="button"
         className={`${css.liveBadge} ${live ? css.liveOn : css.liveOff}`}
@@ -257,6 +257,10 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
   }, [feed, sessionRows, version, headSeq])
 
   const flow = useMemo(() => layout(model, showRouting), [model, showRouting])
+  // A sparse run (1-3 nodes) under the TB→LR dagre layout would otherwise sit as
+  // tiny cards in a vast empty pane on a wide monitor: raise the fit cap so a
+  // small graph fills the frame, keeping maxZoom≈1 only once it is large.
+  const fitMax = flow.nodes.length <= 4 ? 1.8 : flow.nodes.length <= 8 ? 1.3 : 1
   const nodeTypes = useMemo(() => ({
     mission: (p: { data: { model: LiveGraphModel } }) => <MissionNode data={p.data} t={t} />,
     plan: (p: { data: { node: PlanNodeState; predicate?: string } }) => <PlanNode data={p.data} t={t} />,
@@ -265,6 +269,25 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
 
   const selectedNode = selectedKey ? model.planNodes.find(n => n.key === selectedKey) : undefined
   const pickRun = (i: number) => { pick(i); setSelectedKey(null) }
+
+  // Keyboard scrubbing on the panel root — a remote browser under 300ms RTT pays
+  // that latency on every pointer round-trip, so Space/←→/[]/Esc drive the same
+  // useRunFeed actions without one. Skipped when a form control holds focus so
+  // the run <select> and routing checkbox keep their native key behavior.
+  const onKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const tag = (e.target as HTMLElement).tagName
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
+    const eff = headSeq === Infinity ? (run?.lastSeq ?? 0) : headSeq
+    switch (e.key) {
+      case ' ': e.preventDefault(); togglePlay(); break
+      case 'ArrowLeft': if (run) { e.preventDefault(); seek(Math.max(run.firstSeq, eff - 1)) } break
+      case 'ArrowRight': if (run) { e.preventDefault(); seek(Math.min(run.lastSeq, eff + 1)) } break
+      case '[': if (effIndex > 0) { e.preventDefault(); pickRun(effIndex - 1) } break
+      case ']': if (effIndex < runs.length - 1) { e.preventDefault(); pickRun(effIndex + 1) } break
+      case 'Escape': setSelectedKey(null); break
+      default: break
+    }
+  }
 
   if (online === false) return <div className={css.empty}>{t('unavailable')}</div>
   if (sessionName === null) return <div className={css.empty}>{t('loading')}</div>
@@ -280,7 +303,7 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
   }
 
   return (
-    <div className={css.panel}>
+    <div className={css.panel} tabIndex={0} onKeyDown={onKey}>
       <div className={css.header}>
         <span className={css.headTitle}>{sessionName}</span>
         <span className={`${css.feedDot} ${model.live ? css.feedLive : css.feedOff}`} />
@@ -303,7 +326,7 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
       <div className={css.canvas} ref={canvasRef}>
         <ReactFlow
           key={`${sessionName}:${effIndex}:${flow.nodes.length}:${showRouting}`}
-          onInit={(inst) => { fitRef.current = () => { inst.fitView({ padding: 0.16, maxZoom: 1 }) } }}
+          onInit={(inst) => { fitRef.current = () => { inst.fitView({ padding: 0.16, maxZoom: fitMax }) } }}
           nodes={flow.nodes.map(n => ({ ...n, draggable: false, connectable: false, selectable: true }))}
           edges={flow.edges.map(e => ({
             id: e.id, source: e.source, target: e.target,
@@ -319,7 +342,7 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
           nodeTypes={nodeTypes}
           onNodeClick={(_e, n) => { setSelectedKey(n.id.startsWith('plan:') ? n.id.slice(5) : null) }}
           fitView
-          fitViewOptions={{ padding: 0.16, maxZoom: 1 }}
+          fitViewOptions={{ padding: 0.16, maxZoom: fitMax }}
           minZoom={0.2}
           nodesDraggable={false}
           nodesConnectable={false}
