@@ -114,9 +114,11 @@ export function EditableEdge(props: EdgeProps): React.ReactElement {
     path = p; labelX = lx; labelY = ly
   }
 
-  // Drag an existing waypoint at `index` to reroute it.
+  // Drag an existing waypoint at `index` to reroute it. No preventDefault on
+  // the pointerdown: canceling it suppresses the compatibility mouse events,
+  // and with them the dblclick that removes the waypoint.
   const startDrag = (index: number) => (e: React.PointerEvent) => {
-    e.stopPropagation(); e.preventDefault()
+    e.stopPropagation()
     dragging.current = true
     let next = wps.slice()
     const move = (ev: PointerEvent) => {
