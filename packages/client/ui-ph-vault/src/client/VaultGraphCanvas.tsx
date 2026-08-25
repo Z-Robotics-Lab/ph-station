@@ -2,9 +2,10 @@
  * The 技能库 graph canvas: the React Flow surface that draws the grouped vault
  * layout. Renders three visually distinct node kinds (skill / package /
  * capability) as different SVG silhouettes in different hues, wraps each kind
- * region and skill task family in a titled background cluster, keeps all nine
- * relation edges labeled across region boundaries, and pins an always-visible
- * legend. Pure presentation over graph.ts's fold — computes no statistic.
+ * region and skill task family in a titled background cluster, routes typed
+ * relation edges across region boundaries (labeled only under the cursor or in
+ * a node's focus set), and carries a collapsible legend that lists only the
+ * relations that draw. Pure presentation over graph.ts's fold — no statistic.
  *
  * Split out of VaultView so the same surface renders under the plugin (real
  * board data) and under a standalone harness (mock data) for visual proofs.
@@ -14,11 +15,11 @@ import { useMemo, useState } from 'react'
 import { Background, Handle, Position, ReactFlow } from '@xyflow/react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  ALL_KINDS, ALL_RELS, KIND_COLOR, layout, NODE_SIZE, REL_COLOR,
+  ALL_KINDS, KIND_COLOR, layout, NODE_SIZE, REL_COLOR, relTallies,
 } from './graph.ts'
 import type {
-  CapabilityNode, LaidOutContainer, PackageNode, SkillNode,
-  VaultFilters, VaultGraph, VaultKind, VaultNode,
+  CapabilityNode, LaidOutContainer, PackageNode, RelTally, SkillNode,
+  VaultFilters, VaultGraph, VaultKind, VaultNode, VaultRel,
 } from './graph.ts'
 import css from './VaultView.module.css'
 
@@ -181,8 +182,12 @@ function makeContainer(t: Tr) {
 
 // --- always-visible legend ---------------------------------------------------
 
-function Legend({ t }: { t: Tr }) {
-  const [open, setOpen] = useState(true)
+/** The relation/kind key. Opens collapsed (the field below it is more useful at
+ * a glance); lists only the relations that draw an edge, each with its
+ * `rendered/total` fold tally so the four never-drawn families (their targets
+ * are tasks/campaigns/evidence, not nodes) do not read as missing edges. */
+function Legend({ t, rels, tallies }: { t: Tr; rels: readonly VaultRel[]; tallies: Record<VaultRel, RelTally> }) {
+  const [open, setOpen] = useState(false)
   return (
     <div className={css.legend}>
       <button type="button" className={css.legendHead} onClick={() => { setOpen(o => !o) }}>
@@ -203,10 +208,11 @@ function Legend({ t }: { t: Tr }) {
           <div className={css.legendRels}>
             <div className={css.legendSub}>{t('legend.relations')}</div>
             <div className={css.legendRelGrid}>
-              {ALL_RELS.map(r => (
+              {rels.map(r => (
                 <div key={r} className={css.legendRel}>
                   <span className={css.legendLine} style={{ background: REL_COLOR[r] }} />
                   <span>{r}</span>
+                  <span className={css.legendCount}>{tallies[r].rendered}/{tallies[r].total}</span>
                 </div>
               ))}
             </div>
@@ -219,16 +225,39 @@ function Legend({ t }: { t: Tr }) {
 
 // --- the canvas --------------------------------------------------------------
 
+/** Focus set: the edges incident to the focused node plus the nodes they touch
+ * (the focused node and its direct neighbors). */
+interface Focus { edges: ReadonlySet<string>; nodes: ReadonlySet<string> }
+
 /** The grouped vault graph surface.
  * @param graph - the board vault fold.
  * @param filters - the live kind/status/relation/search selection.
- * @param onSelect - open a node's wiki page.
+ * @param onSelect - open a node's wiki page (on double-click).
  * @param t - the bound `phvault` locale reader.
  */
 export function VaultGraphCanvas({
   graph, filters, onSelect, t,
 }: { graph: VaultGraph; filters: VaultFilters; onSelect: (id: string) => void; t: Tr }) {
   const flow = useMemo(() => layout(graph, filters), [graph, filters])
+  const tallies = useMemo(() => relTallies(graph), [graph])
+  const shownRels = useMemo(() => flow.edges.length === 0
+    ? [] : Object.keys(tallies).filter((r): r is VaultRel => tallies[r as VaultRel].rendered > 0), [tallies, flow])
+
+  // Single-click focuses a node (highlight its edges, dim the rest); a labeled
+  // edge appears only under the cursor or in the focus set, so the resting
+  // canvas carries no mid-arc text. Double-click opens the wiki page.
+  const [focusId, setFocusId] = useState<string | null>(null)
+  const [hoverEdge, setHoverEdge] = useState<string | null>(null)
+  const focus = useMemo<Focus | null>(() => {
+    if (focusId === null) return null
+    const edges = new Set<string>()
+    const nodes = new Set<string>([focusId])
+    for (const e of flow.edges) {
+      if (e.source === focusId || e.target === focusId) { edges.add(e.id); nodes.add(e.source); nodes.add(e.target) }
+    }
+    return { edges, nodes }
+  }, [focusId, flow])
+
   const nodeTypes = useMemo(() => ({
     skill: SkillGraphNode, package: PackageGraphNode, capability: CapabilityGraphNode,
     kindGroup: makeContainer(t), taskGroup: makeContainer(t),
@@ -250,20 +279,32 @@ export function VaultGraphCanvas({
       // ResizeObserver (which never fires in a headless/backgrounded tab).
       width: NODE_SIZE[n.type].width, height: NODE_SIZE[n.type].height,
       draggable: false, connectable: false, selectable: true, zIndex: 10,
+      // Fade every node outside the focused node's neighborhood.
+      ...(focus !== null && !focus.nodes.has(n.id) ? { style: { opacity: 0.22 } } : {}),
     })),
-  ], [flow])
+  ], [flow, focus])
 
-  const rfEdges = useMemo(() => flow.edges.map(e => ({
-    id: e.id, source: e.source, target: e.target,
-    type: 'default', label: e.label, zIndex: 5,
-    labelShowBg: true,
-    labelBgPadding: [4, 2] as [number, number],
-    labelBgStyle: { fill: 'var(--dsw-alias-bg-layer-1, #fff)', fillOpacity: 0.85 },
-    labelStyle: { fill: REL_COLOR[e.rel], fontSize: 9, fontWeight: 600 },
-    style: { stroke: REL_COLOR[e.rel], strokeWidth: 1.4 },
-    markerEnd: { type: 'arrowclosed', color: REL_COLOR[e.rel], width: 14, height: 14 } as unknown as string,
-    animated: e.rel === 'DESCENDS_FROM',
-  })), [flow])
+  const rfEdges = useMemo(() => flow.edges.map((e) => {
+    const incident = focus?.edges.has(e.id) ?? false
+    const faded = focus !== null && !incident
+    const showLabel = incident || hoverEdge === e.id
+    const color = REL_COLOR[e.rel]
+    return {
+      id: e.id, source: e.source, target: e.target,
+      // Only the focused node's edges reroute orthogonally (a comb of
+      // right-angles); every other edge stays bezier so the whole graph does
+      // not turn into overlapping vertical trunks.
+      type: incident ? 'smoothstep' : 'default',
+      zIndex: incident ? 6 : 5,
+      // Label only under the cursor or in the focus set — no resting mid-arc text.
+      ...(showLabel ? { label: e.label, labelShowBg: true } : { labelShowBg: false }),
+      labelBgPadding: [4, 2] as [number, number],
+      labelBgStyle: { fill: 'var(--dsw-alias-bg-layer-1, #fff)', fillOpacity: 0.9 },
+      labelStyle: { fill: color, fontSize: 9, fontWeight: 600 },
+      style: { stroke: color, strokeWidth: incident ? 2 : 1.4, opacity: faded ? 0.06 : 1 },
+      markerEnd: (faded ? undefined : { type: 'arrowclosed', color, width: 14, height: 14 }) as unknown as string,
+    }
+  }), [flow, focus, hoverEdge])
 
   return (
     <div className={css.canvas}>
@@ -271,7 +312,11 @@ export function VaultGraphCanvas({
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
-        onNodeClick={(_e, node) => { if (!node.id.startsWith('c:')) onSelect(node.id) }}
+        onNodeClick={(_e, node) => { if (!node.id.startsWith('c:')) setFocusId(id => id === node.id ? null : node.id) }}
+        onNodeDoubleClick={(_e, node) => { if (!node.id.startsWith('c:')) onSelect(node.id) }}
+        onPaneClick={() => { setFocusId(null) }}
+        onEdgeMouseEnter={(_e, edge) => { setHoverEdge(edge.id) }}
+        onEdgeMouseLeave={() => { setHoverEdge(null) }}
         // A headless/backgrounded tab never fires React Flow's ResizeObserver,
         // so the initial fitView can run against a zero-size pane; refit once
         // the instance is live to frame all three regions.
@@ -287,7 +332,7 @@ export function VaultGraphCanvas({
       >
         <Background gap={18} size={1} />
       </ReactFlow>
-      <Legend t={t} />
+      <Legend t={t} rels={shownRels} tallies={tallies} />
       <div className={css.graphHint}>{t('graph.hint')}</div>
     </div>
   )

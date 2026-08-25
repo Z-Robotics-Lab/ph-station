@@ -112,7 +112,7 @@ export const zh: Record<PhVaultKey, string> = {
   'legend.node': '节点',
   'legend.title': '图例',
   'legend.relations': '关系',
-  'graph.hint': '点击节点查看词条页',
+  'graph.hint': '单击节点聚焦其连边 · 双击打开词条页',
 }
 
 /** English dictionary. */
@@ -165,5 +165,5 @@ export const en: Record<PhVaultKey, string> = {
   'legend.node': 'node',
   'legend.title': 'Legend',
   'legend.relations': 'Relations',
-  'graph.hint': 'Click a node for its wiki page',
+  'graph.hint': 'Click a node to focus its edges · double-click for its wiki page',
 }

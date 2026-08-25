@@ -136,6 +136,39 @@ export const ALL_RELS: readonly VaultRel[] = [
 /** The three kinds, in reading order. */
 export const ALL_KINDS: readonly VaultKind[] = ['skill', 'package', 'capability']
 
+/** The two highest-volume cross-band families (seven edges each in the live
+ * fold), both terminating on the capability band. Hidden by default so the
+ * graph opens legible; the operator opts them back in per relation chip. */
+export const DENSE_RELS: readonly VaultRel[] = ['REQUIRES', 'PROVIDES']
+
+/** Per-relation edge tally over the whole fold. `total` counts every fold edge
+ * of the family; `rendered` counts only those whose both endpoints are node
+ * kinds and can therefore draw. */
+export interface RelTally { readonly total: number; readonly rendered: number }
+
+/** Tally every relation family's fold edges against how many can render (both
+ * endpoints are nodes). Families whose targets are tasks/campaigns/evidence
+ * (GOVERNS/BINDS/EVIDENCED_BY/MOUNTED_IN) tally `rendered: 0`. */
+export function relTallies(graph: VaultGraph): Record<VaultRel, RelTally> {
+  const ids = new Set(graph.nodes.map(n => n.id))
+  const total = new Map<VaultRel, number>()
+  const rendered = new Map<VaultRel, number>()
+  for (const e of graph.edges) {
+    total.set(e.rel, (total.get(e.rel) ?? 0) + 1)
+    if (ids.has(e.src) && ids.has(e.dst)) rendered.set(e.rel, (rendered.get(e.rel) ?? 0) + 1)
+  }
+  return Object.fromEntries(ALL_RELS.map(r =>
+    [r, { total: total.get(r) ?? 0, rendered: rendered.get(r) ?? 0 }]),
+  ) as Record<VaultRel, RelTally>
+}
+
+/** The relation families that draw at least one edge; the rest are dead
+ * controls (legend rows and filter chips the canvas hides). */
+export function renderableRels(graph: VaultGraph): Set<VaultRel> {
+  const t = relTallies(graph)
+  return new Set(ALL_RELS.filter(r => t[r].rendered > 0))
+}
+
 /** The three derived skill statuses, in reading order. */
 export const ALL_STATUSES: readonly SkillStatus[] = ['promoted', 'candidate', 'retired']
 
@@ -310,8 +343,12 @@ function taskOf(n: SkillNode): string {
  * Fold the graph into a GROUPED layout over the FILTERED subset: each kind
  * (skill / package / capability) lays out through its own pass (dagre LR when it
  * has internal edges, else a packed row grid) and stacks as a titled region;
- * skill nodes sub-cluster by task family. Cross-group
- * edges route between regions unchanged, so all nine relations stay visible.
+ * skill nodes sub-cluster by task family (capability takes the middle lane so
+ * both cross-band families reach it without arcing across the other's band).
+ * Cross-group edges route between regions unchanged. Only edges between two
+ * node kinds draw: a relation whose endpoints are tasks/campaigns/evidence
+ * (GOVERNS, BINDS, EVIDENCED_BY, MOUNTED_IN) has no node to land on and never
+ * renders — {@link renderableRels} reports which families actually appear.
  * An edge survives only when both endpoints do and its relation is selected; a
  * node dimmed by search still lays out (context) but renders muted.
  * @param graph - the board vault payload.
@@ -381,8 +418,12 @@ export function layout(graph: VaultGraph, f: VaultFilters): VaultLayout {
     bandY += bandH + BAND_GAP
   }
 
-  // --- package + capability regions: one packed row grid each ---------------
-  for (const kind of ['package', 'capability'] as const) {
+  // --- capability + package regions: one packed row grid each ---------------
+  // Capability lands in the middle lane (between skill and package): both
+  // 7-edge cross-band families terminate on it, so seating it adjacent to both
+  // neighbors shortens the REQUIRES (skill→capability) and PROVIDES
+  // (package→capability) arcs instead of arcing one across the other's band.
+  for (const kind of ['capability', 'package'] as const) {
     const members = survivors.filter(n => n.kind === kind)
     if (members.length === 0) continue
     const sub = packGroup(members, edges)

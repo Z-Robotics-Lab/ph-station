@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { layout } from '../src/client/graph.ts'
+import { layout, relTallies, renderableRels } from '../src/client/graph.ts'
 import type { VaultFilters, VaultGraph } from '../src/client/graph.ts'
 
 const NO_FILTER: VaultFilters = { kinds: new Set(), rels: new Set(), statuses: new Set(), search: '' }
@@ -71,5 +71,38 @@ describe('grouped vault layout', () => {
   it('drops a region when its kind is filtered out', () => {
     const skillOnly = layout(GRAPH, { ...NO_FILTER, kinds: new Set(['skill']) })
     expect(skillOnly.containers.filter(c => c.variant === 'band').map(b => b.id)).toEqual(['band:skill'])
+  })
+
+  it('seats the capability lane above the package lane (middle lane)', () => {
+    const cap = bands.find(b => b.id === 'band:capability')
+    const pkg = bands.find(b => b.id === 'band:package')
+    expect(cap && pkg && cap.position.y < pkg.position.y).toBe(true)
+  })
+})
+
+describe('relation tallies', () => {
+  /** A fold whose GOVERNS edge targets a task id that is not a node, plus two
+   * REQUIRES that land on a real capability. */
+  const GRAPH: VaultGraph = {
+    schema_version: 1,
+    nodes: [
+      { kind: 'skill', id: 's1', status: 'promoted' },
+      { kind: 'capability', id: 'cap.x', privileged: false },
+    ],
+    edges: [
+      { rel: 'REQUIRES', src: 's1', dst: 'cap.x', rule: 'r', via: 'v' },
+      { rel: 'GOVERNS', src: 's1', dst: 'task:stack', rule: 'r', via: 'v' },
+      { rel: 'GOVERNS', src: 's1', dst: 'task:lift', rule: 'r', via: 'v' },
+    ],
+  }
+
+  it('counts rendered edges (both endpoints are nodes) vs total fold edges', () => {
+    const t = relTallies(GRAPH)
+    expect(t.REQUIRES).toEqual({ total: 1, rendered: 1 })
+    expect(t.GOVERNS).toEqual({ total: 2, rendered: 0 })
+  })
+
+  it('reports only families that draw (GOVERNS-to-a-task is a dead control)', () => {
+    expect([...renderableRels(GRAPH)]).toEqual(['REQUIRES'])
   })
 })
