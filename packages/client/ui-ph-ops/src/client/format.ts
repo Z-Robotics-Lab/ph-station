@@ -19,4 +19,13 @@ export function agoSeconds(mtime?: number | null, nowMs: number = Date.now()): n
   if (m === null) return null
   return Math.max(0, Math.floor(nowMs / 1000 - m))
 }
+
+/** A raw second count as a coarse elapsed label: seconds under a minute, whole
+ * minutes under an hour, else `Nh Mm`. Presentation only — callers keep the
+ * numeric agoSeconds for any threshold logic (dot colour, staleness). */
+export function formatAgo(secs: number): string {
+  if (secs < 60) return `${secs}s`
+  if (secs < 3600) return `${Math.floor(secs / 60)}m`
+  return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`
+}
 /* jscpd:ignore-end */
