@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Background, Controls, Handle, MiniMap, Position, ReactFlow } from '@xyflow/react'
+import { Background, Controls, Handle, MiniMap, Position, ReactFlow, useStore } from '@xyflow/react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   ALL_KINDS, KIND_COLOR, layout, NODE_SIZE, REL_COLOR, relTallies,
@@ -26,6 +26,21 @@ import css from './VaultView.module.css'
 
 /** The bound locale reader for this view's namespace. */
 type Tr = PropsLocale<'phvault'>['t']
+
+/** Level of detail from the live viewport zoom (xyflow store; zero deps). `far`
+ * reads a node as its kind silhouette + glyph only, `mid` adds the identifying
+ * name (and a skill's status), `near` is the full card. Only the content
+ * changes with zoom — the silhouette and footprint are constant. The whole vault
+ * DAG fits at ~0.48, so the bands sit lower than the linear execution graph's:
+ * the default frame is `mid` (labels stay), and `far` is a deliberate zoom-out
+ * to the silhouette overview. */
+type Lod = 'far' | 'mid' | 'near'
+function useLod(): Lod {
+  return useStore((s) => {
+    const z = s.transform[2]
+    return z < 0.4 ? 'far' : z < 0.72 ? 'mid' : 'near'
+  })
+}
 
 /** A faint fill of a kind hue, for the node silhouettes. */
 function tint(color: string, pct: number): string {
@@ -130,47 +145,68 @@ function ShapeFrame({ kind, dimmed, children }: { kind: VaultKind; dimmed: boole
   )
 }
 
+/** The far-LOD body: the kind glyph enlarged and centered over its silhouette,
+ * so a zoomed-out canvas reads by shape + hue + glyph alone (no text). */
+function FarGlyph({ kind }: { kind: VaultKind }) {
+  return <div className={css.gfar}><KindGlyph kind={kind} size={22} /></div>
+}
+
 function SkillGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
   const n = data.node as SkillNode
+  const lod = useLod()
   // Round the raw held-out delta: the board sends a full-precision float
   // (0.65 - 0.585 = 0.06500000000000006) that reads as noise in a node body.
   const rawDelta = n.evidence?.heldout_delta
   const delta = rawDelta === undefined ? undefined : Number(rawDelta.toFixed(3))
   return (
     <ShapeFrame kind="skill" dimmed={data.dimmed}>
-      <div className={css.gtitle}><KindGlyph kind="skill" /><span>{n.label ?? n.id.slice(0, 12)}</span></div>
-      <div className={css.gsub}>
-        <span className={`${css.gstatus} ${css[`st_${n.status}`] ?? ''}`}>{n.status}</span>
-        {n.privilege ? <span className={`${css.gstatus} ${css.gpriv}`}>priv {n.privilege}</span> : null}
-      </div>
-      {/* Disambiguates same-family candidates (identical label + status) by the
-          generation and held-out delta the fold already carries. */}
-      {(n.generation !== undefined || delta !== undefined) ? (
-        <div className={css.gmeta}>
-          {n.generation !== undefined ? <span>gen{n.generation}</span> : null}
-          {delta !== undefined ? <span>Δ{delta}</span> : null}
-        </div>
-      ) : null}
+      {lod === 'far' ? <FarGlyph kind="skill" /> : (
+        <>
+          <div className={css.gtitle}><KindGlyph kind="skill" /><span>{n.label ?? n.id.slice(0, 12)}</span></div>
+          <div className={css.gsub}>
+            <span className={`${css.gstatus} ${css[`st_${n.status}`] ?? ''}`}>{n.status}</span>
+            {lod === 'near' && n.privilege ? <span className={`${css.gstatus} ${css.gpriv}`}>priv {n.privilege}</span> : null}
+          </div>
+          {/* Disambiguates same-family candidates (identical label + status) by the
+              generation and held-out delta the fold already carries. Near only. */}
+          {lod === 'near' && (n.generation !== undefined || delta !== undefined) ? (
+            <div className={css.gmeta}>
+              {n.generation !== undefined ? <span>gen{n.generation}</span> : null}
+              {delta !== undefined ? <span>Δ{delta}</span> : null}
+            </div>
+          ) : null}
+        </>
+      )}
     </ShapeFrame>
   )
 }
 
 function PackageGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
   const n = data.node as PackageNode
+  const lod = useLod()
   return (
     <ShapeFrame kind="package" dimmed={data.dimmed}>
-      <div className={css.gtitle}><KindGlyph kind="package" /><span>{n.name ?? n.id}</span></div>
-      <div className={`${css.gsub} ${css.mono}`}>{n.id}</div>
+      {lod === 'far' ? <FarGlyph kind="package" /> : (
+        <>
+          <div className={css.gtitle}><KindGlyph kind="package" /><span>{n.name ?? n.id}</span></div>
+          {lod === 'near' ? <div className={`${css.gsub} ${css.mono}`}>{n.id}</div> : null}
+        </>
+      )}
     </ShapeFrame>
   )
 }
 
 function CapabilityGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
   const n = data.node as CapabilityNode
+  const lod = useLod()
   return (
     <ShapeFrame kind="capability" dimmed={data.dimmed}>
-      <div className={`${css.gtitle} ${css.mono}`}><KindGlyph kind="capability" /><span>{n.id}</span></div>
-      {n.privileged ? <div className={css.gsub}>privileged</div> : null}
+      {lod === 'far' ? <FarGlyph kind="capability" /> : (
+        <>
+          <div className={`${css.gtitle} ${css.mono}`}><KindGlyph kind="capability" /><span>{n.id}</span></div>
+          {lod === 'near' && n.privileged ? <div className={css.gsub}>privileged</div> : null}
+        </>
+      )}
     </ShapeFrame>
   )
 }

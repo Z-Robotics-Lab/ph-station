@@ -130,6 +130,17 @@
   padding-left: 1rem;
 }
 
+/* far LOD: the kind glyph centered over the silhouette, at the kind hue, so a
+   zoomed-out canvas reads by shape + color + glyph without any text. */
+.gfar {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+
 .gtitle {
   display: flex;
   align-items: center;
