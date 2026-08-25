@@ -4,14 +4,15 @@
  * fetchers return the same RemoteResult envelopes the board bridge produces.
  *
  * URL knobs (all optional):
- *   #<view>        vault | lab | livegraph | ticker | ops | evolution | cards |
- *                  ledger | status | battle   (default vault)
+ *   #<view>        dash | vault | lab | livegraph | ticker | ops | evolution |
+ *                  cards | ledger | status | battle   (default vault)
  *   ?latency=300   delay every mock board read by N ms (throttled-RTT profile)
  *   ?locale=en     English copy (default zh)
  *   ?theme=dark    dark tokens (body[data-ds-dark-theme])
  *
- * DashView is not mounted: it only arranges the other views through the slot
- * renderer machinery; every panel it docks is individually mountable here.
+ * #dash mounts DashView inside a minimal reproduction of the ConversationRoot
+ * active-phase scroll/seat contract (DashHarness), so panel maximize and the
+ * composer-band sash drive against the real dock + seat CSS.
  */
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -37,6 +38,16 @@ import { StatusBar } from '../packages/client/ui-ph-panels/src/client/StatusBar.
 import { zh as panelsZh, en as panelsEn } from '../packages/client/ui-ph-panels/src/client/locales.ts'
 import { BattleView } from '../packages/client/ui-ph-battle/src/client/BattleView.tsx'
 import { zh as battleZh, en as battleEn } from '../packages/client/ui-ph-battle/src/client/locales.ts'
+
+import { DashView } from '../packages/client/ui-ph-dash/src/client/DashView.tsx'
+import { zh as dashZh, en as dashEn } from '../packages/client/ui-ph-dash/src/client/locales.ts'
+// Plain (non-inline) so vite injects dockview's chrome; the plugin uses the
+// ?inline channel, but scratch only needs the styles present.
+import '../packages/client/ui-ph-dash/src/client/dockview.css'
+import '../packages/client/ui-ph-dash/src/client/dockview-ph.css'
+// The real seat classes, so the composer-band cap (max-height + flex-end clip)
+// is exercised against production CSS, not a scratch copy.
+import convCss from '../packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css'
 
 import fixtures from './fixtures.json'
 
@@ -101,6 +112,78 @@ const VIEWS: Record<string, { label: string; rail?: boolean; render: () => JSX.E
   battle: { label: '战报', render: () => <BattleView {...anyProps({ t: tBattle })} /> },
 }
 
+// Registered after VIEWS so the dash can dock the others; keyed #dash.
+const DASH = { label: '实验台', render: () => <DashHarness /> }
+
+const tDash = makeT(dashZh, dashEn)
+
+/** Docks a stand-in `chat` (DashView's default anchor, always present in the
+ * real ledger) plus every other scratch view; DashView excludes `dash` itself. */
+const dashViews: Record<string, { label: string; render: () => JSX.Element }> = {
+  chat: {
+    label: '对话',
+    render: () => (
+      <div style={{ padding: 24, fontSize: 13, opacity: 0.7 }}>
+        对话面板（scratch 占位）— 用于验证面板最大化与 composer 死带 sash。
+      </div>
+    ),
+  },
+  ...VIEWS,
+}
+const dashLedger = {
+  list: () => Object.entries(dashViews).map(([id, v]) => ({ id, label: v.label })),
+  subscribe: () => () => {},
+  version: () => 0,
+}
+const dashRenderView = (id: string): JSX.Element | null => dashViews[id]?.render() ?? null
+
+/** Reproduces the ConversationRoot active-phase contract the dash relies on: a
+ * `[data-conversation-scroll]` host that carries the composer-band variables,
+ * with the real `.composerSeat` classes and a mock composer whose inner wrapper
+ * publishes --dsh-composer-height (mirroring ConversationRoot's own observer, so
+ * the band cap runs against production CSS). The chip count toggles to prove the
+ * reserve tracks a wrapping chip row. */
+function DashHarness() {
+  const [inner, setInner] = useState<HTMLDivElement | null>(null)
+  const [wide, setWide] = useState(false)
+  useEffect(() => {
+    const scroller = inner?.closest('[data-conversation-scroll]') as HTMLElement | null
+    if (!inner || !scroller) return
+    const ro = new ResizeObserver(() => {
+      scroller.style.setProperty('--dsh-composer-height', `${inner.offsetHeight}px`)
+    })
+    ro.observe(inner)
+    return () => { ro.disconnect() }
+  }, [inner])
+  const chip = (i: number) => (
+    <span key={i} style={{
+      padding: '3px 10px', borderRadius: 8, fontSize: 12, whiteSpace: 'nowrap',
+      border: '1px solid var(--dsw-alias-border-l2, #ccc)',
+      background: 'color-mix(in srgb, currentColor 5%, transparent)',
+    }}>chip {i}</span>
+  )
+  return (
+    <div className={convCss.root} data-phase="active" style={{ height: '100%' }}>
+      <div className={convCss.scrollBody} data-conversation-scroll="" style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', flex: '1 1 0', minHeight: 0 }}>
+          <DashView {...({ views: dashLedger, renderView: dashRenderView, t: tDash } as any)} />
+        </div>
+        <div className={convCss.composerSeat} data-composer-seat="">
+          <div ref={setInner} className={convCss.composerSeatInner} style={{ gap: 6, padding: '8px 16px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }} data-testid="composer-chips">
+              {Array.from({ length: wide ? 16 : 4 }, (_, i) => chip(i))}
+            </div>
+            <button type="button" data-testid="toggle-wide" onClick={() => { setWide(w => !w) }}
+              style={{ alignSelf: 'flex-start', fontSize: 11, opacity: 0.6 }}>toggle chip wrap</button>
+            <textarea data-testid="composer-input" defaultValue="composer input row (stack floor)"
+              style={{ height: 44, resize: 'none', width: '100%', boxSizing: 'border-box' }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [hash, setHash] = useState(location.hash.slice(1) || 'vault')
   useEffect(() => {
@@ -108,11 +191,12 @@ function App() {
     window.addEventListener('hashchange', on)
     return () => window.removeEventListener('hashchange', on)
   }, [])
-  const view = VIEWS[hash] ?? VIEWS.vault
+  const nav = { dash: DASH, ...VIEWS }
+  const view = nav[hash] ?? VIEWS.vault
   return (
     <>
       <nav className="scratch">
-        {Object.entries(VIEWS).map(([id, v]) => (
+        {Object.entries(nav).map(([id, v]) => (
           <a key={id} href={`#${id}`} style={v === view ? { fontWeight: 700 } : undefined}>{v.label}</a>
         ))}
       </nav>
