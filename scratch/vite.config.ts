@@ -36,7 +36,7 @@ export default ({
       { find: /^react-dom$/, replacement: req.resolve('react-dom') },
       // The two bare workspace ids in the panel component graph, mapped to
       // source so a fresh clone serves without `pnpm run build`.
-      { find: /^@deepseek-ai\/dsh-client-ui-ph-icons$/, replacement: here('../packages/client/ui-ph-icons/src/index.tsx') },
+      { find: /^@deepseek-ai\/dsh-client-ui-ph-icons$/, replacement: here('../packages/client/ui-ph-icons/src/index.ts') },
       { find: /^@deepseek-ai\/dsh-client-ui-primitives$/, replacement: here('../packages/client/ui-primitives/src/index.ts') },
     ],
   },

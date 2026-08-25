@@ -15,7 +15,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-SESSIONS_KEEP = ['session-main', 'grasp-cube-g1', 'clear-build-g1']
+SESSIONS_KEEP = ['session-main', 'session-robocasa', 'grasp-cube-g1', 'clear-build-g1']
+RUNTIME_KEEP = ['session-main', 'session-robocasa']
 STORES_KEEP = ['grasp-cube-g1', 'place-g2', 'stack-g1', 'clear-build-g1']
 ROUNDS_KEEP = 12
 
@@ -35,8 +36,8 @@ def main() -> None:
         'sessions': [s for s in board('sessions') if s.get('name') in SESSIONS_KEEP],
         'session': {n: board('session', n) for n in SESSIONS_KEEP},
         'sessionProgress': {'session-main': board('session_progress', 'session-main')},
-        'runtimeStatus': {'session-main': board('runtime_status', 'session-main')},
-        'runtimeEvents': {'session-main': board('runtime_events', 'session-main')},
+        'runtimeStatus': {n: board('runtime_status', n) for n in RUNTIME_KEEP},
+        'runtimeEvents': {n: board('runtime_events', n) for n in RUNTIME_KEEP},
         'vault': board('vault'),
         'stores': [s for s in board('list_stores') if s.get('name') in STORES_KEEP],
         'store': {n: board('store', n) for n in STORES_KEEP},

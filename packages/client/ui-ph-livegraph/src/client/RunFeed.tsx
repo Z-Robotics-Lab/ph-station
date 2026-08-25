@@ -59,6 +59,12 @@ function RootRunFeed({ inject, children }: { inject: FeedInjected; children: Rea
   const [runIndex, setRunIndex] = useState<number | null>(null)
   const [playing, setPlaying] = useState(false)
 
+  // Run indices and playhead seqs are per-session coordinates: carrying them
+  // across a session switch strands the selection on a run the new feed does not
+  // have (empty ticker, dead scrubber, prefix-truncated graph). Any switch drops
+  // back to following the live tail.
+  useEffect(() => { setPlayhead(null); setRunIndex(null); setPlaying(false) }, [sessionName])
+
   const runs = useMemo(() => foldRuns(feed.current), [feed, version])
   const live = playhead === null && (runIndex === null || runIndex === runs.length - 1)
   const effIndex = runIndex ?? (runs.length > 0 ? runs.length - 1 : 0)
