@@ -128,7 +128,6 @@ export function Viewport({ t }: PropsLocale<'phlivegraph'>) {
   // A restored box may be off-canvas after a pane resize; re-clamp once mounted.
   useEffect(() => {
     if (boxRef.current !== null) setBox(clampBox(boxRef.current))
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only re-clamp
   }, [])
 
   const onDown = (mode: 'move' | 'resize') => (e: ReactPointerEvent<HTMLDivElement>) => {
