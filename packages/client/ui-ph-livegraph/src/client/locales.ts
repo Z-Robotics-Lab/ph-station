@@ -49,6 +49,7 @@ export type PhLiveGraphKey =
   | 'privileged'
   | 'showRouting'
   | 'routingHint'
+  | 'keys'
   | 'live'
   | 'history'
   | 'liveOn'
@@ -116,6 +117,7 @@ export const zh: Record<PhLiveGraphKey, string> = {
   'privileged': '特权',
   'showRouting': '显示能力接线',
   'routingHint': '把能力路由（消费方→能力→提供方）叠加到图上',
+  'keys': '键盘：空格 播放/暂停 · ←→ 逐帧 · [ ] 切换实验 · Esc 收起证据',
   'live': 'LIVE',
   'history': 'HISTORY',
   'liveOn': '实时跟随中：显示最新事件',
@@ -177,6 +179,7 @@ export const en: Record<PhLiveGraphKey, string> = {
   'privileged': 'privileged',
   'showRouting': 'show wiring',
   'routingHint': 'Overlay capability routing (consumer → capability → provider)',
+  'keys': 'Keys: Space play/pause · ←→ step · [ ] switch run · Esc close evidence',
   'live': 'LIVE',
   'history': 'HISTORY',
   'liveOn': 'Following live: showing the newest events',
