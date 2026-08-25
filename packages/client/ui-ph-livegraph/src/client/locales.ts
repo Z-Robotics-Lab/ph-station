@@ -66,6 +66,9 @@ export type PhLiveGraphKey =
   | 'legend.replanned'
   | 'sessionPick'
   | 'fit'
+  | 'minimapShow'
+  | 'minimapHide'
+  | 'relayout'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -136,6 +139,9 @@ export const zh: Record<PhLiveGraphKey, string> = {
   'legend.replanned': '已重规划',
   'sessionPick': '切换会话（● 有运行时）',
   'fit': '适应',
+  'minimapShow': '显示缩略图',
+  'minimapHide': '收起缩略图',
+  'relayout': '重新布局（清除手动调整）',
 }
 
 /** English dictionary. */
@@ -200,4 +206,7 @@ export const en: Record<PhLiveGraphKey, string> = {
   'legend.replanned': 'replanned',
   'sessionPick': 'Switch session (● has runtime)',
   'fit': 'Fit',
+  'minimapShow': 'Show minimap',
+  'minimapHide': 'Hide minimap',
+  'relayout': 'Re-layout (clear manual edits)',
 }

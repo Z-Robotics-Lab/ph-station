@@ -18,12 +18,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Background, Controls, Handle, MiniMap, Panel, Position, ReactFlow, useReactFlow, useStore,
 } from '@xyflow/react'
-import { IconBroadcast, IconPlayerPause, IconPlayerPlay } from '@deepseek-ai/dsh-client-ui-ph-icons'
+import type { Node } from '@xyflow/react'
+import {
+  IconBroadcast, IconLayoutDashboard, IconLayoutOff, IconPlayerPause, IconPlayerPlay, IconSitemap,
+} from '@deepseek-ai/dsh-client-ui-ph-icons'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { foldEvents, layout, NODE_SIZE } from './graph.ts'
+import { foldEvents, HANDLE, layout, NODE_SIZE } from './graph.ts'
 import type { LiveGraphModel, NodeStatus, PlanNodeState, RoutingRow, RunInfo } from './graph.ts'
 import type { FeedInjected } from './useLiveFeed.ts'
 import { useRunFeed } from './RunFeed.tsx'
+import {
+  EditableEdge, EditProvider, EMPTY_MANUAL, hasManual, loadManual, saveManual,
+} from './editable.tsx'
+import type { ManualState, Point } from './editable.tsx'
 import css from './LiveGraphView.module.css'
 
 /** The board reads the graph drives (the shared feed face). */
@@ -58,11 +65,43 @@ function useLod(): Lod {
   })
 }
 
+/** Persisted per-surface MiniMap collapse preference: `true`/`false` once the
+ * operator toggles, `null` while none is saved so the pane width drives the
+ * default (collapsed when narrow). Private-mode storage failures read as null. */
+function readMiniPref(surface: string): boolean | null {
+  try {
+    const v = localStorage.getItem(`ph:${surface}:minimap`)
+    return v === '1' ? true : v === '0' ? false : null
+  } catch { return null }
+}
+function writeMiniPref(surface: string, collapsed: boolean): void {
+  try { localStorage.setItem(`ph:${surface}:minimap`, collapsed ? '1' : '0') } catch { /* private mode: session-only */ }
+}
+/** Below this pane width the MiniMap defaults collapsed (it otherwise covers a
+ * narrow graph); an explicit operator toggle overrides the width default. */
+const MINI_NARROW = 1000
+
 /** Verified/failed tally across a node's stages, for the `mid`-band summary badge. */
 function stageTally(stages: PlanNodeState['stages']): { ok: number; bad: number } {
   let ok = 0; let bad = 0
   for (const s of stages) { if (s.status === 'verified') ok++; else if (s.status === 'failed') bad++ }
   return { ok, bad }
+}
+
+/** The six side anchors a plan card exposes (see `HANDLE`): top/left/right take
+ * incoming edges, left/right/bottom source outgoing ones, so `edgeHandles` can
+ * attach either flow direction of a serpentine row and the gutter wraps. */
+function PlanHandles() {
+  return (
+    <>
+      <Handle type="target" position={Position.Top} id={HANDLE.topTgt} className={css.handle} />
+      <Handle type="target" position={Position.Left} id={HANDLE.leftTgt} className={css.handle} />
+      <Handle type="source" position={Position.Left} id={HANDLE.leftSrc} className={css.handle} />
+      <Handle type="source" position={Position.Right} id={HANDLE.rightSrc} className={css.handle} />
+      <Handle type="target" position={Position.Right} id={HANDLE.rightTgt} className={css.handle} />
+      <Handle type="source" position={Position.Bottom} id={HANDLE.bottomSrc} className={css.handle} />
+    </>
+  )
 }
 
 function MissionNode({ data, t }: { data: { model: LiveGraphModel } } & PropsLocale<'phlivegraph'>) {
@@ -71,7 +110,6 @@ function MissionNode({ data, t }: { data: { model: LiveGraphModel } } & PropsLoc
   const ring = status === 'running' ? css.stRunning : status === 'failed' ? css.stFailed : status === 'done' ? css.stVerified : css.stPending
   return (
     <div className={`${css.node} ${css.mission} ${ring}`}>
-      <Handle type="target" position={Position.Top} id="in" className={css.handle} />
       <div className={css.nodeTitle}>
         {m.task?.task ?? t('idle')}
         {m.task?.seed !== undefined ? <span className={css.mono}> #{m.task.seed}</span> : null}
@@ -81,8 +119,8 @@ function MissionNode({ data, t }: { data: { model: LiveGraphModel } } & PropsLoc
         {status ? <span className={css.badge}>{t(status === 'running' ? 'running' : status === 'failed' ? 'failed' : 'done')}</span> : null}
         {m.replans > 0 ? <span className={`${css.badge} ${css.badgeAmber}`}>{t('replans')} {m.replans}</span> : null}
       </div>
-      <Handle type="source" position={Position.Right} id="out" className={css.handle} />
-      <Handle type="source" position={Position.Bottom} id="cap" className={css.handle} />
+      <Handle type="source" position={Position.Right} id={HANDLE.rightSrc} className={css.handle} />
+      <Handle type="source" position={Position.Bottom} id={HANDLE.bottomSrc} className={css.handle} />
     </div>
   )
 }
@@ -97,11 +135,10 @@ function PlanNode({ data, t }: { data: { node: PlanNodeState; predicate?: string
   if (lod === 'far') {
     return (
       <div className={`${css.node} ${css.plan} ${css.planFar} ${STATUS_CLASS[n.status]}`} title={`${n.skill} · ${n.id}`}>
-        <Handle type="target" position={Position.Left} id="in" className={css.handle} />
+        <PlanHandles />
         <span className={css.farDot} />
         <span className={css.farLabel}>{n.skill}</span>
         {n.attempt > 0 ? <span className={css.farReplan} title={t('replans')}>▲{n.attempt}</span> : null}
-        <Handle type="source" position={Position.Right} id="out" className={css.handle} />
       </div>
     )
   }
@@ -111,7 +148,7 @@ function PlanNode({ data, t }: { data: { node: PlanNodeState; predicate?: string
     const { ok, bad } = stageTally(n.stages)
     return (
       <div className={`${css.node} ${css.plan} ${STATUS_CLASS[n.status]}`}>
-        <Handle type="target" position={Position.Left} id="in" className={css.handle} />
+        <PlanHandles />
         {running ? <span className={css.cursorTag}>▶ {t('current')}</span> : null}
         <div className={css.nodeTitle}>
           {n.skill}
@@ -128,7 +165,6 @@ function PlanNode({ data, t }: { data: { node: PlanNodeState; predicate?: string
             )}
           {n.ms !== undefined ? <span className={css.meta}><span className={css.mono}>{(n.ms / 1000).toFixed(1)}s</span></span> : null}
         </div>
-        <Handle type="source" position={Position.Right} id="out" className={css.handle} />
       </div>
     )
   }
@@ -136,7 +172,7 @@ function PlanNode({ data, t }: { data: { node: PlanNodeState; predicate?: string
   // near: the full card — stage chips, step/time/fault meta, verify predicate.
   return (
     <div className={`${css.node} ${css.plan} ${STATUS_CLASS[n.status]}`}>
-      <Handle type="target" position={Position.Left} id="in" className={css.handle} />
+      <PlanHandles />
       {running ? <span className={css.cursorTag}>▶ {t('current')}</span> : null}
       <div className={css.nodeTitle}>
         {n.skill}
@@ -157,7 +193,6 @@ function PlanNode({ data, t }: { data: { node: PlanNodeState; predicate?: string
         {n.faults?.length ? <span className={`${css.meta} ${css.metaFault}`}>{t('faults')} {n.faults.length}</span> : null}
         {data.predicate ? <span className={css.predChip} title={t('verify')}>⊨ {data.predicate}</span> : null}
       </div>
-      <Handle type="source" position={Position.Right} id="out" className={css.handle} />
     </div>
   )
 }
@@ -167,7 +202,7 @@ function CapNode({ data, t }: { data: { cap: RoutingRow } } & PropsLocale<'phliv
   const tail = cap.ref.split(':').pop() ?? cap.ref
   return (
     <div className={`${css.node} ${css.cap}`} title={cap.ref}>
-      <Handle type="target" position={Position.Left} id="in" className={css.handle} />
+      <Handle type="target" position={Position.Left} id={HANDLE.leftTgt} className={css.handle} />
       <div className={css.capName}>
         {cap.capability}
         {cap.privileged ? <span className={css.privDot} title={t('privileged')} /> : null}
@@ -358,6 +393,40 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
 
   const [showRouting, setShowRouting] = useState(false)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  // MiniMap collapse: operator preference wins; absent it, the pane width picks
+  // the default (collapsed when narrow), so a small pane isn't covered on load.
+  const [miniPref, setMiniPref] = useState<boolean | null>(() => readMiniPref('phlivegraph'))
+  const miniCollapsed = miniPref ?? (paneW > 0 && paneW < MINI_NARROW)
+  const toggleMini = () => {
+    const next = !miniCollapsed
+    setMiniPref(next)
+    writeMiniPref('phlivegraph', next)
+  }
+
+  // draw.io-style manual overrides: dragged node positions + bent-edge
+  // waypoints, keyed per run so a different mission graph gets fresh auto-layout
+  // (a growing run keeps its key, so mid-run adjustments and new auto-placed
+  // nodes coexist). Refs let the edge/drag writers stay identity-stable.
+  const graphKey = `${sessionName ?? '?'}:${effIndex}`
+  const graphKeyRef = useRef(graphKey); graphKeyRef.current = graphKey
+  const [manual, setManual] = useState<ManualState>(() => loadManual('phlivegraph', graphKey))
+  const manualRef = useRef(manual); manualRef.current = manual
+  useEffect(() => { setManual(loadManual('phlivegraph', graphKey)) }, [graphKey])
+  const setWaypoints = useCallback((edgeId: string, wps: Point[], persist: boolean) => {
+    const next: ManualState = { ...manualRef.current, edges: { ...manualRef.current.edges, [edgeId]: wps } }
+    setManual(next)
+    if (persist) saveManual('phlivegraph', graphKeyRef.current, next)
+  }, [])
+  const editCtx = useMemo(() => ({ setWaypoints }), [setWaypoints])
+  const pinNode = (node: Node, persist: boolean) => {
+    const pos: Point = { x: Math.round(node.position.x), y: Math.round(node.position.y) }
+    const next: ManualState = { ...manualRef.current, nodes: { ...manualRef.current.nodes, [node.id]: pos } }
+    setManual(next)
+    if (persist) saveManual('phlivegraph', graphKeyRef.current, next)
+  }
+  const reLayout = useCallback(() => {
+    setManual(EMPTY_MANUAL); saveManual('phlivegraph', graphKeyRef.current, EMPTY_MANUAL)
+  }, [])
 
   const model = useMemo(() => {
     const slice = headSeq === Infinity ? feed.current : feed.current.filter(e => e.seq <= headSeq)
@@ -388,6 +457,7 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
     plan: (p: { data: { node: PlanNodeState; predicate?: string } }) => <PlanNode data={p.data} t={t} />,
     cap: (p: { data: { cap: RoutingRow } }) => <CapNode data={p.data} t={t} />,
   }), [t])
+  const edgeTypes = useMemo(() => ({ editable: EditableEdge }), [])
 
   const selectedNode = selectedKey ? model.planNodes.find(n => n.key === selectedKey) : undefined
   const pickRun = (i: number) => { pick(i); setSelectedKey(null) }
@@ -457,48 +527,82 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
         onToggleRouting={() => { setShowRouting(s => !s) }}
       />
       <div className={css.canvas} ref={setCanvas}>
-        <ReactFlow
-          key={`${sessionName}:${effIndex}:${flow.nodes.length}:${showRouting}:${geomSig}`}
-          onInit={(inst) => { fitRef.current = () => { inst.fitView(fitOpts) } }}
-          nodes={flow.nodes.map(n => ({
-            ...n, draggable: false, connectable: false, selectable: true,
-            // Fixed dimensions so React Flow frames the graph from known bounds
-            // instead of measuring after paint — a serpentine reflow otherwise
-            // lets fitView run against the stale flat row and clamp to the floor.
-            width: NODE_SIZE[n.type].width, height: NODE_SIZE[n.type].height,
-          }))}
-          edges={flow.edges.map(e => ({
-            id: e.id, source: e.source, target: e.target,
-            sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
-            type: 'smoothstep',
-            animated: e.active === true,
-            label: e.label,
-            className: [
-              e.kind === 'routing' ? css.edgeRouting : e.kind === 'branch' ? css.edgeBranch : css.edgePlan,
-              e.active ? css.edgeActive : '',
-            ].filter(Boolean).join(' '),
-          }))}
-          nodeTypes={nodeTypes}
-          onNodeClick={(_e, n) => { setSelectedKey(n.id.startsWith('plan:') ? n.id.slice(5) : null) }}
-          fitView
-          fitViewOptions={fitOpts}
-          minZoom={0.2}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          zoomOnScroll={false}
-          panOnScroll
-          proOptions={{ hideAttribution: false }}
-        >
-          <Background gap={18} size={1} />
-          <Controls showInteractive={false} />
-          <MiniMap
-            position="bottom-right" pannable zoomable nodeStrokeWidth={2}
-            nodeColor={miniColor}
-            bgColor="var(--ph-bg, #fff)"
-            maskColor="color-mix(in srgb, currentColor 12%, transparent)"
-          />
-          <ZoomCluster t={t} fitOpts={fitOpts} />
-        </ReactFlow>
+        <EditProvider value={editCtx}>
+          <ReactFlow
+            key={`${sessionName}:${effIndex}:${flow.nodes.length}:${showRouting}:${geomSig}`}
+            onInit={(inst) => { fitRef.current = () => { inst.fitView(fitOpts) } }}
+            nodes={flow.nodes.map(n => ({
+              ...n,
+              // Auto-layout is only a suggestion: a dragged node's pinned position
+              // overrides it and survives polls/reflows until re-layout clears it.
+              position: manual.nodes[n.id] ?? n.position,
+              draggable: true, connectable: false, selectable: true,
+              // Cards sit above the edge layer so a gutter-routed wrap edge is
+              // occluded by any card it passes rather than drawn over its face.
+              zIndex: 10,
+              // Fixed dimensions so React Flow frames the graph from known bounds
+              // instead of measuring after paint — a serpentine reflow otherwise
+              // lets fitView run against the stale flat row and clamp to the floor.
+              width: NODE_SIZE[n.type].width, height: NODE_SIZE[n.type].height,
+            }))}
+            edges={flow.edges.map(e => ({
+              id: e.id, source: e.source, target: e.target,
+              sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
+              type: 'editable',
+              animated: e.active === true,
+              selectable: true,
+              zIndex: 0,
+              // The custom edge routes through any saved waypoints (drawio bends),
+              // else the gutter smoothstep; it owns the label chip and drag dots.
+              data: { waypoints: manual.edges[e.id], label: e.label, active: e.active === true },
+              className: [
+                e.kind === 'routing' ? css.edgeRouting : e.kind === 'branch' ? css.edgeBranch : css.edgePlan,
+                e.active ? css.edgeActive : '',
+              ].filter(Boolean).join(' '),
+            }))}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            onNodeClick={(_e, n) => { setSelectedKey(n.id.startsWith('plan:') ? n.id.slice(5) : null) }}
+            onNodeDrag={(_e, n) => { pinNode(n, false) }}
+            onNodeDragStop={(_e, n) => { pinNode(n, true) }}
+            fitView
+            fitViewOptions={fitOpts}
+            minZoom={0.2}
+            nodesConnectable={false}
+            zoomOnScroll={false}
+            panOnScroll
+            proOptions={{ hideAttribution: false }}
+          >
+            <Background gap={18} size={1} />
+            <Controls showInteractive={false} />
+            {miniCollapsed ? null : (
+              <MiniMap
+                position="bottom-right" pannable zoomable nodeStrokeWidth={2}
+                style={{ width: 172, height: 116 }}
+                nodeColor={miniColor}
+                bgColor="var(--ph-bg, #fff)"
+                maskColor="color-mix(in srgb, currentColor 12%, transparent)"
+              />
+            )}
+            <ZoomCluster t={t} fitOpts={fitOpts} />
+          </ReactFlow>
+        </EditProvider>
+        <div className={`${css.graphControls} ${miniCollapsed ? css.controlsLow : css.controlsHigh}`}>
+          <button
+            type="button" className={css.miniToggle} onClick={reLayout}
+            disabled={!hasManual(manual)}
+            title={t('relayout')} aria-label={t('relayout')}
+          >
+            <IconSitemap size={14} />
+          </button>
+          <button
+            type="button" className={css.miniToggle} onClick={toggleMini}
+            title={t(miniCollapsed ? 'minimapShow' : 'minimapHide')}
+            aria-label={t(miniCollapsed ? 'minimapShow' : 'minimapHide')}
+          >
+            {miniCollapsed ? <IconLayoutDashboard size={14} /> : <IconLayoutOff size={14} />}
+          </button>
+        </div>
         {selectedNode ? <Evidence node={selectedNode} t={t} onClose={() => { setSelectedKey(null) }} /> : null}
       </div>
     </div>

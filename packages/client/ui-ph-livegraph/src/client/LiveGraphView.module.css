@@ -519,6 +519,78 @@
   white-space: nowrap;
 }
 
+/* --- graph controls (re-layout + minimap collapse) ------------------------- */
+
+/* Floats over the canvas (a sibling of the flow, not a React Flow panel) so its
+   corner offset lines up with the minimap's own 15px panel margin. */
+.graphControls {
+  position: absolute;
+  right: 0.9rem;
+  display: flex;
+  gap: 0.35rem;
+  z-index: 6;
+}
+
+/* Collapsed minimap: the cluster rests in the corner where the map would sit. */
+.controlsLow {
+  bottom: 0.9rem;
+}
+
+/* Expanded minimap: perched just above the 116px-tall map (+15px panel margin). */
+.controlsHigh {
+  bottom: 139px;
+}
+
+.miniToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  background: color-mix(in srgb, var(--ph-bg, Canvas) 88%, currentColor);
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.82;
+}
+
+.miniToggle:hover {
+  opacity: 1;
+  background: color-mix(in srgb, #2563eb 18%, transparent);
+}
+
+.miniToggle:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+/* --- editable edges (drawio-style waypoints + label chip) ------------------- */
+
+/* A waypoint the operator dragged out; grabbable, double-click removes it. */
+:global(.ph-edge-wp) {
+  fill: #2563eb;
+  stroke: var(--ph-bg, #fff);
+  stroke-width: 1.5;
+}
+
+:global(.ph-edge-wp):hover {
+  fill: #1d4ed8;
+}
+
+/* The branch `replan #N` label as a legible themed pill, not a bare glyph. */
+:global(.ph-edge-chip) {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #d97706;
+  padding: 0.02rem 0.32rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--ph-bg, Canvas) 90%, currentColor);
+  border: 1px solid color-mix(in srgb, #d97706 40%, transparent);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 /* --- evidence card --------------------------------------------------------- */
 
 .canvas {
