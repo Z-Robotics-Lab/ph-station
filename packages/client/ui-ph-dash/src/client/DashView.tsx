@@ -16,10 +16,10 @@
  * provider across the purity gate).
  */
 
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import type { FunctionComponent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { DockviewReact, themeDark, themeLight } from 'dockview-react'
-import type { DockviewApi, DockviewReadyEvent, IDockviewPanelProps } from 'dockview-react'
+import type { DockviewApi, DockviewReadyEvent, IDockviewHeaderActionsProps, IDockviewPanelProps } from 'dockview-react'
 import { IconLayoutDashboard, IconLayoutOff } from '@deepseek-ai/dsh-client-ui-ph-icons'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -52,6 +52,13 @@ export type DashViewProps =
 const LAYOUT_KEY = 'ph.dash.layout.v1'
 const PERSIST_DEBOUNCE_MS = 300
 
+/** localStorage key for the operator's composer-band reserve override. Absent →
+ * the band falls back to the measured composer height. */
+const RESERVE_KEY = 'ph.dash.reserve.v1'
+/** Floor the sash cannot drag below: the bare input row with its chip rows
+ * collapsed. The ceiling is the live measured composer height (--dsh-composer-height). */
+const MIN_RESERVE = 56
+
 /** The view the dashboard never docks: itself (no self-nesting). */
 const SELF = 'dash'
 /** Views placed as the two primary columns; the rest tab together bottom-right. */
@@ -75,6 +82,60 @@ function ViewPanel(props: IDockviewPanelProps<{ viewId: string }>) {
 }
 
 const COMPONENTS = { view: ViewPanel }
+
+/** Corner-out (maximize) and corner-in (restore) glyphs, inline so the dash owns
+ * no icon-package dependency for its two header states. 14px, currentColor. */
+const MAXIMIZE_GLYPH = (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4" />
+  </svg>
+)
+const RESTORE_GLYPH = (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M9 4v4a1 1 0 0 1-1 1H4M15 4v4a1 1 0 0 0 1 1h4M9 20v-4a1 1 0 0 0-1-1H4M15 20v-4a1 1 0 0 1 1-1h4" />
+  </svg>
+)
+
+/** Build the per-group right-header ⤢/⤡ action bound to a locale. dockview
+ * renders one instance per group header; it maximizes its own group and flips
+ * to a restore glyph while any group is maximized (Esc restores globally). */
+function makeMaxAction(
+  t: (key: 'maximize' | 'restore') => string,
+): FunctionComponent<IDockviewHeaderActionsProps> {
+  return function MaxAction({ api, containerApi }: IDockviewHeaderActionsProps) {
+    const [maxed, setMaxed] = useState(() => api.isMaximized())
+    useEffect(() => {
+      const sub = containerApi.onDidMaximizedGroupChange(() => { setMaxed(api.isMaximized()) })
+      return () => { sub.dispose() }
+    }, [api, containerApi])
+    return (
+      <button
+        type="button"
+        className={css.headerBtn ?? ''}
+        title={maxed ? t('restore') : t('maximize')}
+        aria-label={maxed ? t('restore') : t('maximize')}
+        onClick={() => { if (api.isMaximized()) api.exitMaximized(); else api.maximize() }}
+      >
+        {maxed ? RESTORE_GLYPH : MAXIMIZE_GLYPH}
+      </button>
+    )
+  }
+}
+
+/** The inherited scroll body that carries the composer-band variables (Chat's
+ * single `[data-conversation-scroll]` host), or null when the dash renders
+ * outside it (e.g. a standalone harness). */
+function scrollerOf(el: HTMLElement | null): HTMLElement | null {
+  return el?.closest<HTMLElement>('[data-conversation-scroll]') ?? null
+}
+
+/** The live measured composer height published by ConversationRoot, the ceiling
+ * the reserve clamps to; a defensive fallback covers first paint before the
+ * seat's resize observer fires. */
+function composerCeiling(scroller: HTMLElement): number {
+  const px = Number.parseFloat(getComputedStyle(scroller).getPropertyValue('--dsh-composer-height'))
+  return Number.isFinite(px) && px > 0 ? px : 160
+}
 
 /** Lay out the default arrangement: chat left, the cockpit (lab) right, and
  * every other view tabbed into one bottom-right group. */
@@ -197,11 +258,62 @@ export function DashView(props: DashViewProps) {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault()
         setPalette(p => !p)
+      } else if (e.key === 'Escape') {
+        const api = apiRef.current
+        if (api?.hasMaximizedGroup()) { e.preventDefault(); api.exitMaximizedGroup() }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => { window.removeEventListener('keydown', onKey) }
   }, [])
+
+  // The ⤢ maximize action, memoized per locale so dockview does not remount
+  // every group header each render.
+  const maxAction = useMemo(() => makeMaxAction(t), [t])
+
+  // The composer-band sash: the dock/composer boundary the operator drags to
+  // reclaim the reserved band. Writing --dsh-dock-reserve on the shared scroll
+  // body both shrinks the sticky composer (its max-height reads the same var)
+  // and the stage's reserve, so the two never mismatch. Persisted per browser;
+  // double-click clears the override back to the measured composer height.
+  const stageRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const scroller = scrollerOf(stageRef.current)
+    if (!scroller) return
+    let stored: string | null = null
+    try { stored = window.localStorage.getItem(RESERVE_KEY) } catch { /* ignore */ }
+    if (stored) {
+      scroller.style.setProperty('--dsh-dock-reserve', stored)
+      scroller.dataset.dockCapped = ''
+    }
+  }, [])
+  const onSashDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const stage = stageRef.current
+    const scroller = scrollerOf(stage)
+    if (!stage || !scroller) return
+    e.preventDefault()
+    const ceiling = composerCeiling(scroller)
+    scroller.dataset.dockCapped = ''
+    const onMove = (ev: PointerEvent) => {
+      const reserve = Math.min(ceiling, Math.max(MIN_RESERVE, stage.getBoundingClientRect().bottom - ev.clientY))
+      scroller.style.setProperty('--dsh-dock-reserve', `${Math.round(reserve)}px`)
+    }
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      const value = scroller.style.getPropertyValue('--dsh-dock-reserve')
+      try { if (value) window.localStorage.setItem(RESERVE_KEY, value) } catch { /* ignore */ }
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+  const onSashReset = () => {
+    const scroller = scrollerOf(stageRef.current)
+    if (!scroller) return
+    scroller.style.removeProperty('--dsh-dock-reserve')
+    delete scroller.dataset.dockCapped
+    try { window.localStorage.removeItem(RESERVE_KEY) } catch { /* ignore */ }
+  }
 
   return (
     <RenderCtx.Provider value={renderById}>
@@ -217,7 +329,7 @@ export function DashView(props: DashViewProps) {
             <span>{t('reset')}</span>
           </button>
         </div>
-        <div className={css.stage}>
+        <div className={css.stage} ref={stageRef}>
           {palette ? (
             <PalettePicker
               tabs={views.list().filter(v => v.id !== SELF)}
@@ -230,11 +342,21 @@ export function DashView(props: DashViewProps) {
             className={`${css.dockRoot} dv-ph`}
             onReady={onReady}
             components={COMPONENTS}
+            rightHeaderActionsComponent={maxAction}
             theme={dark ? themeDark : themeLight}
             // Mount only the visible panel of each group: a hidden view (its
             // xyflow canvas + board poll) stays torn down until its tab is
             // shown, so ~10 docked views never poll or render at once.
             defaultRenderer="onlyWhenVisible"
+          />
+          {/* The dock/composer boundary, dragged to reclaim the reserved band. */}
+          <div
+            className={css.sash}
+            role="separator"
+            aria-orientation="horizontal"
+            title={t('reserveHint')}
+            onPointerDown={onSashDown}
+            onDoubleClick={onSashReset}
           />
         </div>
       </div>
