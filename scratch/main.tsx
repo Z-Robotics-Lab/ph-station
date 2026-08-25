@@ -17,6 +17,12 @@
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import {
+  IconLayoutDashboard, IconBooks, IconSitemap, IconRoute, IconTimeline,
+  IconMessage, IconTrendingUp, IconBox, IconBook, IconBroadcast, IconReport,
+  type IconComponent,
+} from '@deepseek-ai/dsh-client-ui-ph-icons'
+
 import '../packages/client/ui-theme/src/styles/base.css'
 import '../packages/client/ui-theme/src/styles/design-platform.css'
 import '../packages/client/ui-theme/src/styles/scrollbar.css'
@@ -123,8 +129,11 @@ const dashViews: Record<string, { label: string; render: () => JSX.Element }> = 
   chat: {
     label: '对话',
     render: () => (
-      <div style={{ padding: 24, fontSize: 13, opacity: 0.7 }}>
-        对话面板（scratch 占位）— 用于验证面板最大化与 composer 死带 sash。
+      <div className="lab-fixture-note">
+        <span className="lab-badge">fixture</span>
+        <p style={{ margin: '10px 0 0' }}>
+          对话面板占位 — 用于验证面板最大化与 composer 死带 sash 对着真实 dock + seat CSS 运行。
+        </p>
       </div>
     ),
   },
@@ -155,13 +164,7 @@ function DashHarness() {
     ro.observe(inner)
     return () => { ro.disconnect() }
   }, [inner])
-  const chip = (i: number) => (
-    <span key={i} style={{
-      padding: '3px 10px', borderRadius: 8, fontSize: 12, whiteSpace: 'nowrap',
-      border: '1px solid var(--dsw-alias-border-l2, #ccc)',
-      background: 'color-mix(in srgb, currentColor 5%, transparent)',
-    }}>chip {i}</span>
-  )
+  const chip = (i: number) => <span key={i} className="lab-chip">chip {i}</span>
   return (
     <div className={convCss.root} data-phase="active" style={{ height: '100%' }}>
       <div className={convCss.scrollBody} data-conversation-scroll="" style={{ position: 'relative' }}>
@@ -170,16 +173,70 @@ function DashHarness() {
         </div>
         <div className={convCss.composerSeat} data-composer-seat="">
           <div ref={setInner} className={convCss.composerSeatInner} style={{ gap: 6, padding: '8px 16px' }}>
+            <span className="lab-chip-tag">composer 占位 · fixture</span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }} data-testid="composer-chips">
               {Array.from({ length: wide ? 16 : 4 }, (_, i) => chip(i))}
             </div>
             <button type="button" data-testid="toggle-wide" onClick={() => { setWide(w => !w) }}
               style={{ alignSelf: 'flex-start', fontSize: 11, opacity: 0.6 }}>toggle chip wrap</button>
             <textarea data-testid="composer-input" defaultValue="composer input row (stack floor)"
-              style={{ height: 44, resize: 'none', width: '100%', boxSizing: 'border-box' }} />
+              className="lab-composer" />
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+/** Vendored tabler glyph per tab, matched to the panel each id mounts. */
+const TAB_ICON: Record<string, IconComponent> = {
+  dash: IconLayoutDashboard, vault: IconBooks, lab: IconSitemap, livegraph: IconRoute,
+  ticker: IconTimeline, ops: IconMessage, evolution: IconTrendingUp, cards: IconBox,
+  ledger: IconBook, status: IconBroadcast, battle: IconReport,
+}
+
+/** Rewrite a URL param and reload, preserving the current #hash route. The
+ * theme/latency/locale knobs are read once at module load, so a reload is how
+ * they take effect — the URL stays the single source of truth for screenshots
+ * and e2e drives that pass the same params. */
+const setParam = (key: string, value: string | null) => {
+  const url = new URL(location.href)
+  if (value === null) url.searchParams.delete(key)
+  else url.searchParams.set(key, value)
+  location.href = url.toString()
+}
+
+/** A labeled segmented control; the active option carries the accent fill. */
+function Seg({ label, options, active, onPick }: {
+  label: string; options: [string, string][]; active: string; onPick: (value: string) => void
+}) {
+  return (
+    <div className="lab-seg" role="group" aria-label={label}>
+      <span className="lab-seg-label">{label}</span>
+      <div className="lab-seg-track">
+        {options.map(([value, text]) => (
+          <button key={value} type="button" className={value === active ? 'is-on' : ''}
+            aria-pressed={value === active} onClick={() => { onPick(value) }}>{text}</button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Controls() {
+  return (
+    <div className="lab-controls">
+      <Seg label="主题" active={params.get('theme') === 'dark' ? 'dark' : 'light'}
+        options={[['light', '浅色'], ['dark', '深色']]}
+        onPick={v => { setParam('theme', v === 'dark' ? 'dark' : null) }} />
+      <Seg label="延迟" active={String(latency)}
+        options={[['0', '0'], ['300', '300'], ['1500', '1500ms']]}
+        onPick={v => { setParam('latency', v === '0' ? null : v) }} />
+      <Seg label="语言" active={useEn ? 'en' : 'zh'}
+        options={[['zh', '中'], ['en', 'EN']]}
+        onPick={v => { setParam('locale', v === 'en' ? 'en' : null) }} />
+      <button type="button" className="lab-refresh" title="重新拉取 board 快照"
+        onClick={() => { location.reload() }}>↻ 刷新快照</button>
     </div>
   )
 }
@@ -195,13 +252,34 @@ function App() {
   const view = nav[hash] ?? VIEWS.vault
   return (
     <>
-      <nav className="scratch">
-        {Object.entries(nav).map(([id, v]) => (
-          <a key={id} href={`#${id}`} style={v === view ? { fontWeight: 700 } : undefined}>{v.label}</a>
-        ))}
+      <header className="lab-header">
+        <div className="lab-brand">
+          <span className="lab-mark">PH</span>
+          <span className="lab-title">
+            <b>组件实验室 · Component Lab</b>
+            <small>ph 面板挂真实 board 快照的隔离试验场</small>
+          </span>
+        </div>
+        <Controls />
+      </header>
+      <nav className="scratch lab-tabs">
+        {Object.entries(nav).map(([id, v]) => {
+          const Ic = TAB_ICON[id]
+          return (
+            <a key={id} href={`#${id}`} className={v === view ? 'is-active' : undefined}
+              aria-current={v === view ? 'page' : undefined}>
+              {Ic ? <Ic size={15} /> : null}<span>{v.label}</span>
+            </a>
+          )
+        })}
       </nav>
       {/* key remounts the view on route change so per-view polling state resets */}
-      <main className={`scratch${view.rail ? ' rail' : ''}`} key={hash}>{view.render()}</main>
+      <main className={`scratch lab-stage${view.rail ? ' rail' : ''}`} key={hash}>
+        <section className="lab-card">{view.render()}</section>
+      </main>
+      <footer className="lab-footer">
+        PH 组件实验室 — 面板挂真实 board 快照的隔离试验场；控制台入口 :3081
+      </footer>
     </>
   )
 }

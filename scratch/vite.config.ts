@@ -22,6 +22,11 @@ const req = createRequire(here('../packages/client/ui-ph-vault/package.json'))
 export default ({
   root: here('.'),
   server: { port: 5180, strictPort: true },
+  // Pin the automatic JSX runtime the aliases below already target: scratch sits
+  // outside every tsconfig, so a transitive vite that defaults esbuild to the
+  // classic `React.createElement` transform would fail with `React is not
+  // defined`. Making it explicit renders the same under any resolved vite.
+  esbuild: { jsx: 'automatic' },
   resolve: {
     alias: [
       { find: /^react$/, replacement: req.resolve('react') },
