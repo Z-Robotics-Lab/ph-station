@@ -162,8 +162,8 @@ export function EvolutionView({
           <div className={css.sectionHead}>{t('rounds')}</div>
           {rounds.length === 0
             ? <div className={css.state}>{t('noRounds')}</div>
-            : rounds.map(rd => (
-              <div key={rd.round ?? Math.random()} className={css.round}>
+            : rounds.map((rd, i) => (
+              <div key={rd.round ?? i} className={css.round}>
                 <button
                   type="button"
                   className={css.roundHead}
@@ -193,8 +193,8 @@ function GenerationList({ detail, t }: { detail: StoreDetail } & PropsLocale<'ph
       {finite(heldoutDelta) === null
         ? null
         : <Bar label={<Term label={t('heldoutDelta')} tip={t('heldout.tip')} />} delta={heldoutDelta} />}
-      {gens.map(g => (
-        <div key={g.generation ?? Math.random()} className={css.genBlock}>
+      {gens.map((g, i) => (
+        <div key={g.generation ?? i} className={css.genBlock}>
           <div className={css.genHead}>
             <span className={css.genTitle}>{t('generation')} {g.generation ?? '—'}</span>
             <span className={g.promoted === true ? css.pass : css.fail}>

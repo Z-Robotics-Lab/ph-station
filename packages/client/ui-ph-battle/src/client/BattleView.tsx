@@ -269,8 +269,8 @@ function StoreDetailView({
             </tr>
           </thead>
           <tbody>
-            {gens.map(g => (
-              <tr key={g.generation ?? Math.random()}>
+            {gens.map((g, i) => (
+              <tr key={g.generation ?? i}>
                 <td>
                   {g.generation ?? '—'}{' '}
                   <span className={g.promoted === true ? css.pass : css.fail}>
