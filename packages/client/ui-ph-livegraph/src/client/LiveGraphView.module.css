@@ -161,6 +161,107 @@
   border: 1.5px solid color-mix(in srgb, currentColor 25%, transparent);
 }
 
+/* Every node cross-fades its status colors and lifts in on first mount, so a
+   LIVE step change and a newly-folded sub-goal read as motion, not a jump. */
+.node {
+  transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  animation: fadeInUp 140ms ease both;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node { animation: none; transition: none; }
+  .stRunning { animation: none; }
+}
+
+/* --- far LOD: a status pill (identity + state only) ------------------------- */
+
+.planFar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.55rem;
+  min-width: 0;
+  max-width: none;
+  height: 100%;
+  box-sizing: border-box;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.farDot {
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
+}
+
+.stVerified .farDot { background: #16a34a; }
+.stFailed .farDot { background: #dc2626; }
+.stRunning .farDot { background: #d97706; }
+.stReplanned .farDot { background: #d97706; }
+.stPending .farDot { background: color-mix(in srgb, currentColor 40%, transparent); }
+
+.farLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.farReplan {
+  flex: none;
+  font-size: 0.7rem;
+  color: #d97706;
+  font-weight: 700;
+}
+
+/* --- mid LOD: name + one stage-tally badge --------------------------------- */
+
+.midRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+.tallyBadge {
+  display: inline-flex;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.tallyOk { color: #16a34a; }
+.tallyBad { color: #dc2626; }
+
+/* --- zoom cluster (Fit / 100%) --------------------------------------------- */
+
+.zoomCluster {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0.4rem !important;
+}
+
+.zoomBtn {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  background: color-mix(in srgb, var(--ph-bg, Canvas) 88%, currentColor);
+  color: inherit;
+  cursor: pointer;
+}
+
+.zoomBtn:hover {
+  background: color-mix(in srgb, #2563eb 18%, transparent);
+}
+
 /* --- status rings (nodes + stage chips + legend dots) ---------------------- */
 
 .stPending {

@@ -14,11 +14,13 @@
  * Poll cadence: ~1.2s while a task is in flight, ~4s idle, paused while hidden.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Background, Handle, Position, ReactFlow } from '@xyflow/react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Background, Controls, Handle, MiniMap, Panel, Position, ReactFlow, useReactFlow, useStore,
+} from '@xyflow/react'
 import { IconBroadcast, IconPlayerPause, IconPlayerPlay } from '@deepseek-ai/dsh-client-ui-ph-icons'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { foldEvents, layout } from './graph.ts'
+import { foldEvents, layout, NODE_SIZE } from './graph.ts'
 import type { LiveGraphModel, NodeStatus, PlanNodeState, RoutingRow, RunInfo } from './graph.ts'
 import type { FeedInjected } from './useLiveFeed.ts'
 import { useRunFeed } from './RunFeed.tsx'
@@ -41,7 +43,27 @@ type T = PropsLocale<'phlivegraph'>['t']
 // row) otherwise fits-to-width at ~0.27 zoom, shrinking 13px labels to ~4px —
 // unreadable on the flagship watch surface. Below this, stop shrinking and let
 // the chain overflow with horizontal pan (panOnDrag) rather than go illegible.
-const FIT_MIN_ZOOM = 0.6
+const FIT_MIN_ZOOM = 0.35
+
+/** Level of detail from the live viewport zoom (xyflow store; zero deps). Three
+ * bands trade a node's content for legibility: `far` reads only status+identity,
+ * `mid` adds a name and a stage-count badge, `near` is the full card. The dagre
+ * footprint never changes — only what fills it — so positions stay stable as the
+ * operator zooms. */
+type Lod = 'far' | 'mid' | 'near'
+function useLod(): Lod {
+  return useStore((s) => {
+    const z = s.transform[2]
+    return z < 0.55 ? 'far' : z < 0.9 ? 'mid' : 'near'
+  })
+}
+
+/** Verified/failed tally across a node's stages, for the `mid`-band summary badge. */
+function stageTally(stages: PlanNodeState['stages']): { ok: number; bad: number } {
+  let ok = 0; let bad = 0
+  for (const s of stages) { if (s.status === 'verified') ok++; else if (s.status === 'failed') bad++ }
+  return { ok, bad }
+}
 
 function MissionNode({ data, t }: { data: { model: LiveGraphModel } } & PropsLocale<'phlivegraph'>) {
   const m = data.model
@@ -67,10 +89,55 @@ function MissionNode({ data, t }: { data: { model: LiveGraphModel } } & PropsLoc
 
 function PlanNode({ data, t }: { data: { node: PlanNodeState; predicate?: string } } & PropsLocale<'phlivegraph'>) {
   const n = data.node
+  const lod = useLod()
+  const running = n.status === 'running'
+
+  // far: a status-colored pill — identity + state only, so a wrapped 11-node
+  // chain reads at a glance without any card chrome.
+  if (lod === 'far') {
+    return (
+      <div className={`${css.node} ${css.plan} ${css.planFar} ${STATUS_CLASS[n.status]}`} title={`${n.skill} · ${n.id}`}>
+        <Handle type="target" position={Position.Left} id="in" className={css.handle} />
+        <span className={css.farDot} />
+        <span className={css.farLabel}>{n.skill}</span>
+        {n.attempt > 0 ? <span className={css.farReplan} title={t('replans')}>▲{n.attempt}</span> : null}
+        <Handle type="source" position={Position.Right} id="out" className={css.handle} />
+      </div>
+    )
+  }
+
+  // mid: name + id + one stage-tally badge (not the full chip strip) + cursor.
+  if (lod === 'mid') {
+    const { ok, bad } = stageTally(n.stages)
+    return (
+      <div className={`${css.node} ${css.plan} ${STATUS_CLASS[n.status]}`}>
+        <Handle type="target" position={Position.Left} id="in" className={css.handle} />
+        {running ? <span className={css.cursorTag}>▶ {t('current')}</span> : null}
+        <div className={css.nodeTitle}>
+          {n.skill}
+          <span className={css.mono}> {n.id}</span>
+        </div>
+        <div className={css.midRow}>
+          {n.stages.length === 0
+            ? <span className={css.nodeSub}>{t(`legend.${n.status}` as const)}</span>
+            : (
+              <span className={css.tallyBadge}>
+                {ok > 0 ? <span className={css.tallyOk}>✓{ok}</span> : null}
+                {bad > 0 ? <span className={css.tallyBad}>✗{bad}</span> : null}
+              </span>
+            )}
+          {n.ms !== undefined ? <span className={css.meta}><span className={css.mono}>{(n.ms / 1000).toFixed(1)}s</span></span> : null}
+        </div>
+        <Handle type="source" position={Position.Right} id="out" className={css.handle} />
+      </div>
+    )
+  }
+
+  // near: the full card — stage chips, step/time/fault meta, verify predicate.
   return (
     <div className={`${css.node} ${css.plan} ${STATUS_CLASS[n.status]}`}>
       <Handle type="target" position={Position.Left} id="in" className={css.handle} />
-      {n.status === 'running' ? <span className={css.cursorTag}>▶ {t('current')}</span> : null}
+      {running ? <span className={css.cursorTag}>▶ {t('current')}</span> : null}
       <div className={css.nodeTitle}>
         {n.skill}
         <span className={css.mono}> {n.id}</span>
@@ -107,6 +174,30 @@ function CapNode({ data, t }: { data: { cap: RoutingRow } } & PropsLocale<'phliv
       </div>
       <div className={`${css.nodeSub} ${css.mono}`}>{tail}</div>
     </div>
+  )
+}
+
+/** MiniMap dot color per node status/kind, matching the node border vocabulary. */
+const MINI_COLOR: Record<NodeStatus, string> = {
+  pending: '#9aa1ac', running: '#d97706', verified: '#16a34a', failed: '#dc2626', replanned: '#d97706',
+}
+function miniColor(node: { type?: string | undefined; data?: unknown }): string {
+  if (node.type === 'mission') return '#2563eb'
+  if (node.type === 'cap') return '#8b5cf6'
+  const n = (node.data as { node?: PlanNodeState } | undefined)?.node
+  return n ? MINI_COLOR[n.status] : '#9aa1ac'
+}
+
+/** The Fit / 100% zoom cluster — an explicit handle back to a readable frame
+ * after the operator pans or hits the fit floor on a wide chain. Rides inside
+ * the flow so `useReactFlow` binds to this canvas's instance. */
+function ZoomCluster({ t, fitOpts }: { t: T; fitOpts: { padding: number; maxZoom: number; minZoom: number } }) {
+  const rf = useReactFlow()
+  return (
+    <Panel position="top-left" className={css.zoomCluster}>
+      <button type="button" className={css.zoomBtn} onClick={() => { void rf.fitView({ ...fitOpts, duration: 240 }) }}>{t('fit')}</button>
+      <button type="button" className={css.zoomBtn} onClick={() => { void rf.zoomTo(1, { duration: 240 }) }}>100%</button>
+    </Panel>
   )
 }
 
@@ -228,7 +319,7 @@ function Scrubber({
 }
 
 export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
-  const canvasRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLDivElement | null>(null)
   // A zero-arg refit closure captured in `onInit`, so the fit options bind to
   // the instance's own node generic (a typed `fitView` ref would fight the
   // literal `draggable: false` node type).
@@ -239,19 +330,30 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
     pick, seek, goLive, togglePlay,
   } = useRunFeed()
 
-  // Refit the graph when its canvas resizes: embedded in the 图谱·过程流 split pane
-  // React Flow's initial `fitView` runs before the pane settles to its real
-  // width (and again on every gutter drag), so nodes would sit panned off-view.
-  useEffect(() => {
-    const el = canvasRef.current
-    if (!el) return
-    let raf = 0
+  // Track the live canvas width: it drives the serpentine wrap (a narrow pane
+  // folds the chain into more rows) and refits the graph. Embedded in the
+  // 图谱·过程流 split pane, React Flow's initial `fitView` runs before the pane
+  // settles to its real width (and again on every gutter drag), so without this
+  // nodes would sit panned off-view and the chain would never wrap to the pane.
+  // A callback ref (not an effect) attaches the observer, because the canvas
+  // mounts only after the loading early-returns clear — a `[]` effect would run
+  // once against the null ref and never reattach.
+  const [paneW, setPaneW] = useState(0)
+  const roRef = useRef<ResizeObserver | null>(null)
+  const rafRef = useRef(0)
+  const setCanvas = useCallback((el: HTMLDivElement | null) => {
+    canvasRef.current = el
+    roRef.current?.disconnect()
+    if (!el) { roRef.current = null; return }
     const ro = new ResizeObserver(() => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => { fitRef.current?.() })
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => {
+        setPaneW(el.clientWidth)
+        fitRef.current?.()
+      })
     })
     ro.observe(el)
-    return () => { cancelAnimationFrame(raf); ro.disconnect() }
+    roRef.current = ro
   }, [])
 
   const [showRouting, setShowRouting] = useState(false)
@@ -262,12 +364,25 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
     return foldEvents(sessionRows.current, slice)
   }, [feed, sessionRows, version, headSeq])
 
-  const flow = useMemo(() => layout(model, showRouting), [model, showRouting])
+  const flow = useMemo(() => layout(model, showRouting, paneW || undefined), [model, showRouting, paneW])
+  // Serpentine row count as a geometry signature: when a reflow changes it, the
+  // ReactFlow key below changes so the instance remounts and its `fitView` prop
+  // frames the final (wrapped) nodes — the reliable fit path, versus an
+  // imperative refit racing React Flow's post-paint node measurement.
+  const geomSig = flow.nodes.reduce((m, n) => Math.max(m, n.position.y), 0).toFixed(0)
   // A sparse run (1-3 nodes) under the TB→LR dagre layout would otherwise sit as
   // tiny cards in a vast empty pane on a wide monitor: raise the fit cap so a
   // small graph fills the frame, keeping maxZoom≈1 only once it is large.
   const fitMax = flow.nodes.length <= 4 ? 1.8 : flow.nodes.length <= 8 ? 1.3 : 1
   const fitOpts = { padding: 0.16, maxZoom: fitMax, minZoom: FIT_MIN_ZOOM }
+  // Refit after the layout geometry changes (a serpentine reflow moves every
+  // node): the width-tracking observer refits against the pre-reflow DOM, so a
+  // post-paint refit reframes the wrapped grid. rAF lets the new positions
+  // paint first.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => { fitRef.current?.() })
+    return () => { cancelAnimationFrame(id) }
+  }, [flow])
   const nodeTypes = useMemo(() => ({
     mission: (p: { data: { model: LiveGraphModel } }) => <MissionNode data={p.data} t={t} />,
     plan: (p: { data: { node: PlanNodeState; predicate?: string } }) => <PlanNode data={p.data} t={t} />,
@@ -341,11 +456,17 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
         onPick={pickRun} onSeek={seek} onTogglePlay={togglePlay} onGoLive={goLive}
         onToggleRouting={() => { setShowRouting(s => !s) }}
       />
-      <div className={css.canvas} ref={canvasRef}>
+      <div className={css.canvas} ref={setCanvas}>
         <ReactFlow
-          key={`${sessionName}:${effIndex}:${flow.nodes.length}:${showRouting}`}
+          key={`${sessionName}:${effIndex}:${flow.nodes.length}:${showRouting}:${geomSig}`}
           onInit={(inst) => { fitRef.current = () => { inst.fitView(fitOpts) } }}
-          nodes={flow.nodes.map(n => ({ ...n, draggable: false, connectable: false, selectable: true }))}
+          nodes={flow.nodes.map(n => ({
+            ...n, draggable: false, connectable: false, selectable: true,
+            // Fixed dimensions so React Flow frames the graph from known bounds
+            // instead of measuring after paint — a serpentine reflow otherwise
+            // lets fitView run against the stale flat row and clamp to the floor.
+            width: NODE_SIZE[n.type].width, height: NODE_SIZE[n.type].height,
+          }))}
           edges={flow.edges.map(e => ({
             id: e.id, source: e.source, target: e.target,
             sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
@@ -369,6 +490,14 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
           proOptions={{ hideAttribution: false }}
         >
           <Background gap={18} size={1} />
+          <Controls showInteractive={false} />
+          <MiniMap
+            position="bottom-right" pannable zoomable nodeStrokeWidth={2}
+            nodeColor={miniColor}
+            bgColor="var(--ph-bg, #fff)"
+            maskColor="color-mix(in srgb, currentColor 12%, transparent)"
+          />
+          <ZoomCluster t={t} fitOpts={fitOpts} />
         </ReactFlow>
         {selectedNode ? <Evidence node={selectedNode} t={t} onClose={() => { setSelectedKey(null) }} /> : null}
       </div>

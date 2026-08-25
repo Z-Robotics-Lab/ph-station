@@ -334,14 +334,54 @@ export interface LaidOutEdge {
   label?: string
 }
 
+/** Serpentine (boustrophedon) reflow of the plan chain into rows that fit
+ * `wrapWidth`: dagre lays the chain out as one LR row (2600px for 11 nodes),
+ * which a narrow pane can only show by shrinking to the fit floor and panning
+ * the tail off-screen. Reflowing the rank-ordered nodes into rows of `perRow`,
+ * alternating direction each row so a row's end sits directly above the next
+ * row's start, keeps inter-row edges short and lets a wide chain read at ~1:1
+ * zoom in a small pane. Mission heads its own leading row; the routing fan (laid
+ * out separately below) reads `planBottom` after the reflow.
+ *
+ * Called only when `wrapWidth` is known and the single dagre row overflows it;
+ * a wide pane keeps the flat row (perRow grows to hold every node).
+ */
+function serpentine(
+  nodes: LaidOutNode[],
+  wrapWidth: number,
+): number {
+  const nodeW = NODE_SIZE.plan.width
+  const gap = 24
+  const rowGap = 40
+  const marginX = 8
+  const plan = nodes.filter(n => n.type === 'plan').sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x)
+  const perRow = Math.max(2, Math.floor((wrapWidth - marginX) / (nodeW + gap)))
+  // Mission heads the grid; the chain starts on the row beneath it.
+  const mission = nodes.find(n => n.id === 'mission')
+  const y0 = (mission ? NODE_SIZE.mission.height : 0) + rowGap
+  if (mission) mission.position = { x: marginX, y: 0 }
+  const rowH = NODE_SIZE.plan.height + rowGap
+  let bottom = 0
+  plan.forEach((n, i) => {
+    const row = Math.floor(i / perRow)
+    const idxInRow = i % perRow
+    const col = row % 2 === 0 ? idxInRow : perRow - 1 - idxInRow
+    n.position = { x: marginX + col * (nodeW + gap), y: y0 + row * rowH }
+    bottom = Math.max(bottom, n.position.y + NODE_SIZE.plan.height)
+  })
+  return bottom
+}
+
 /** Lay the plan chain + replan lineage through dagre (rankdir LR — the plan
  * spans the wide axis of a 16:9 panel; nodes carry left/right handles to match),
  * then place the capability-routing fan beside it (two columns; dagre would
  * flatten the star into one clipped-wide row). `showRouting` gates the routing
- * layer. */
+ * layer. `wrapWidth` (the live pane width) folds an over-wide single row into a
+ * serpentine grid that fits it; omitted or wide enough, the chain stays flat. */
 export function layout(
   model: LiveGraphModel,
   showRouting: boolean,
+  wrapWidth?: number,
 ): { nodes: LaidOutNode[]; edges: LaidOutEdge[] } {
   const g = new dagre.graphlib.Graph()
   g.setGraph({ rankdir: 'LR', nodesep: 20, ranksep: 60, marginx: 8, marginy: 8 })
@@ -392,11 +432,19 @@ export function layout(
   dagre.layout(g)
   let planLeft = 0
   let planBottom = 0
+  let planRight = 0
   for (const n of nodes) {
     const pos = g.node(n.id)
     n.position = { x: pos.x - pos.width / 2, y: pos.y - pos.height / 2 }
     if (n.id === 'mission') planLeft = n.position.x
     planBottom = Math.max(planBottom, n.position.y + pos.height)
+    planRight = Math.max(planRight, n.position.x + pos.width)
+  }
+  // Fold an over-wide flat row into a serpentine grid that fits the pane. A wide
+  // pane (perRow ≥ node count) leaves the row flat, so this is a no-op there.
+  if (wrapWidth !== undefined && planRight - planLeft > wrapWidth) {
+    planLeft = 8
+    planBottom = serpentine(nodes, wrapWidth)
   }
 
   if (showRouting) {

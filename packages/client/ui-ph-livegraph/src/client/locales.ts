@@ -65,6 +65,7 @@ export type PhLiveGraphKey =
   | 'legend.failed'
   | 'legend.replanned'
   | 'sessionPick'
+  | 'fit'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -134,6 +135,7 @@ export const zh: Record<PhLiveGraphKey, string> = {
   'legend.failed': '失败',
   'legend.replanned': '已重规划',
   'sessionPick': '切换会话（● 有运行时）',
+  'fit': '适应',
 }
 
 /** English dictionary. */
@@ -197,4 +199,5 @@ export const en: Record<PhLiveGraphKey, string> = {
   'legend.failed': 'failed',
   'legend.replanned': 'replanned',
   'sessionPick': 'Switch session (● has runtime)',
+  'fit': 'Fit',
 }
