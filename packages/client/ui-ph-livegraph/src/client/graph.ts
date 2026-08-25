@@ -321,8 +321,9 @@ export interface LaidOutNode {
 }
 
 /** A typed edge ready for React Flow. `kind` picks the CSS class; the handle ids
- * pin React Flow's anchors (a routing edge leaves mission's RIGHT handle, plan
- * and branch edges its BOTTOM handle); `active` traces the executing path. */
+ * are chosen from the two nodes' final geometry (`edgeHandles`) so an edge leaves
+ * and enters the ends that face each other after a serpentine wrap flips a row;
+ * `active` traces the executing path. */
 export interface LaidOutEdge {
   id: string
   source: string
@@ -332,6 +333,30 @@ export interface LaidOutEdge {
   targetHandle: string
   active?: boolean
   label?: string
+}
+
+/** Side-anchored handle ids every node exposes so an edge can attach to the end
+ * that faces its neighbor. Plan cards carry all six (a serpentine wrap row runs
+ * right-to-left, so left and right each serve as both source and target); the
+ * mission sources right+bottom, a cap targets left. */
+export const HANDLE = {
+  rightSrc: 'rs', leftSrc: 'ls', bottomSrc: 'b',
+  leftTgt: 'lt', rightTgt: 'rt', topTgt: 't',
+} as const
+
+/** Source/target handle sides from the two nodes' final centers: same row exits
+ * toward the neighbor (right→left forward, left→right on a flipped wrap row); a
+ * lower target drops through the row gutter (bottom→top). Keeps every edge off
+ * the intervening card faces once the boustrophedon reflow reverses a row. */
+function edgeHandles(s: LaidOutNode, t: LaidOutNode): Pick<LaidOutEdge, 'sourceHandle' | 'targetHandle'> {
+  const sx = s.position.x + NODE_SIZE[s.type].width / 2
+  const sy = s.position.y + NODE_SIZE[s.type].height / 2
+  const tx = t.position.x + NODE_SIZE[t.type].width / 2
+  const ty = t.position.y + NODE_SIZE[t.type].height / 2
+  if (ty - sy > NODE_SIZE.plan.height * 0.6) return { sourceHandle: HANDLE.bottomSrc, targetHandle: HANDLE.topTgt }
+  return tx >= sx
+    ? { sourceHandle: HANDLE.rightSrc, targetHandle: HANDLE.leftTgt }
+    : { sourceHandle: HANDLE.leftSrc, targetHandle: HANDLE.rightTgt }
 }
 
 /** Serpentine (boustrophedon) reflow of the plan chain into rows that fit
@@ -352,7 +377,9 @@ function serpentine(
 ): number {
   const nodeW = NODE_SIZE.plan.width
   const gap = 24
-  const rowGap = 40
+  // Row gutter wide enough that a wrap edge dropping bottom→top reads as its own
+  // lane between rows instead of grazing the cards above and below.
+  const rowGap = 56
   const marginX = 8
   const plan = nodes.filter(n => n.type === 'plan').sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x)
   const perRow = Math.max(2, Math.floor((wrapWidth - marginX) / (nodeW + gap)))
@@ -411,7 +438,8 @@ export function layout(
     g.setEdge(source, target)
     const e: LaidOutEdge = {
       id: `${kind}:${source}->${target}`, source, target, kind,
-      sourceHandle: 'out', targetHandle: 'in',
+      // Placeholder anchors; the post-layout pass sets them from final geometry.
+      sourceHandle: HANDLE.rightSrc, targetHandle: HANDLE.leftTgt,
       active: `plan:${runningKey}` === target,
     }
     if (label !== undefined) e.label = label
@@ -447,6 +475,17 @@ export function layout(
     planBottom = serpentine(nodes, wrapWidth)
   }
 
+  // Re-anchor every plan/branch edge from the final node centers (post-reflow):
+  // a flipped wrap row now exits its correct end and wraps drop through the
+  // gutter, so no edge crosses an intervening card. Routing edges are added
+  // below with their own fixed anchors.
+  const nodeById = new Map(nodes.map(n => [n.id, n]))
+  for (const e of edges) {
+    const s = nodeById.get(e.source)
+    const t = nodeById.get(e.target)
+    if (s && t) Object.assign(e, edgeHandles(s, t))
+  }
+
   if (showRouting) {
     // Under LR the plan chain runs the wide axis, so the routing fan docks BELOW
     // it (three columns from the left edge) — leaving mission's bottom handle it
@@ -462,7 +501,7 @@ export function layout(
       })
       edges.push({
         id: `routing:${cap.capability}`, source: 'mission', target: id, kind: 'routing',
-        sourceHandle: 'cap', targetHandle: 'in',
+        sourceHandle: HANDLE.bottomSrc, targetHandle: HANDLE.leftTgt,
       })
     })
   }
