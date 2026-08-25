@@ -17,7 +17,8 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  ALL_KINDS, ALL_RELS, ALL_STATUSES, backlinks, indexNodes, outEdges, REL_COLOR,
+  ALL_KINDS, ALL_RELS, ALL_STATUSES, backlinks, DENSE_RELS, indexNodes,
+  outEdges, REL_COLOR, renderableRels,
 } from './graph.ts'
 import type {
   CapabilityNode, EvidenceBlock, PackageNode, SkillNode, SkillStatus,
@@ -283,13 +284,22 @@ export function VaultView({
   const [rels, setRels] = useState<ReadonlySet<VaultRel>>(new Set())
   const [search, setSearch] = useState('')
   const errRef = useRef<string | null>(null)
+  const seededRels = useRef(false)
 
   const load = useCallback(async () => {
     try {
       const r = await fetchVault()
       if (!r.ok) { errRef.current = r.error.message; setOnline(false); return }
       setOnline(true)
-      setGraph(r.value as VaultGraph)
+      const g = r.value as VaultGraph
+      setGraph(g)
+      // Seed the relation filter once the graph is known: every family that
+      // draws EXCEPT the two 7-edge cross-band families, which open collapsed
+      // so the graph is legible until the operator opts them in per chip.
+      if (!seededRels.current) {
+        seededRels.current = true
+        setRels(new Set([...renderableRels(g)].filter(rel => !DENSE_RELS.includes(rel))))
+      }
     } catch (cause) {
       errRef.current = cause instanceof Error ? cause.message : String(cause)
       setOnline(false)
@@ -325,6 +335,12 @@ export function VaultView({
 
   const filters: VaultFilters = useMemo(() => ({ kinds, statuses, rels, search }), [kinds, statuses, rels, search])
   const byId = useMemo(() => (graph === null ? new Map<string, VaultNode>() : indexNodes(graph)), [graph])
+  // Only relations that draw an edge get a chip; the four families whose targets
+  // are tasks/campaigns/evidence never render, so their chips would be dead.
+  const chipRels = useMemo(() => {
+    const shown = graph === null ? new Set<VaultRel>() : renderableRels(graph)
+    return ALL_RELS.filter(r => shown.has(r))
+  }, [graph])
 
   if (online === false) return <div className={css.empty}>{t('unavailable')} — {errRef.current}</div>
   if (graph === null) return <div className={css.empty}>{t('loading')}</div>
@@ -369,7 +385,7 @@ export function VaultView({
         </div>
         <div className={css.chipGroup}>
           <span className={css.chipLabel}>{t('filter.rel')}</span>
-          {ALL_RELS.map(r => (
+          {chipRels.map(r => (
             <Chip key={r} on={rels.has(r)} color={REL_COLOR[r]} label={r} onClick={() => { setRels(toggle(rels, r)) }} />
           ))}
         </div>

@@ -482,7 +482,7 @@
   position: absolute;
   left: 0.6rem;
   bottom: 0.6rem;
-  width: 12.5rem;
+  width: 15rem;
   border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
   border-radius: 0.5rem;
   background: color-mix(in srgb, var(--dsw-alias-bg-layer-1, #fff) 88%, transparent);
@@ -587,4 +587,12 @@
   height: 0.14rem;
   flex: none;
   border-radius: 1px;
+}
+
+/* rendered/total fold tally, muted; the four never-drawn families are absent
+   from this list entirely rather than shown as 0/N. */
+.legendCount {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.5;
 }

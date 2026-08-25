@@ -12,12 +12,20 @@ page per node:
   accent bar, package = a green box with a folded (notched) corner, capability =
   a violet stadium pill; each carries its kind glyph (bulb / box / plug), and
   skill status (promoted / candidate / retired) rides a secondary chip. Edges are
-  **labeled by relation type** (DESCENDS_FROM, GOVERNS, REQUIRES, PROVIDES, BINDS,
-  EVIDENCED_BY, CLAIMS, SUPERSEDES, MOUNTED_IN) and colored per relation, routing
-  across region boundaries. An always-visible legend keys the three kind
-  shapes/hues and the nine relation colors; filter chips per kind / status /
-  relation and a client-side substring search over id/task/label sit alongside.
-- **node pages** — click a node for its wiki page: a skill page quotes the
+  colored per relation and routed across region boundaries, with the capability
+  band in the middle lane so the two cross-band families (REQUIRES, PROVIDES)
+  reach it without arcing across the other's band. A relation label appears only
+  under the cursor or in a focused node's edge set, never as resting mid-arc
+  text. Of the nine fold relations only five draw — GOVERNS, BINDS,
+  EVIDENCED_BY, and MOUNTED_IN target tasks/campaigns/evidence, which are not
+  node kinds, so they never render and are omitted from the legend and chips.
+  **Single-click focuses a node** (highlights its incident edges, reveals their
+  labels, dims the rest); the two seven-edge families (REQUIRES, PROVIDES) start
+  collapsed and the operator opts them in per chip. A collapsible legend keys the
+  kind shapes/hues and the drawn relations with `rendered/total` tallies; filter
+  chips per kind / status / relation and a client-side substring search over
+  id/task/label sit alongside.
+- **node pages** — double-click a node for its wiki page: a skill page quotes the
   sealed evidence **verbatim** (held-out governed vs base rate, p-value, n, the
   ablation ladder, dev judgement), shows its lineage (DESCENDS_FROM), governed
   task nodes (GOVERNS), typed backlinks (CLAIMS / EVIDENCED_BY / MOUNTED_IN), and
