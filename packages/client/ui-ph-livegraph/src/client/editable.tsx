@@ -114,21 +114,33 @@ export function EditableEdge(props: EdgeProps): React.ReactElement {
     path = p; labelX = lx; labelY = ly
   }
 
-  // Drag an existing waypoint at `index` to reroute it. No preventDefault on
-  // the pointerdown: canceling it suppresses the compatibility mouse events,
-  // and with them the dblclick that removes the waypoint.
+  // Drag an existing waypoint at `index` to reroute it; two motionless taps on
+  // the same dot within 400ms remove it. The double-tap is detected here rather
+  // than via onDoubleClick because the first tap's persist re-renders the dot,
+  // which eats the browser's native dblclick synthesis.
+  const lastTap = useRef<{ i: number; t: number }>({ i: -1, t: 0 })
   const startDrag = (index: number) => (e: React.PointerEvent) => {
     e.stopPropagation()
+    if (lastTap.current.i === index && e.timeStamp - lastTap.current.t < 400) {
+      lastTap.current = { i: -1, t: 0 }
+      const cut = wps.slice(); cut.splice(index, 1); setWaypoints(id, cut, true)
+      return
+    }
     dragging.current = true
+    let moved = false
+    const downX = e.clientX, downY = e.clientY
     let next = wps.slice()
     const move = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - downX, ev.clientY - downY) < 3) return
+      moved = true
       const p = rf.screenToFlowPosition({ x: ev.clientX, y: ev.clientY })
       next = next.slice(); next[index] = { x: Math.round(p.x), y: Math.round(p.y) }
       setWaypoints(id, next, false)
     }
-    const up = () => {
+    const up = (ev: PointerEvent) => {
       dragging.current = false
-      setWaypoints(id, next, true)
+      if (moved) setWaypoints(id, next, true)
+      else lastTap.current = { i: index, t: ev.timeStamp }
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
     }
@@ -174,11 +186,6 @@ export function EditableEdge(props: EdgeProps): React.ReactElement {
     window.addEventListener('pointerup', up)
   }
 
-  const removeWp = (index: number) => (e: React.MouseEvent) => {
-    e.stopPropagation()
-    const next = wps.slice(); next.splice(index, 1); setWaypoints(id, next, true)
-  }
-
   const show = selected === true || hover
 
   return (
@@ -197,7 +204,7 @@ export function EditableEdge(props: EdgeProps): React.ReactElement {
         <circle
           key={`wp-${i}`} cx={w.x} cy={w.y} r={5.5}
           className="ph-edge-wp" style={{ cursor: 'grab' }}
-          onPointerDown={startDrag(i)} onDoubleClick={removeWp(i)}
+          onPointerDown={startDrag(i)}
         />
       )) : null}
       {label !== undefined && zoom >= 0.55 ? (
