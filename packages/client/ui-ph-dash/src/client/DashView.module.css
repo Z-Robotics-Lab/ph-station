@@ -73,6 +73,84 @@
   width: 100%;
 }
 
+.kbdHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.7rem;
+  opacity: 0.55;
+  border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+  border-radius: 0.4rem;
+}
+
+/* Cmd-K panel switcher: a floating filter over the view ledger. Uses the app's
+   theme-aware alias tokens so it matches light/dark without a palette here. */
+.paletteScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+  background: color-mix(in srgb, currentColor 22%, transparent);
+}
+
+.palette {
+  width: min(30rem, 82%);
+  max-height: 60%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-layer-2, Canvas);
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.6rem;
+  box-shadow: 0 12px 40px color-mix(in srgb, currentColor 30%, transparent);
+}
+
+.paletteInput {
+  font: inherit;
+  color: inherit;
+  padding: 0.7rem 0.85rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  outline: none;
+}
+
+.paletteList {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem;
+  overflow-y: auto;
+}
+
+.paletteItem {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.paletteItemActive {
+  background: var(--dsw-alias-interactive-bg-hover, color-mix(in srgb, currentColor 10%, transparent));
+}
+
+.paletteId {
+  margin-left: auto;
+  font-size: 0.7rem;
+  opacity: 0.5;
+}
+
+.paletteEmpty {
+  padding: 0.6rem;
+  opacity: 0.6;
+  font-size: 0.8rem;
+}
+
 /* The dock cell is the scroll boundary for every docked view: a view's own
    scroller is stripped once it descends from the app's single
    [data-conversation-scroll] host (ChatView's global overflow rule), so nothing

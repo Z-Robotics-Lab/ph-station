@@ -2,7 +2,7 @@
  * rounds feed. Renders only — every delta/count is board.store's, shown verbatim
  * (×100 for pp display); no statistics computed here. */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -88,6 +88,19 @@ export function EvolutionView({
 
   usePolledLoad(load)
 
+  // Seed the right pane once the first store list lands: the board returns
+  // newest-first, so stores[0] is the freshest store. Guarded by a ref so it
+  // fires exactly once and never overrides a later manual deselect. Deliberately
+  // twinned with BattleView per the panel-independence gate — not extracted.
+  /* jscpd:ignore-start */
+  const seededSelection = useRef(false)
+  useEffect(() => {
+    if (seededSelection.current || selected !== null) return
+    const first = stores?.[0]?.name
+    if (first !== undefined) { seededSelection.current = true; setSelected(first) }
+  }, [stores, selected])
+  /* jscpd:ignore-end */
+
   useEffect(() => {
     if (selected === null) { setDetail(null); return }
     let live = true
@@ -149,8 +162,8 @@ export function EvolutionView({
           <div className={css.sectionHead}>{t('rounds')}</div>
           {rounds.length === 0
             ? <div className={css.state}>{t('noRounds')}</div>
-            : rounds.map(rd => (
-              <div key={rd.round ?? Math.random()} className={css.round}>
+            : rounds.map((rd, i) => (
+              <div key={rd.round ?? i} className={css.round}>
                 <button
                   type="button"
                   className={css.roundHead}
@@ -180,8 +193,8 @@ function GenerationList({ detail, t }: { detail: StoreDetail } & PropsLocale<'ph
       {finite(heldoutDelta) === null
         ? null
         : <Bar label={<Term label={t('heldoutDelta')} tip={t('heldout.tip')} />} delta={heldoutDelta} />}
-      {gens.map(g => (
-        <div key={g.generation ?? Math.random()} className={css.genBlock}>
+      {gens.map((g, i) => (
+        <div key={g.generation ?? i} className={css.genBlock}>
           <div className={css.genHead}>
             <span className={css.genTitle}>{t('generation')} {g.generation ?? '—'}</span>
             <span className={g.promoted === true ? css.pass : css.fail}>

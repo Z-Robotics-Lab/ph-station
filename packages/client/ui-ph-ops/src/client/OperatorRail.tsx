@@ -11,7 +11,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { SidebarSectionProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { agoSeconds, finite, pct } from './format.ts'
+import { agoSeconds, finite, formatAgo, pct } from './format.ts'
 import { Term } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
 import type {
@@ -188,7 +188,7 @@ function VitalsCard({
       </div>
       <div className={css.vitalRow}>
         <span className={css.vitalLabel}>{t('heartbeat')}</span>
-        <span>{secs === null ? '—' : `${secs}s ${t('ago')}`}</span>
+        <span>{secs === null ? '—' : `${formatAgo(secs)} ${t('ago')}`}</span>
       </div>
       <div className={css.vitalRow}>
         <span className={css.vitalLabel}>{t('skills')}</span>

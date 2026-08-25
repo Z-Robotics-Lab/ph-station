@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { agoSeconds } from './format.ts'
+import { agoSeconds, formatAgo } from './format.ts'
 import { Term } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
 import css from './panels.module.css'
@@ -113,7 +113,7 @@ export function StatusBar({
         <span className={css.statusValue}>{name ?? t('noSession')}</span>
       </span>
       {secs === null ? null : (
-        <span className={css.statusItem}>{t('active')} {secs}s {t('ago')}</span>
+        <span className={css.statusItem}>{t('active')} {formatAgo(secs)} {t('ago')}</span>
       )}
       {boot === null ? null : (
         <>

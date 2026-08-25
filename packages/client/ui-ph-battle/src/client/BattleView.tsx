@@ -1,6 +1,6 @@
 /** 战报 view: campaign list + drill-down over the board Remote (renders only). */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -142,6 +142,19 @@ export function BattleView({
   }, [loadStores])
   /* jscpd:ignore-end */
 
+  // Seed the right pane once the first store list lands: the board returns
+  // newest-first, so stores[0] is the freshest campaign. Guarded by a ref so it
+  // fires exactly once and never overrides a later manual deselect. Deliberately
+  // twinned with EvolutionView per the panel-independence gate — not extracted.
+  /* jscpd:ignore-start */
+  const seededSelection = useRef(false)
+  useEffect(() => {
+    if (seededSelection.current || selected !== null) return
+    const first = stores?.[0]?.name
+    if (first !== undefined) { seededSelection.current = true; setSelected(first) }
+  }, [stores, selected])
+  /* jscpd:ignore-end */
+
   useEffect(() => {
     if (selected === null) { setDetail(null); setHeldout(null); return }
     let live = true
@@ -256,8 +269,8 @@ function StoreDetailView({
             </tr>
           </thead>
           <tbody>
-            {gens.map(g => (
-              <tr key={g.generation ?? Math.random()}>
+            {gens.map((g, i) => (
+              <tr key={g.generation ?? i}>
                 <td>
                   {g.generation ?? '—'}{' '}
                   <span className={g.promoted === true ? css.pass : css.fail}>
