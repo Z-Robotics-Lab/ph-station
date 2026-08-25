@@ -15,6 +15,7 @@
   --ph-surface: color-mix(in srgb, currentColor 5%, transparent);
   --ph-surface-2: color-mix(in srgb, currentColor 9%, transparent);
   --ph-dim: color-mix(in srgb, currentColor 55%, transparent);
+  --ph-ink: color-mix(in srgb, currentColor 88%, transparent);
 }
 
 .state {
@@ -239,65 +240,134 @@
 .rail {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   padding: 8px 2px 4px;
   box-sizing: border-box;
   font-size: 12px;
 }
 .railTitle {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--ph-dim); padding: 0 4px;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+  font-weight: 600; color: var(--ph-dim); padding: 0 4px;
 }
+
+/* Status hue setter: any element (chip, dot, badge, meter) reads `--st` — one
+   class picks the graph's color language, its parts derive from it. */
+.stPass { --st: var(--ph-pass); }
+.stFail { --st: var(--ph-fail); }
+.stAmber { --st: var(--ph-amber); }
+.stPend { --st: var(--ph-neutral); }
+
+/* Card chrome: 1px hairline, 11px radius, section header over a divider, a
+   subtle border lift on hover — the upstream sidebar-panel idiom. */
 .card {
   border: 1px solid var(--ph-line);
-  border-radius: 10px;
-  padding: 9px 10px;
+  border-radius: 11px;
+  padding: 10px 11px;
   background: var(--ph-surface);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  transition: border-color 160ms ease, background-color 160ms ease;
 }
-.cardHead { font-size: 11px; font-weight: 600; color: var(--ph-dim); }
-.cardEmpty { font-size: 11px; color: var(--ph-dim); }
+.card:hover { border-color: color-mix(in srgb, currentColor 22%, transparent); }
+.cardHead {
+  display: flex; align-items: center; gap: 7px;
+  margin: -1px 0 1px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ph-line);
+}
+.cardHeadIcon { display: grid; place-items: center; flex: none; color: var(--ph-dim); }
+.cardHeadTitle {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--ph-ink);
+}
+.cardEmpty {
+  font-size: 11px; color: var(--ph-dim); font-style: italic;
+  padding: 2px 0;
+}
+
+/* mission — title row, run-outcome strip, node chips */
+.missionGoal { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.goalDot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--st); box-shadow: 0 0 0 3px color-mix(in srgb, var(--st) 22%, transparent); }
+.goalText { font-size: 12px; font-weight: 600; color: var(--ph-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .dotRow { display: flex; gap: 4px; flex-wrap: wrap; }
-.runDot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--ph-neutral); background: currentColor; }
-.miniGoal { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.runDot { width: 8px; height: 8px; border-radius: 50%; background: var(--st); }
+
+.chips { display: flex; flex-direction: column; gap: 5px; }
 .pipeline { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.pipeNode, .pipeStage {
-  font-size: 10px; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--ph-neutral);
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; padding: 2px 7px 2px 6px; border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--st) 45%, var(--ph-line));
+  background: color-mix(in srgb, var(--st) 12%, var(--ph-surface));
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap;
 }
-.pipeNode { font-weight: 600; }
-/* The node pill doubles as the collapse toggle: reset button chrome, keep the
-   pill look, and show it is interactive. */
-.pipeNodeBtn {
-  display: inline-flex; align-items: center; gap: 5px;
-  color: inherit; background: var(--ph-surface-2); cursor: pointer;
+.chipGlyph { flex: none; color: var(--st); font-weight: 700; line-height: 1; font-size: 11px; }
+.chipName { font-weight: 600; color: var(--ph-ink); }
+/* The node chip doubles as the collapse toggle: reset button chrome, keep the
+   chip look, and show it is interactive. */
+.chipBtn { color: inherit; cursor: pointer; appearance: none; font: inherit; font-size: 10px; }
+.chipBtn:hover { border-color: var(--st); background: color-mix(in srgb, var(--st) 18%, var(--ph-surface)); }
+.stageBadge {
+  font-weight: 700; font-variant-numeric: tabular-nums; font-size: 9px;
+  padding: 0 5px; border-radius: 5px; margin-left: 1px;
+  color: var(--st); background: color-mix(in srgb, var(--st) 18%, transparent);
 }
-.pipeNodeBtn:hover { border-color: var(--ph-accent, currentColor); }
-.stageCount { font-weight: 700; opacity: 0.75; font-variant-numeric: tabular-nums; }
-.pipeStage::before { content: "›"; color: var(--ph-dim); margin-right: 5px; margin-left: -2px; }
+.stageChip { padding-left: 6px; opacity: 0.92; }
 
-.progRow { display: flex; align-items: baseline; gap: 6px; }
-.progBig { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.progUnit { color: var(--ph-dim); font-size: 11px; }
-.meterLabel { font-size: 11px; color: var(--ph-dim); display: flex; justify-content: space-between; }
-.meterLabel b { color: inherit; font-variant-numeric: tabular-nums; }
-.meterTrack { height: 6px; border-radius: 999px; background: var(--ph-surface-2); overflow: hidden; }
-.meterFill { display: block; height: 100%; border-radius: 999px; background: var(--ph-pass); transition: width 240ms ease; }
-.tallies { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--ph-dim); }
-.tallies b { color: inherit; font-variant-numeric: tabular-nums; }
+/* progress — stat tile, health meter, tally badges */
+.statTile { display: flex; align-items: baseline; gap: 6px; }
+.statBig { font-size: 24px; font-weight: 700; line-height: 1; color: var(--ph-ink); font-variant-numeric: tabular-nums; }
+.statSlash { font-size: 15px; color: var(--ph-dim); font-weight: 500; }
+.statUnit { color: var(--ph-dim); font-size: 11px; }
+.meterLabel { font-size: 11px; color: var(--ph-dim); display: flex; justify-content: space-between; align-items: baseline; }
+.meterLabel b { color: var(--ph-ink); font-variant-numeric: tabular-nums; }
+.meterTrack { height: 7px; border-radius: 999px; background: var(--ph-surface-2); overflow: hidden; }
+.meterFill { display: block; height: 100%; border-radius: 999px; background: var(--ph-neutral); transition: width 240ms ease; }
+.meterPass { background: var(--ph-pass); }
+.meterAmber { background: var(--ph-amber); }
+.meterFail { background: var(--ph-fail); }
+.meterNone { background: var(--ph-neutral); }
+.tallies { display: flex; gap: 6px; flex-wrap: wrap; }
+.tally {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  font-size: 11px; color: var(--ph-dim);
+  padding: 1px 8px; border-radius: 999px;
+  border: 1px solid var(--ph-line); background: var(--ph-surface-2);
+}
+.tally b { color: var(--ph-ink); font-variant-numeric: tabular-nums; }
+.tallyWarn { color: var(--ph-amber); border-color: color-mix(in srgb, var(--ph-amber) 45%, transparent); background: color-mix(in srgb, var(--ph-amber) 12%, transparent); }
+.tallyWarn b { color: var(--ph-amber); }
+.tallyAlert { color: var(--ph-fail); border-color: color-mix(in srgb, var(--ph-fail) 45%, transparent); background: color-mix(in srgb, var(--ph-fail) 12%, transparent); }
+.tallyAlert b { color: var(--ph-fail); }
 
-.vitalRow, .evoRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
-.vitalLabel { color: var(--ph-dim); font-size: 11px; white-space: nowrap; }
+/* vitals — glyph-led label:value rows */
+.vitalRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.vitalLabel { display: inline-flex; align-items: center; gap: 6px; color: var(--ph-dim); font-size: 11px; white-space: nowrap; min-width: 0; }
+.vitalIcon { display: grid; place-items: center; flex: none; color: var(--ph-neutral); }
+.vitalValue { color: var(--ph-ink); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.heartVal { display: inline-flex; align-items: center; gap: 6px; }
+.heartDot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--st); box-shadow: 0 0 0 2px color-mix(in srgb, var(--st) 25%, transparent); }
 /* Jargon term: a `?` badge revealing a plain-language tooltip on hover/focus. */
 .term { cursor: help; text-decoration: underline dotted; text-underline-offset: 2px; }
 .termMark { font-size: 0.7em; opacity: 0.6; margin-left: 1px; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
 .dim { color: var(--ph-dim); }
-.evoTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+
+/* evolution — round feed item + campaign promotion line */
+.feedItem { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.roundChip {
+  flex: none; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums;
+  padding: 1px 7px; border-radius: 6px;
+  color: var(--ph-ink); background: var(--ph-surface-2); border: 1px solid var(--ph-line);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.feedTitle { font-size: 12px; font-weight: 600; color: var(--ph-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evoStore { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; }
+.storeName { color: var(--ph-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.promoteBadge { flex: none; color: var(--ph-ink); font-variant-numeric: tabular-nums; }
 
 /* MODE badge — the execution/evolution firewall, colored distinctly. */
 .mode {
@@ -323,10 +393,10 @@
 .miniCount { font-size: 10px; font-variant-numeric: tabular-nums; color: var(--ph-dim); }
 .miniHeart { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
 
-/* state_* fills for dots/chips reuse the border+bg above; for pure dots the
-   background is currentColor tinted by the state color instead. */
-.runDot.state_pass, .miniDot.state_pass, .miniHeart.state_pass { background: var(--ph-pass); border-color: var(--ph-pass); }
-.runDot.state_fail, .miniDot.state_fail, .miniHeart.state_fail { background: var(--ph-fail); border-color: var(--ph-fail); }
+/* Collapsed dots tint currentColor by the state hue (the wide rail's chips and
+   dots read `--st` instead; these mini dots keep the compact state_* classes). */
+.miniDot.state_pass, .miniHeart.state_pass { background: var(--ph-pass); }
+.miniDot.state_fail, .miniHeart.state_fail { background: var(--ph-fail); }
 .miniMode.modeExecution { background: var(--ph-pass); }
 .miniMode.modeEvolution { background: #7c3aed; }
 .miniMode.modeUnknown { background: var(--ph-neutral); }
