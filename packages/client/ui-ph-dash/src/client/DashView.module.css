@@ -56,6 +56,14 @@
   flex: 1;
   min-height: 0;
   position: relative;
+  box-sizing: border-box;
+  /* Reserve the sticky composer band (input card + quick-chip row) so docked
+     panels never sit under it: dockview forces height:100% inline on its own
+     root, so the reservation has to shrink the container it measures rather
+     than inset the dock root. --dsh-composer-height is the live seat height
+     ConversationRoot publishes on the inherited scroll body; 152px covers the
+     first paint before its resize observer fires. */
+  padding-bottom: var(--dsh-composer-height, 152px);
 }
 
 .dockRoot {
@@ -65,11 +73,14 @@
   width: 100%;
 }
 
-/* Each panel body fills its dock cell; the docked view owns its own scroll. */
+/* The dock cell is the scroll boundary for every docked view: a view's own
+   scroller is stripped once it descends from the app's single
+   [data-conversation-scroll] host (ChatView's global overflow rule), so nothing
+   below this element can own the overflow. */
 .panelBody {
   height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
 }
