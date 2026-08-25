@@ -4,6 +4,25 @@
 import { describe, expect, it } from 'vitest'
 import { foldEvents, foldRuns, layout, type OpEvent } from '../src/client/graph.ts'
 import { runWindow } from '../src/client/RunFeed.tsx'
+import { pickRuntimeSession } from '../src/client/useLiveFeed.ts'
+
+describe('pickRuntimeSession', () => {
+  it('skips a newer non-runtime session for the newest runtime one', () => {
+    // Board sorts mtime-desc: a completed campaign (no runtime.boot) sits at [0]
+    // ahead of the live session — the live surfaces must still follow the latter.
+    const list = [
+      { name: 'grasp-cube-g1', kinds: { 'rsi.campaign_complete': 1 } },
+      { name: 'session-main', kinds: { 'runtime.boot': 1, 'task.plan_complete': 6 } },
+    ]
+    expect(pickRuntimeSession(list)).toBe('session-main')
+  })
+  it('falls back to the newest session when none carries a runtime marker', () => {
+    expect(pickRuntimeSession([{ name: 'cal-a', kinds: {} }, { name: 'cal-b' }])).toBe('cal-a')
+  })
+  it('is null on an empty list', () => {
+    expect(pickRuntimeSession([])).toBeNull()
+  })
+})
 
 /** A two-run feed: run A (seed 0) fails once then retries and fails; run B
  * (seed 1) succeeds first try. Mirrors the real runtime_events shape. */

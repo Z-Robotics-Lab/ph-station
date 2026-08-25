@@ -21,11 +21,19 @@ export interface FeedInjected {
   fetchRuntimeEvents: (name: string, afterSeq: number) => Promise<RemoteResult<unknown>>
 }
 
+/** One discovered session for the header picker: its name and whether it carries
+ * a live runtime marker (a `runtime.boot` chain row). */
+export interface SessionMeta { name: string; runtime: boolean }
+
 /** The live feed state a consumer folds into its own view model. */
 export interface LiveFeed {
   /** null before the first probe; false when the board bridge is unreachable. */
   online: boolean | null
   sessionName: string | null
+  /** Every discovered session, newest first — the header override picker's rows. */
+  sessions: SessionMeta[]
+  /** Pin the feed to a session by name, overriding the auto-pick (resets the feed). */
+  selectSession: (name: string) => void
   /** Accumulated ordered feed; mutated in place, `version` bumps on change. */
   feed: MutableRefObject<OpEvent[]>
   /** Latest `board.session` rows payload (routing + sealed plan source). */
@@ -38,7 +46,16 @@ const FAST_MS = 1200
 const SLOW_MS = 4000
 
 interface EventsPayload { events?: OpEvent[]; last_seq?: number; error?: string }
-interface SessionSummary { name?: string }
+interface SessionSummary { name?: string; kinds?: Record<string, number> }
+
+/** The current-runtime session: newest (board sorts sessions mtime-desc) carrying
+ * a `runtime.boot` chain row, else the newest of any kind. Shared verbatim by the
+ * rail, status bar, and this feed so all three name the same session; a completed
+ * campaign store (session-log but no runtime marker) sitting at index 0 no longer
+ * hijacks the live surfaces. */
+export function pickRuntimeSession(list: SessionSummary[]): string | null {
+  return (list.find(s => s.kinds?.['runtime.boot'] !== undefined) ?? list[0])?.name ?? null
+}
 
 /**
  * Poll the newest runtime session's event feed on an adaptive cadence.
@@ -50,11 +67,13 @@ export function useLiveFeed(inj: FeedInjected, fast: MutableRefObject<boolean>):
   const { fetchSessions, fetchSession, fetchRuntimeEvents } = inj
   const [online, setOnline] = useState<boolean | null>(null)
   const [sessionName, setSessionName] = useState<string | null>(null)
+  const [sessions, setSessions] = useState<SessionMeta[]>([])
   const [version, setVersion] = useState(0)
   const cursor = useRef(0)
   const feed = useRef<OpEvent[]>([])
   const sessionRows = useRef<unknown>(null)
   const knownSession = useRef<string | null>(null)
+  const override = useRef<string | null>(null)
   const tickNo = useRef(0)
 
   const load = useCallback(async () => {
@@ -65,8 +84,23 @@ export function useLiveFeed(inj: FeedInjected, fast: MutableRefObject<boolean>):
       const s = await fetchSessions()
       if (!s.ok) { setOnline(false); return }
       setOnline(true)
-      knownSession.current = ((s.value as SessionSummary[])[0])?.name ?? null
-      setSessionName(knownSession.current)
+      const list = s.value as SessionSummary[]
+      setSessions(list.map(x => ({ name: x.name ?? '', runtime: x.kinds?.['runtime.boot'] !== undefined })))
+      // Operator override wins while it names a live session; else auto-pick the
+      // current-runtime session (never the mtime-newest completed campaign).
+      const ovr = override.current
+      const chosen = (ovr !== null && list.some(x => x.name === ovr)) ? ovr : pickRuntimeSession(list)
+      if (chosen !== knownSession.current) {
+        // The chosen session changed (override, first probe, or a new runtime
+        // session appeared) — drop the old feed so the graph/ticker do not blend
+        // two sessions' events.
+        knownSession.current = chosen
+        cursor.current = 0
+        feed.current = []
+        sessionRows.current = null
+        setVersion(v => v + 1)
+      }
+      setSessionName(chosen)
     }
     const name = knownSession.current
     if (name === null) return
@@ -96,6 +130,14 @@ export function useLiveFeed(inj: FeedInjected, fast: MutableRefObject<boolean>):
       if (d.ok) { sessionRows.current = d.value; setVersion(v => v + 1) }
     }
   }, [fetchSessions, fetchSession, fetchRuntimeEvents])
+
+  // Pin the feed to an operator-chosen session: force a rediscovery (which re-picks
+  // `chosen` = the override and resets the feed) on the next tick, then poke it now.
+  const selectSession = useCallback((name: string) => {
+    override.current = name
+    knownSession.current = null
+    void load()
+  }, [load])
 
   // Adaptive cadence: reschedule after every tick reading `fast` live; hidden
   // documents skip the fetch except the first, which runs regardless of
@@ -127,5 +169,5 @@ export function useLiveFeed(inj: FeedInjected, fast: MutableRefObject<boolean>):
     }
   }, [load, fast])
 
-  return { online, sessionName, feed, sessionRows, version }
+  return { online, sessionName, sessions, selectSession, feed, sessionRows, version }
 }

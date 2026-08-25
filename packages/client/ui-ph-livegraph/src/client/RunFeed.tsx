@@ -52,7 +52,7 @@ export function useRunFeed(): RunFeed {
  * graph's scrubber writes and the ticker reads. */
 function RootRunFeed({ inject, children }: { inject: FeedInjected; children: ReactNode }) {
   const fastRef = useRef(false)
-  const { online, sessionName, feed, sessionRows, version } = useLiveFeed(inject, fastRef)
+  const { online, sessionName, sessions, selectSession, feed, sessionRows, version } = useLiveFeed(inject, fastRef)
 
   // playhead === null follows the live tail; runIndex === null selects the last run.
   const [playhead, setPlayhead] = useState<number | null>(null)
@@ -84,7 +84,7 @@ function RootRunFeed({ inject, children }: { inject: FeedInjected; children: Rea
   }, [playing, run, feed])
 
   const value: RunFeed = {
-    online, sessionName, feed, sessionRows, version,
+    online, sessionName, sessions, selectSession, feed, sessionRows, version,
     runs, runIndex: effIndex, run, headSeq, live, playing,
     pick: (i) => { setRunIndex(i); setPlayhead(runs[i] ? runs[i].lastSeq : null); setPlaying(false) },
     seek: (seq) => { setPlayhead(seq); setRunIndex(effIndex) },
