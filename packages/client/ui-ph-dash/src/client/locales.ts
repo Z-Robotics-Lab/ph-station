@@ -15,6 +15,9 @@ export type PhDashKey =
   | 'jump'
   | 'jumpPlaceholder'
   | 'jumpEmpty'
+  | 'maximize'
+  | 'restore'
+  | 'reserveHint'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -33,6 +36,9 @@ export const zh: Record<PhDashKey, string> = {
   'jump': '跳转面板',
   'jumpPlaceholder': '跳转到面板…（↑↓ 选择 · Enter 打开 · Esc 关闭）',
   'jumpEmpty': '没有匹配的面板',
+  'maximize': '最大化面板（Esc 还原）',
+  'restore': '还原面板',
+  'reserveHint': '拖动调整输入区高度 · 双击还原',
 }
 
 /** English dictionary. */
@@ -45,4 +51,7 @@ export const en: Record<PhDashKey, string> = {
   'jump': 'Jump to panel',
   'jumpPlaceholder': 'Jump to a panel… (↑↓ select · Enter open · Esc close)',
   'jumpEmpty': 'No matching panel',
+  'maximize': 'Maximize panel (Esc to restore)',
+  'restore': 'Restore panel',
+  'reserveHint': 'Drag to resize the composer band · double-click to restore',
 }

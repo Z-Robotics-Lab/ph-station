@@ -60,10 +60,66 @@
   /* Reserve the sticky composer band (input card + quick-chip row) so docked
      panels never sit under it: dockview forces height:100% inline on its own
      root, so the reservation has to shrink the container it measures rather
-     than inset the dock root. --dsh-composer-height is the live seat height
-     ConversationRoot publishes on the inherited scroll body; 152px covers the
-     first paint before its resize observer fires. */
-  padding-bottom: var(--dsh-composer-height, 152px);
+     than inset the dock root. --dsh-dock-reserve is the operator's dragged
+     override (the sash writes it on the shared scroll body); absent, it falls
+     back to --dsh-composer-height, the live seat height ConversationRoot
+     publishes. The composer seat's max-height reads the same variable, so the
+     reservation and the composer can never mismatch. 152px covers first paint
+     before the seat's resize observer fires. */
+  padding-bottom: var(--dsh-dock-reserve, var(--dsh-composer-height, 152px));
+}
+
+/* The dock/composer boundary sash: a full-width grab centered on the reserve
+   line. Dragging rewrites --dsh-dock-reserve (clamped in the handler); a
+   double-click clears the override. Sits above the dock, below the palette. */
+.sash {
+  position: absolute;
+  right: 0;
+  left: 0;
+  bottom: var(--dsh-dock-reserve, var(--dsh-composer-height, 152px));
+  height: 10px;
+  margin-bottom: -5px;
+  z-index: 15;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.sash::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 46px;
+  height: 4px;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: color-mix(in srgb, currentColor 22%, transparent);
+  transition: background 0.12s ease, width 0.12s ease;
+}
+
+.sash:hover::before,
+.sash:active::before {
+  width: 72px;
+  background: var(--dsw-alias-state-business-primary, color-mix(in srgb, currentColor 55%, transparent));
+}
+
+/* The ⤢/⤡ group-header action dockview renders in the right actions container. */
+.headerBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 8px;
+  color: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  opacity: 0.55;
+  transition: opacity 0.12s ease;
+}
+
+.headerBtn:hover {
+  opacity: 1;
 }
 
 .dockRoot {
