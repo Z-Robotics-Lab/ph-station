@@ -17,15 +17,21 @@ import { useEffect } from 'react'
 export const POLL_MS = 15000
 
 /**
- * @param load - fetch-and-set; called once on mount, on each interval tick while
- * the document is visible, and on every visible transition. Must be stable
- * (wrap in useCallback) — it is the effect's dependency. Its return is ignored,
- * so an async loader may be passed directly (the promise is fire-and-forget).
+ * @param load - fetch-and-set; called once on mount regardless of visibility,
+ * then on each interval tick and every visible transition while the document is
+ * visible. Must be stable (wrap in useCallback) — it is the effect's dependency.
+ * Its return is ignored, so an async loader may be passed directly (the promise
+ * is fire-and-forget).
  */
 export function usePolledLoad(load: () => unknown): void {
   useEffect(() => {
     const run = () => { if (!document.hidden) load() }
-    run()
+    // First load runs regardless of visibility: a surface that mounts while its
+    // tab is hidden (a backgrounded or occluded console window) must still paint
+    // once, or it stays on its empty render until a visible transition a
+    // persistently-hidden tab never receives. Only the refresh cadence pauses
+    // while hidden, so a background console still burns no board calls after it.
+    load()
     const timer = setInterval(run, POLL_MS)
     document.addEventListener('visibilitychange', run)
     return () => {

@@ -121,16 +121,18 @@ export function BattleView({
     }
   }, [fetchStores])
 
-  // Human-cadence poll, paused while the tab is hidden (a background console
-  // burns no board calls) and re-run the moment it returns. A failed poll keeps
-  // the last-good list — loadStores sets error without clearing stores.
+  // Human-cadence poll: the first load runs regardless of visibility so a view
+  // mounted while its tab is hidden still paints once; the refresh is paused
+  // while hidden (a background console burns no board calls) and re-run the
+  // moment it returns. A failed poll keeps the last-good list — loadStores sets
+  // error without clearing stores.
   // ponytail: local twin of ui-ph-panels' usePolledLoad — kept inline so
   // ui-ph-battle needs no dependency on that package for eight lines; extract to
   // a shared package only if a third ph panel package appears.
   /* jscpd:ignore-start */
   useEffect(() => {
     const run = () => { if (!document.hidden) void loadStores() }
-    run()
+    void loadStores()
     const timer = setInterval(run, POLL_MS)
     document.addEventListener('visibilitychange', run)
     return () => {

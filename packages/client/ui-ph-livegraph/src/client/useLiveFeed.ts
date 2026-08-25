@@ -98,13 +98,22 @@ export function useLiveFeed(inj: FeedInjected, fast: MutableRefObject<boolean>):
   }, [fetchSessions, fetchSession, fetchRuntimeEvents])
 
   // Adaptive cadence: reschedule after every tick reading `fast` live; hidden
-  // documents skip the fetch.
+  // documents skip the fetch except the first, which runs regardless of
+  // visibility so a feed mounted while its tab is hidden still paints once
+  // (matches usePolledLoad / VaultView).
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
     let alive = true
+    let first = true
     const tick = async () => {
       if (!alive) return
-      if (!document.hidden) await load()
+      if (first || !document.hidden) {
+        // A rejected board read (an assembly fault, not a carrier ok:false) must
+        // fold to offline, never throw out of this loop: a throw here skips the
+        // reschedule below and stops the feed permanently. The next tick reruns.
+        try { await load() } catch { setOnline(false) }
+      }
+      first = false
       if (!alive) return
       timer = setTimeout(tick, fast.current ? FAST_MS : SLOW_MS)
     }
