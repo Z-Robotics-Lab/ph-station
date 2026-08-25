@@ -1,8 +1,10 @@
 /* PH tint over the dockview theme: map its chrome variables to currentColor
    mixes so tab bars, borders, and sashes read as PH-neutral and adapt to the
-   app's light/dark palette without a second theme switch. Applied on the
-   `.dv-ph` class the DashView puts on the dockview root, alongside dockview's
-   own theme class. */
+   app's light/dark palette without a second theme switch, and make the
+   inter-group sashes grabbable on a desktop pointer (visible resting grip + a
+   ≥6px hit-area dockview otherwise ships touch-only). Applied on the `.dv-ph`
+   class the DashView puts on the dockview root, alongside dockview's own theme
+   class. */
 
 .dv-ph {
   --dv-background-color: transparent;
@@ -15,4 +17,69 @@
   --dv-active-sash-color: color-mix(in srgb, currentColor 28%, transparent);
   --dv-icon-hover-background-color: color-mix(in srgb, currentColor 10%, transparent);
   --dv-paneview-header-border-color: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+/* Grabbable inter-group sashes. Dockview ships a 4px sash that is transparent at
+   rest and whose only enlarged pointer target is touch-only (its ::before hit
+   strip lives under `@media (pointer: coarse)`). On a desktop pointer that
+   leaves a bare 4px invisible divider the operator cannot find or grab to
+   resize a panel, so both axes get a visible resting grip and a ≥6px pointer
+   hit-area here. */
+
+/* Resting grip: a short centered handle on every enabled sash, faint at rest
+   and brighter while hovered or dragged, so the divider reads as draggable. */
+.dv-ph .dv-sash-container > .dv-sash:not(.dv-disabled)::after {
+  content: "";
+  position: absolute;
+  background-color: color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 2px;
+  transition: background-color 0.1s ease-in-out;
+}
+.dv-ph .dv-split-view-container.dv-horizontal > .dv-sash-container > .dv-sash:not(.dv-disabled)::after {
+  top: 50%;
+  left: 1px;
+  width: 2px;
+  height: 24px;
+  transform: translateY(-50%);
+}
+.dv-ph .dv-split-view-container.dv-vertical > .dv-sash-container > .dv-sash:not(.dv-disabled)::after {
+  left: 50%;
+  top: 1px;
+  height: 2px;
+  width: 24px;
+  transform: translateX(-50%);
+}
+.dv-ph .dv-sash-container > .dv-sash:not(.dv-disabled):hover::after,
+.dv-ph .dv-sash-container > .dv-sash:not(.dv-disabled):active::after {
+  background-color: color-mix(in srgb, currentColor 45%, transparent);
+}
+
+/* Desktop hit-area: dockview only enlarges the grab strip for coarse pointers,
+   so add a 4px-per-side extension (4px sash + 8px = 12px target) for fine
+   pointers. Left to `@media (pointer: coarse)` so the touch ±10px strip stays. */
+@media (pointer: fine) {
+  .dv-ph .dv-split-view-container > .dv-sash-container > .dv-sash:not(.dv-disabled)::before {
+    content: "";
+    position: absolute;
+    background: transparent;
+  }
+  .dv-ph .dv-split-view-container.dv-horizontal > .dv-sash-container > .dv-sash:not(.dv-disabled)::before {
+    top: 0;
+    bottom: 0;
+    left: -4px;
+    right: -4px;
+  }
+  .dv-ph .dv-split-view-container.dv-vertical > .dv-sash-container > .dv-sash:not(.dv-disabled)::before {
+    left: 0;
+    right: 0;
+    top: -4px;
+    bottom: -4px;
+  }
+}
+
+/* Immediate hover feedback: dockview delays the active-sash tint 0.5s, which
+   reads as unresponsive on a precise pointer. */
+.dv-ph .dv-sash-container > .dv-sash:not(.disabled):hover,
+.dv-ph .dv-sash-container > .dv-sash:not(.disabled):active {
+  transition-delay: 0s;
 }
