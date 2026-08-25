@@ -1518,6 +1518,28 @@ export interface Config {
 
 Source: [`packages/preset/persona/src/index.ts:34`](../packages/preset/persona/src/index.ts)
 
+<a id="deepseek-aidsh-ph-board"></a>
+
+## `@deepseek-ai/dsh-ph-board`
+
+```ts config-catalog
+/**
+ * Box-specific spawn paths (dsh: no hardcoded tunables). The cockpit exports
+ * them as PH_BOARD_* env vars; the deploy overlay's bundle row reads those,
+ * and disables this plugin when they are absent so a plain `dsh web` still boots.
+ */
+export interface Config {
+  /** Python that imports board.store -- the motherboard repo venv. */
+  readonly pythonPath: string
+  /** Motherboard checkout run as storecli's cwd (it inserts itself on sys.path). */
+  readonly repoRoot: string
+  /** Campaign runs/ directory storecli reads (passed as --runs). */
+  readonly runsDir: string
+}
+```
+
+Source: [`packages/host/dsh-ph-board/src/index.ts:38`](../packages/host/dsh-ph-board/src/index.ts)
+
 <a id="deepseek-aidsh-plan-mode"></a>
 
 ## `@deepseek-ai/dsh-plan-mode`
@@ -3245,6 +3267,12 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-message-feedback` ([`packages/client/ui-message-feedback/src/index.ts`](../packages/client/ui-message-feedback/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-model-selection` ([`packages/client/ui-model-selection/src/index.ts`](../packages/client/ui-model-selection/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-permission-presets` ([`packages/client/ui-permission-presets/src/index.ts`](../packages/client/ui-permission-presets/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-ph-battle` ([`packages/client/ui-ph-battle/src/index.ts`](../packages/client/ui-ph-battle/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-ph-dash` ([`packages/client/ui-ph-dash/src/index.ts`](../packages/client/ui-ph-dash/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-ph-livegraph` ([`packages/client/ui-ph-livegraph/src/index.ts`](../packages/client/ui-ph-livegraph/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-ph-ops` ([`packages/client/ui-ph-ops/src/index.ts`](../packages/client/ui-ph-ops/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-ph-panels` ([`packages/client/ui-ph-panels/src/index.ts`](../packages/client/ui-ph-panels/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-ph-vault` ([`packages/client/ui-ph-vault/src/index.ts`](../packages/client/ui-ph-vault/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-plan` ([`packages/client/ui-plan/src/index.ts`](../packages/client/ui-plan/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-reference` ([`packages/client/ui-reference/src/index.ts`](../packages/client/ui-reference/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-renderer` ([`packages/client/ui-renderer/src/index.ts`](../packages/client/ui-renderer/src/index.ts))
@@ -3326,6 +3354,7 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 - `@deepseek-ai/dsh-base` ([`packages/bundle/base/src/index.ts`](../packages/bundle/base/src/index.ts))
 - `@deepseek-ai/dsh-brand` ([`packages/util/brand/src/index.ts`](../packages/util/brand/src/index.ts))
 - `@deepseek-ai/dsh-client-test-runtime` ([`packages/test-support/client-runtime/src/index.ts`](../packages/test-support/client-runtime/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-ph-icons` ([`packages/client/ui-ph-icons/src/index.ts`](../packages/client/ui-ph-icons/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-primitives` ([`packages/client/ui-primitives/src/index.ts`](../packages/client/ui-primitives/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-slots` ([`packages/client/ui-slots/src/index.ts`](../packages/client/ui-slots/src/index.ts))
 - `@deepseek-ai/dsh-client-web` ([`packages/client/web/src/index.ts`](../packages/client/web/src/index.ts))

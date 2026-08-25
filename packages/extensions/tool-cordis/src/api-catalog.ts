@@ -572,6 +572,24 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'request', description: 'session name (guarded by storecli\'s safe_child) + cursor.' }],
         returns: 'board.store.read_runtime_events(...) verbatim, or an {error} dict.',
       },
+      {
+        signature: '@Remote(\'vault\') vault(): Promise<JsonValue>',
+        description: 'The whole skill vault: the deterministic fold over sealed SkillRecords, manifest cards, and the capability catalog as a typed wiki graph.',
+        parameters: [],
+        returns: 'board.vault.build_graph(...) verbatim ({schema_version, nodes, edges}).',
+      },
+      {
+        signature: '@Remote(\'vaultNode\') vaultNode(request: BoardVaultNodeRequest): Promise<JsonValue>',
+        description: 'One vault node as a wiki page: the node plus its `out` edges and `backlinks`.',
+        parameters: [{ name: 'request', description: 'the node id (skill digest / package dir / capability seam).' }],
+        returns: 'board.vault.node(...) verbatim, or an {error: \'unknown node\'} dict.',
+      },
+      {
+        signature: '@Remote(\'vaultNeighbors\') vaultNeighbors(request: BoardVaultNeighborsRequest): Promise<JsonValue>',
+        description: 'Adjacency (both directions) for one vault node, optionally one relation.',
+        parameters: [{ name: 'request', description: 'the node id plus an optional `rel` restriction.' }],
+        returns: 'board.vault.neighbors(...) verbatim, or an {error: \'unknown node\'} dict.',
+      },
     ],
   },
   {
@@ -3097,6 +3115,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'BoardStoreRequest',
     declaration: 'export interface BoardStoreRequest {\n    readonly name: string;\n}',
+  },
+  {
+    name: 'BoardVaultNeighborsRequest',
+    declaration: 'export interface BoardVaultNeighborsRequest {\n    readonly id: string;\n    readonly relation?: string;\n}',
+  },
+  {
+    name: 'BoardVaultNodeRequest',
+    declaration: 'export interface BoardVaultNodeRequest {\n    readonly id: string;\n}',
   },
   {
     name: 'Branded',

@@ -1120,7 +1120,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       },
     ],
     ownerProps: [
-      '/**\n * View-slot owner share: the cross-view inspect handoff (otherwise views need\n * nothing from the render site — sessionId and the snapshot hook arrive as\n * framework-standard props; tool rows go through each view\'s own declared\n * toolview hole).\n */\nexport interface ConvViewOwnerProps {\n  /** One-shot inspect request from another view (chat\'s Inspect button); null when idle. */\n  inspect?: { callId: CallId } | null\n  /** Acknowledge the inspect request once applied (clears the store field). */\n  onInspectDone?: () => void\n}',
+      '/**\n * View-slot owner share: the cross-view inspect handoff (otherwise views need\n * nothing from the render site — sessionId and the snapshot hook arrive as\n * framework-standard props; tool rows go through each view\'s own declared\n * toolview hole).\n */\nexport interface ConvViewOwnerProps {\n  /** One-shot inspect request from another view (chat\'s Inspect button); null when idle. */\n  inspect?: { callId: CallId } | null\n  /** Acknowledge the inspect request once applied (clears the store field). */\n  onInspectDone?: () => void\n  /**\n   * Render another registered view by id through the skeleton\'s authorized\n   * `renderSlot(\'conversation.view\')`. The skeleton hands this down so a\n   * composite view (the 实验台 dashboard) can dock its sibling views without\n   * re-declaring the singly-declared slot (delegation is plain props passing;\n   * the authorizing identity stays the skeleton). Absent = no host support.\n   */\n  renderView?: (id: string) => ReactNode\n}',
     ],
     ownerPropsReferences: [],
     standardProps: [
@@ -1139,8 +1139,10 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     occupants: [
       'client-ui-conversation ChatView id \'chat\'',
       'client-ui-ph-battle BattleView id \'battle\'',
-      'client-ui-ph-livegraph LiveGraphView id \'livegraph\'',
-      'client-ui-ph-ops CockpitView id \'mission\'',
+      'client-ui-ph-dash DashView id \'dash\'',
+      'client-ui-ph-livegraph LabView id \'lab\'',
+      'client-ui-ph-livegraph LiveGraphTab id \'livegraph\'',
+      'client-ui-ph-livegraph TickerTab id \'ticker\'',
       'client-ui-ph-panels EvolutionView id \'evolution\'',
       'client-ui-ph-panels CardsView id \'cards\'',
       'client-ui-ph-panels LedgerView id \'ledger\'',

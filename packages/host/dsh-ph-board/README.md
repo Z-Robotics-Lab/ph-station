@@ -1,47 +1,29 @@
 # @deepseek-ai/dsh-ph-board
 
-physical-harness fork host bridge. A read-only Typert Remote (`board`) that
-forwards the ph-station read panels to the motherboard's evidence layer
-(`board/store.py`) through its CLI face (`board/storecli.py`), same-origin behind
-the gateway's `trusted-host` fence.
+English | [中文](README.zh.md)
 
-Each `@Remote` method `execFile`s `<pythonPath> -m board.storecli <fn> [name]`
-with `cwd=<repoRoot>` and returns `JSON.parse(stdout)` verbatim — zero
-statistics, zero interpretation. The gateway auto-serves them at
-`POST /api/board/<name>` (`stores`, `store`, `heldout`, `cards`, `rounds`,
-`ledger`, `sessions`, `session`, `sessionProgress`, `runtimeStatus`,
-`runtimeEvents`). `cards` reads the 机箱 (`board/cards.py`:
-`plugins/*/manifest.toml` as data); `rounds`/`ledger` fold the progress.md /
-STATUS.md feeds; `sessions`/`session` read the runtime session-log chain (the
-演进 / 机箱 / 账本 panels and the status bar); `sessionProgress` folds one
-session's `task.plan_complete` rows into the mission-progress counts the
-operator rail and mission cockpit render; `runtimeStatus` reads the live
-`runtime_status.json` (the 取景窗 chip / vitals). `runtimeEvents` reads the
-operational live-progress feed (`runs/<session>/runtime_events.jsonl`) with an
-incremental `afterSeq` cursor (forwarded as `--after`); `last_seq` below the
-caller's cursor means the runtime re-booted and the poller re-reads from 0 (the
-执行图 live graph).
+physical-harness fork host bridge. A read-only Typert Remote (`board`) that forwards the ph-station read panels to the motherboard's evidence layer (`board/store.py`) through its CLI face (`board/storecli.py`), same-origin behind the gateway's `trusted-host` fence.
 
-## Model Experience
-
-Not model-facing. This Remote serves the browser panels; the chat LLM reads the
-same `board.store` functions through the MCP server. No prompt, token, or
-KV-cache effect.
+Each `@Remote` method `execFile`s `<pythonPath> -m board.storecli <fn> [name]` with `cwd=<repoRoot>` and returns `JSON.parse(stdout)` verbatim — zero statistics, zero interpretation. The gateway auto-serves them at `POST /api/board/<name>` (`stores`, `store`, `heldout`, `cards`, `rounds`, `ledger`, `sessions`, `session`, `sessionProgress`, `runtimeStatus`, `runtimeEvents`, `vault`, `vaultNode`, `vaultNeighbors`). `cards` reads the 机箱 (`board/cards.py`: `plugins/*/manifest.toml` as data); `rounds`/`ledger` fold the progress.md / STATUS.md feeds; `sessions`/`session` read the runtime session-log chain (the 演进 / 机箱 / 账本 panels and the status bar); `sessionProgress` folds one session's `task.plan_complete` rows into the mission-progress counts the operator rail and mission cockpit render; `runtimeStatus` reads the live `runtime_status.json` (the 取景窗 chip / vitals). `runtimeEvents` reads the operational live-progress feed (`runs/<session>/runtime_events.jsonl`) with an incremental `afterSeq` cursor (forwarded as `--after`); `last_seq` below the caller's cursor means the runtime re-booted and the poller re-reads from 0 (the 执行图 live graph). `vault`/`vaultNode`/`vaultNeighbors` read the sealed typed-relation vault fold (`board/vault.py`) — the whole graph, one node as a wiki page, and one node's adjacency — for the 技能库 panel.
 
 ## Config
 
-Three deployment-varying paths, injected by `scripts/cockpit` as `PH_BOARD_*`
-env vars through the deploy overlay's bundle row:
+Three deployment-varying paths, injected by `scripts/cockpit` as `PH_BOARD_*` env vars through the deploy overlay's bundle row:
 
 - `pythonPath` — Python that imports `board.store` (the motherboard venv).
 - `repoRoot` — motherboard checkout, used as the subprocess `cwd`.
 - `runsDir` — campaign `runs/` directory, passed as `--runs`.
 
-The bundle row disables this plugin when `PH_BOARD_REPO` is absent, so a plain
-`dsh web` still boots (the panel then reports the board unavailable).
+The bundle row disables this plugin when `PH_BOARD_REPO` is absent, so a plain `dsh web` still boots (the panel then reports the board unavailable).
+
+## Model Experience
+
+None, as the Remote serves read-only state to the browser panels and the chat LLM reads the same `board.store` functions through the MCP server, which this package does not own.
+
+#### KV Cache effect
+
+None; the package never assembles or sends provider requests.
 
 ## Known Limitations and Deferred Work
 
-- One Python subprocess per request; cold-imports `board.store`. Fine at
-  human-cadence panel polling on tiny stores. Promote to a persistent read
-  worker if poll latency is ever measured to matter.
+- One Python subprocess per request; cold-imports `board.store`. Fine at human-cadence panel polling on tiny stores. Promote to a persistent read worker if poll latency is ever measured to matter.

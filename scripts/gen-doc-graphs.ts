@@ -232,6 +232,13 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Owns local per-assistant-message feedback, lifecycle and target validation, per-item compare-and-set, and the Host unary Remote contract without entering Session history or telemetry.',
   },
   {
+    key: 'board',
+    pkg: 'ph-board',
+    title: 'Physical-harness board bridge',
+    mode: 'core',
+    note: 'Read-only Host Remote over the motherboard repo\'s board.storecli; the PH browser panels read campaign, session, runtime-event, and vault projections through the Remote BFF with no host-side consumer.',
+  },
+  {
     key: 'workspaceRegistry',
     pkg: 'workspace',
     title: 'Workspace entity registry',

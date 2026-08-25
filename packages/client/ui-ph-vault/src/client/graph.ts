@@ -147,9 +147,13 @@ export const DENSE_RELS: readonly VaultRel[] = ['REQUIRES', 'PROVIDES']
  * kinds and can therefore draw. */
 export interface RelTally { readonly total: number; readonly rendered: number }
 
-/** Tally every relation family's fold edges against how many can render (both
+/**
+ * Tally every relation family's fold edges against how many can render (both
  * endpoints are nodes). Families whose targets are tasks/campaigns/evidence
- * (GOVERNS/BINDS/EVIDENCED_BY/MOUNTED_IN) tally `rendered: 0`. */
+ * (GOVERNS/BINDS/EVIDENCED_BY/MOUNTED_IN) tally `rendered: 0`.
+ * @param graph - the folded vault graph.
+ * @returns a tally for every relation family, including zero-edge ones.
+ */
 export function relTallies(graph: VaultGraph): Record<VaultRel, RelTally> {
   const ids = new Set(graph.nodes.map(n => n.id))
   const total = new Map<VaultRel, number>()
@@ -163,8 +167,12 @@ export function relTallies(graph: VaultGraph): Record<VaultRel, RelTally> {
   ) as Record<VaultRel, RelTally>
 }
 
-/** The relation families that draw at least one edge; the rest are dead
- * controls (legend rows and filter chips the canvas hides). */
+/**
+ * The relation families that draw at least one edge; the rest are dead
+ * controls (legend rows and filter chips the canvas hides).
+ * @param graph - the folded vault graph.
+ * @returns the relation families with at least one rendered edge.
+ */
 export function renderableRels(graph: VaultGraph): Set<VaultRel> {
   const t = relTallies(graph)
   return new Set(ALL_RELS.filter(r => t[r].rendered > 0))
@@ -197,7 +205,12 @@ export const KIND_COLOR: Record<VaultKind, string> = {
   capability: 'var(--dsw-alias-state-purple-primary, #8b5cf6)',
 }
 
-/** Whether a node passes the current kind/status/search filters. */
+/**
+ * Whether a node passes the current kind/status/search filters.
+ * @param node - the vault node to test.
+ * @param f - the active filters; empty sets and a blank search hide nothing.
+ * @returns true when every active filter admits the node.
+ */
 export function nodeVisible(node: VaultNode, f: VaultFilters): boolean {
   if (f.kinds.size > 0 && !f.kinds.has(node.kind)) return false
   if (node.kind === 'skill' && f.statuses.size > 0 && !f.statuses.has(node.status)) return false
@@ -303,17 +316,31 @@ export function layout(graph: VaultGraph, f: VaultFilters): VaultLayout {
   return { nodes, edges }
 }
 
-/** In-edges (backlinks) of one node. */
+/**
+ * In-edges (backlinks) of one node.
+ * @param graph - the folded vault graph.
+ * @param id - the node id.
+ * @returns every edge whose destination is the node, in fold order.
+ */
 export function backlinks(graph: VaultGraph, id: string): VaultEdge[] {
   return graph.edges.filter(e => e.dst === id)
 }
 
-/** Out-edges of one node. */
+/**
+ * Out-edges of one node.
+ * @param graph - the folded vault graph.
+ * @param id - the node id.
+ * @returns every edge whose source is the node, in fold order.
+ */
 export function outEdges(graph: VaultGraph, id: string): VaultEdge[] {
   return graph.edges.filter(e => e.src === id)
 }
 
-/** Index nodes by id for O(1) page lookup. */
+/**
+ * Index nodes by id for O(1) page lookup.
+ * @param graph - the folded vault graph.
+ * @returns a Map from node id to its node.
+ */
 export function indexNodes(graph: VaultGraph): Map<string, VaultNode> {
   return new Map(graph.nodes.map(n => [n.id, n]))
 }

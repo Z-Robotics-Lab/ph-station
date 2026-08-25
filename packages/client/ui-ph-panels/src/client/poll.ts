@@ -14,6 +14,7 @@ import { useEffect } from 'react'
 export const POLL_MS = 15000
 
 /**
+ * Run `load` on mount, then every POLL_MS while the document is visible.
  * @param load - fetch-and-set; called once on mount regardless of visibility,
  * then on each interval tick and every visible transition while the document is
  * visible. Must be stable (wrap in useCallback) — it is the effect's dependency.

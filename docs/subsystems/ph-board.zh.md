@@ -99,6 +99,27 @@ Read-only Remote over board.store via the storecli subprocess. The gateway auto-
  * @returns board.store.read_runtime_events(...) verbatim, or an {error} dict.
  */
 @Remote('runtimeEvents') runtimeEvents(request: BoardRuntimeEventsRequest): Promise<JsonValue>
+
+/**
+ * The whole skill vault: the deterministic fold over sealed SkillRecords,
+ * manifest cards, and the capability catalog as a typed wiki graph.
+ * @returns board.vault.build_graph(...) verbatim ({schema_version, nodes, edges}).
+ */
+@Remote('vault') vault(): Promise<JsonValue>
+
+/**
+ * One vault node as a wiki page: the node plus its `out` edges and `backlinks`.
+ * @param request - the node id (skill digest / package dir / capability seam).
+ * @returns board.vault.node(...) verbatim, or an {error: 'unknown node'} dict.
+ */
+@Remote('vaultNode') vaultNode(request: BoardVaultNodeRequest): Promise<JsonValue>
+
+/**
+ * Adjacency (both directions) for one vault node, optionally one relation.
+ * @param request - the node id plus an optional `rel` restriction.
+ * @returns board.vault.neighbors(...) verbatim, or an {error: 'unknown node'} dict.
+ */
+@Remote('vaultNeighbors') vaultNeighbors(request: BoardVaultNeighborsRequest): Promise<JsonValue>
 ```
 
 Source: [`packages/host/dsh-ph-board/src/index.ts`](../../packages/host/dsh-ph-board/src/index.ts)

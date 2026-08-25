@@ -10,7 +10,6 @@
  * Adding an icon: paste the two-or-more `<path d=…>` bodies from
  * `@tabler/icons/icons/outline/<name>.svg` into a new component below — the
  * shared `Svg` wrapper supplies the frame, stroke, and accessibility state.
- * @module @deepseek-ai/dsh-client-ui-ph-icons
  */
 
 import type { PropsWithChildren, ReactElement } from 'react'

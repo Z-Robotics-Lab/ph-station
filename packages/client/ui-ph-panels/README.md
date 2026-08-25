@@ -1,47 +1,26 @@
 # @deepseek-ai/dsh-client-ui-ph-panels
 
-The 演进 (RSI monitor), 机箱 (chassis), and 账本 (ledger) panels plus the
-frame-wide status bar. Each is one slot entry that reads the harness evidence
-layer through the `board` Host Remote and renders only — no service, no business
-logic. Every number comes from `board.store` / `board.cards`; TS formats
-(×100 for pp with sign, mtime → duration) but computes nothing.
+English | [中文](README.zh.md)
 
-- **演进** (`conversation.view` tab) — `/api/board/stores` + `/api/board/store`
-  for per-generation Δpp bars (dev/blind/held-out deltas, promotion events,
-  McNemar fixed/broken), and `/api/board/rounds` for the progress.md feed.
-- **机箱** (`conversation.view` tab) — `/api/board/cards` card grid: name,
-  actuation, needs_sim, contribute counts, and manifest summary. The doctor is
-  not wired (no `scripts/plugin_doctor.py` yet), so a labeled `体检: 未接入`
-  slot stands in — never faked.
-- **账本** (`conversation.view` tab) — `/api/board/ledger` seed-block table:
-  range, burn state, source line. `parse_ledger` returns no task / holdout
-  field, so those columns are absent rather than invented.
-- **status bar** (`shell.overlay` strip) — MODE + boot facts from the newest
-  runtime session's `runtime.boot` row (`/api/board/sessions` +
-  `/api/board/session`), a heartbeat from the session mtime, and board-bridge
-  reachability from whether the fetch worked. When the boot row carries a
-  `render` key it also shows a 取景窗 on/off chip; rows without the key (older
-  sessions) show no chip — presence is the signal, never a guess.
-- **任务台 chips** (`conversation.input.dock` row above the composer) — small
-  preset buttons (stack / lift_geometric task, latest battle report) that
-  prefill the composer draft with an editable prompt template via the session
-  input face; they never submit — the operator edits seed/params and sends.
+The 演进 (RSI monitor), 机箱 (chassis), and 账本 (ledger) panels plus the frame-wide status bar. Each is one slot entry that reads the harness evidence layer through the `board` Host Remote and renders only — no service, no business logic. Every number comes from `board.store` / `board.cards`; TS formats (×100 for pp with sign, mtime → duration) but computes nothing.
 
-Every panel and the status bar re-fetch on a shared 15s poll, paused while the
-tab is hidden and re-run the moment it returns; a failed poll keeps the last
-good data. When the board bridge is not mounted (a plain `dsh web` with no
-`PH_BOARD_*` env), each panel reports the data plane unavailable.
+- **演进** (`conversation.view` tab) — `/api/board/stores` + `/api/board/store` for per-generation Δpp bars (dev/blind/held-out deltas, promotion events, McNemar fixed/broken), and `/api/board/rounds` for the progress.md feed.
+- **机箱** (`conversation.view` tab) — `/api/board/cards` card grid: name, actuation, needs_sim, contribute counts, and manifest summary. The doctor is not wired (no `scripts/plugin_doctor.py` yet), so a labeled `体检: 未接入` slot stands in — never faked.
+- **账本** (`conversation.view` tab) — `/api/board/ledger` seed-block table: range, burn state, source line. `parse_ledger` returns no task / holdout field, so those columns are absent rather than invented.
+- **status bar** (`shell.overlay` strip) — MODE + boot facts from the newest runtime session's `runtime.boot` row (`/api/board/sessions` + `/api/board/session`), a heartbeat from the session mtime, and board-bridge reachability from whether the fetch worked. When the boot row carries a `render` key it also shows a 取景窗 on/off chip; rows without the key (older sessions) show no chip — presence is the signal, never a guess.
+- **任务台 chips** (`conversation.input.dock` row above the composer) — small preset buttons (stack / lift_geometric task, latest battle report) that prefill the composer draft with an editable prompt template via the session input face; they never submit — the operator edits seed/params and sends.
+
+Every panel and the status bar re-fetch on a shared 15s poll, paused while the tab is hidden and re-run the moment it returns; a failed poll keeps the last good data. When the board bridge is not mounted (a plain `dsh web` with no `PH_BOARD_*` env), each panel reports the data plane unavailable.
 
 ## Model Experience
 
-Panels and the status bar are not model-facing: read-only operator surfaces
-beside the chat with no prompt, token, or KV-cache effect. The 任务台 chips only
-write an editable composer draft — the operator sends it, so their template is
-model-visible exactly like anything else the operator types, never auto-sent.
+None, as the panels render board Remote state and the 任务台 chips only prefill an editable composer draft, which reaches the model as an ordinary user message only when the operator sends it.
+
+#### KV Cache effect
+
+None; the package never assembles or sends provider requests.
 
 ## Known Limitations and Deferred Work
 
-- Fixed 15s polls rather than an mtime-driven refresh; adequate for the small
-  `runs/` tree, revisit if it grows large.
-- The 演进 Δpp bars use a fixed 40pp full-scale reference (a glance cue; the
-  exact signed value sits beside every bar).
+- Fixed 15s polls rather than an mtime-driven refresh; adequate for the small `runs/` tree, revisit if it grows large.
+- The 演进 Δpp bars use a fixed 40pp full-scale reference (a glance cue; the exact signed value sits beside every bar).

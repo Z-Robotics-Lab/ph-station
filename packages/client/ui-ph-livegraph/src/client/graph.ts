@@ -113,8 +113,12 @@ interface SessionRows {
   }
 }
 
-/** Routing network from the chain: dedupe by capability keeping the LAST
- * resolve (fresh kernel per task — the last mount is the current wiring). */
+/**
+ * Routing network from the chain: dedupe by capability keeping the LAST
+ * resolve (fresh kernel per task — the last mount is the current wiring).
+ * @param session - the board session payload; anything without `rows` folds to empty.
+ * @returns one row per capability, in last-resolve order.
+ */
 export function foldRouting(session: unknown): RoutingRow[] {
   const rows = (session as SessionRows)?.rows?.['capability.resolve'] ?? []
   const last = new Map<string, RoutingRow>()
@@ -124,9 +128,13 @@ export function foldRouting(session: unknown): RoutingRow[] {
   return [...last.values()]
 }
 
-/** Split the feed into runs for the selector + scrubber range. Boundaries are
+/**
+ * Split the feed into runs for the selector + scrubber range. Boundaries are
  * `task_claimed` (open) → `task_done`/`task_failed` (close); the trailing run
- * stays open (running) when the feed ends mid-task. */
+ * stays open (running) when the feed ends mid-task.
+ * @param events - the operational feed, oldest first.
+ * @returns one RunInfo per task_claimed, in feed order.
+ */
 export function foldRuns(events: readonly OpEvent[]): RunInfo[] {
   const runs: RunInfo[] = []
   let cur: RunInfo | undefined
@@ -173,9 +181,14 @@ function foldSealedPlan(session: unknown, model: LiveGraphModel): void {
   }
 }
 
-/** Fold the whole event feed into the model, oldest first (or a `seq ≤ K`
+/**
+ * Fold the whole event feed into the model, oldest first (or a `seq ≤ K`
  * prefix for replay). Resets at each `task_claimed`, so the result is the state
- * of whichever run the last event belongs to. */
+ * of whichever run the last event belongs to.
+ * @param session - the board session payload feeding the routing layer and the sealed-plan fallback.
+ * @param events - the operational feed, oldest first; empty means not live.
+ * @returns the complete render model for one run.
+ */
 export function foldEvents(session: unknown, events: readonly OpEvent[]): LiveGraphModel {
   const model: LiveGraphModel = {
     live: events.length > 0,
@@ -297,7 +310,11 @@ export function foldEvents(session: unknown, events: readonly OpEvent[]): LiveGr
   return model
 }
 
-/** Whether the model shows an in-flight task (drives the fast poll cadence). */
+/**
+ * Whether the model shows an in-flight task (drives the fast poll cadence).
+ * @param model - the folded render model.
+ * @returns true while the model's task status is `running`.
+ */
 export function isRunning(model: LiveGraphModel): boolean {
   return model.task?.status === 'running'
 }
@@ -399,12 +416,17 @@ function serpentine(
   return bottom
 }
 
-/** Lay the plan chain + replan lineage through dagre (rankdir LR — the plan
+/**
+ * Lay the plan chain + replan lineage through dagre (rankdir LR — the plan
  * spans the wide axis of a 16:9 panel; nodes carry left/right handles to match),
  * then place the capability-routing fan beside it (two columns; dagre would
- * flatten the star into one clipped-wide row). `showRouting` gates the routing
- * layer. `wrapWidth` (the live pane width) folds an over-wide single row into a
- * serpentine grid that fits it; omitted or wide enough, the chain stays flat. */
+ * flatten the star into one clipped-wide row).
+ * @param model - the folded render model to lay out.
+ * @param showRouting - gates the capability-routing layer.
+ * @param wrapWidth - the live pane width; folds an over-wide single row into a
+ * serpentine grid that fits it. Omitted or wide enough, the chain stays flat.
+ * @returns positioned React Flow nodes and edges.
+ */
 export function layout(
   model: LiveGraphModel,
   showRouting: boolean,

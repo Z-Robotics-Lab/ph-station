@@ -48,11 +48,15 @@ const SLOW_MS = 4000
 interface EventsPayload { events?: OpEvent[]; last_seq?: number; error?: string }
 interface SessionSummary { name?: string; kinds?: Record<string, number> }
 
-/** The current-runtime session: newest (board sorts sessions mtime-desc) carrying
+/**
+ * The current-runtime session: newest (board sorts sessions mtime-desc) carrying
  * a `runtime.boot` chain row, else the newest of any kind. Shared verbatim by the
  * rail, status bar, and this feed so all three name the same session; a completed
  * campaign store (session-log but no runtime marker) sitting at index 0 no longer
- * hijacks the live surfaces. */
+ * hijacks the live surfaces.
+ * @param list - board session summaries, newest first.
+ * @returns the chosen session name, or null when the list is empty.
+ */
 export function pickRuntimeSession(list: SessionSummary[]): string | null {
   return (list.find(s => s.kinds?.['runtime.boot'] !== undefined) ?? list[0])?.name ?? null
 }

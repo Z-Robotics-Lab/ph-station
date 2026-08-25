@@ -1,0 +1,26 @@
+# @deepseek-ai/dsh-client-ui-ph-panels
+
+[English](README.md) | 中文
+
+演进（RSI 监视器）、机箱、账本三个面板，加上全框架的状态栏。每个都是一个 slot 条目，通过 `board` Host Remote 读取 harness 证据层并只做渲染——没有服务、没有业务逻辑。每个数字都来自 `board.store` / `board.cards`；TS 只做格式化（pp ×100 带符号、mtime → 时长），不做任何计算。
+
+- **演进**（`conversation.view` 标签页）—— `/api/board/stores` + `/api/board/store` 渲染每代 Δpp 条形图（dev/blind/held-out 差值、晋升事件、McNemar fixed/broken），`/api/board/rounds` 渲染 progress.md feed。
+- **机箱**（`conversation.view` 标签页）—— `/api/board/cards` 卡片网格：名称、actuation、needs_sim、contribute 计数与 manifest 摘要。doctor 尚未接线（还没有 `scripts/plugin_doctor.py`），因此用一个标注 `体检: 未接入` 的槽位占位——绝不伪造。
+- **账本**（`conversation.view` 标签页）—— `/api/board/ledger` seed-block 表格：范围、burn 状态、来源行。`parse_ledger` 不返回 task / holdout 字段，这些列因此缺席而不是被发明出来。
+- **状态栏**（`shell.overlay` 条）—— MODE 与 boot 事实来自最新运行时会话的 `runtime.boot` 行（`/api/board/sessions` + `/api/board/session`），心跳来自会话 mtime，board 桥接可达性来自 fetch 是否成功。boot 行携带 `render` 键时还会显示取景窗开/关 chip；没有该键的行（较老的会话）不显示 chip——以存在为信号，绝不猜测。
+- **任务台 chips**（输入框上方的 `conversation.input.dock` 行）—— 小型预设按钮（stack / lift_geometric 任务、最新战报），经会话输入面把可编辑的提示词模板预填进输入框草稿；它们从不提交——操作员改好 seed/参数后自己发送。
+
+每个面板与状态栏共享一个 15s 轮询，标签页隐藏时暂停、回到可见立即重跑；轮询失败保留上一份好数据。当 board 桥接未挂载时（无 `PH_BOARD_*` 环境变量的裸 `dsh web`），每个面板报告数据面不可用。
+
+## 模型体验
+
+无，因为面板只渲染 board Remote 状态；任务台 chips 只预填一段可编辑的输入框草稿，只有操作员发送时它才作为普通用户消息到达模型。
+
+#### KV Cache 影响
+
+无；本包从不组装或发送 provider 请求。
+
+## 已知限制与暂缓事项
+
+- 固定 15s 轮询而非 mtime 驱动的刷新；对小型 `runs/` 树足够，变大再改。
+- 演进 Δpp 条形图使用固定的 40pp 满刻度参考（一个扫视线索；每根条旁边都有精确的带符号数值）。
