@@ -65,6 +65,10 @@ export type PhLiveGraphKey =
   | 'legend.failed'
   | 'legend.replanned'
   | 'sessionPick'
+  | 'viewport'
+  | 'viewportNone'
+  | 'viewportShow'
+  | 'viewportHide'
   | 'fit'
   | 'minimapShow'
   | 'minimapHide'
@@ -138,6 +142,10 @@ export const zh: Record<PhLiveGraphKey, string> = {
   'legend.failed': '失败',
   'legend.replanned': '已重规划',
   'sessionPick': '切换会话（● 有运行时）',
+  'viewport': '取景窗',
+  'viewportNone': '无画面',
+  'viewportShow': '展开取景窗',
+  'viewportHide': '收起取景窗',
   'fit': '适应',
   'minimapShow': '显示缩略图',
   'minimapHide': '收起缩略图',
@@ -205,6 +213,10 @@ export const en: Record<PhLiveGraphKey, string> = {
   'legend.failed': 'failed',
   'legend.replanned': 'replanned',
   'sessionPick': 'Switch session (● has runtime)',
+  'viewport': 'Viewport',
+  'viewportNone': 'No picture',
+  'viewportShow': 'Expand viewport',
+  'viewportHide': 'Collapse viewport',
   'fit': 'Fit',
   'minimapShow': 'Show minimap',
   'minimapHide': 'Hide minimap',

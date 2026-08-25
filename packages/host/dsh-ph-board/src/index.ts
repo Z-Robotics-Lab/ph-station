@@ -172,6 +172,19 @@ export class BoardBridge extends TypertRemoteService {
   }
 
   /**
+   * One runtime session's LIVE viewport frame (`runs/<session>/frame.jpg`,
+   * dumped offscreen by the harness frames overlay while a task runs):
+   * `{jpeg_b64, ts, age_s}`, or `{error: 'no frame'}` when none exists. The
+   * base64 is encoded harness-side; this panel-facing face only forwards it.
+   * @param request - the session name (guarded by storecli's safe_child).
+   * @returns board.store.read_runtime_frame(...) verbatim, or an {error} dict.
+   */
+  @Remote('runtimeFrame')
+  runtimeFrame(request: BoardSessionRequest): Promise<JsonValue> {
+    return this.run('runtime_frame', request.name)
+  }
+
+  /**
    * One runtime session's OPERATIONAL event feed (runtime_events.jsonl, written
    * by harness.opstream): events with seq > afterSeq plus last_seq. A last_seq
    * below the caller's cursor means the runtime re-booted (feed truncated);

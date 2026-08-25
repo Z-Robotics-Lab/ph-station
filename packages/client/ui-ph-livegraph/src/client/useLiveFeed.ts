@@ -14,11 +14,14 @@ import type { MutableRefObject } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { OpEvent } from './graph.ts'
 
-/** The three board reads the feed needs (same face the graph view injects). */
+/** The board reads the feed needs (same face the graph view injects).
+ * `fetchRuntimeFrame` is not polled here — the 取景窗 viewport owns its own
+ * cadence — but rides the same injected face so panels receive one object. */
 export interface FeedInjected {
   fetchSessions: () => Promise<RemoteResult<unknown>>
   fetchSession: (name: string) => Promise<RemoteResult<unknown>>
   fetchRuntimeEvents: (name: string, afterSeq: number) => Promise<RemoteResult<unknown>>
+  fetchRuntimeFrame: (name: string) => Promise<RemoteResult<unknown>>
 }
 
 /** One discovered session for the header picker: its name and whether it carries

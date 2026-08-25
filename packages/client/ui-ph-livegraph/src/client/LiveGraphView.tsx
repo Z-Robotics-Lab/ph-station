@@ -27,6 +27,7 @@ import { foldEvents, HANDLE, layout, NODE_SIZE } from './graph.ts'
 import type { LiveGraphModel, NodeStatus, PlanNodeState, RoutingRow, RunInfo } from './graph.ts'
 import type { FeedInjected } from './useLiveFeed.ts'
 import { useRunFeed } from './RunFeed.tsx'
+import { Viewport } from './Viewport.tsx'
 import {
   EditableEdge, EditProvider, EMPTY_MANUAL, hasManual, loadManual, saveManual,
 } from './editable.tsx'
@@ -603,6 +604,7 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
             {miniCollapsed ? <IconLayoutDashboard size={14} /> : <IconLayoutOff size={14} />}
           </button>
         </div>
+        <Viewport t={t} />
         {selectedNode ? <Evidence node={selectedNode} t={t} onClose={() => { setSelectedKey(null) }} /> : null}
       </div>
     </div>
