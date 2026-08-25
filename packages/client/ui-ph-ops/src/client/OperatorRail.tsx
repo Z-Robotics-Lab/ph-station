@@ -34,8 +34,13 @@ interface Round { round?: number | null; title?: string | null }
 type T = PropsLocale<'phops'>['t']
 
 /* jscpd:ignore-start */
+/** The current-runtime session: newest (board sorts mtime-desc) carrying a
+ * `runtime.boot` chain row, else newest of any kind. A local twin of the status
+ * bar's and livegraph's rule (the ph panel packages stay decoupled) so all three
+ * name one session — a completed campaign at index 0 no longer splits the rail
+ * (EXECUTION) from the status bar (未知). Replaces a hardcoded 'session-main'. */
 function pickDefault(list: SessionSummary[]): string | null {
-  return list.find(s => s.name === 'session-main')?.name ?? list[0]?.name ?? null
+  return (list.find(s => s.kinds?.['runtime.boot'] !== undefined) ?? list[0])?.name ?? null
 }
 function renderOn(value: unknown): boolean {
   if (typeof value === 'boolean') return value
