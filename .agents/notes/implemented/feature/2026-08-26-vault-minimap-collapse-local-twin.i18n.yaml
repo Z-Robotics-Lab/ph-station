@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-26-vault-minimap-collapse-local-twin.md
+2026-08-26-vault-minimap-collapse-local-twin.md: e40c619a99edcba5914497f6aab80fa4e757bd5a
+2026-08-26-vault-minimap-collapse-local-twin.zh.md: e89865ae865d63ee4e30d0187e56aa0052020ea8
