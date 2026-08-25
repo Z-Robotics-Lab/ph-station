@@ -567,11 +567,15 @@
 
 /* --- editable edges (drawio-style waypoints + label chip) ------------------- */
 
-/* A waypoint the operator dragged out; grabbable, double-click removes it. */
+/* A waypoint the operator dragged out; grabbable, double-click removes it.
+   pointer-events: all overrides the edge's visibleStroke, which would leave the
+   dot's FILL click-transparent (grabs/dblclicks would fall through to the edge
+   band beneath — only the 1.5px stroke ring would catch). */
 :global(.ph-edge-wp) {
   fill: #2563eb;
   stroke: var(--ph-bg, #fff);
   stroke-width: 1.5;
+  pointer-events: all;
 }
 
 :global(.ph-edge-wp):hover {
