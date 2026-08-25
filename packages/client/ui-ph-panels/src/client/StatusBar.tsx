@@ -22,7 +22,16 @@ export interface StatusInjected {
   fetchRuntimeStatus: (name: string) => Promise<RemoteResult<unknown>>
 }
 
-interface SessionSummary { name?: string; mtime?: number | null }
+interface SessionSummary { name?: string; mtime?: number | null; kinds?: Record<string, number> }
+
+/** The current-runtime session: newest (board sorts mtime-desc) carrying a
+ * `runtime.boot` chain row, else newest of any kind. A local twin of the rail's
+ * and livegraph's rule (the ph panel packages stay decoupled) so all three name
+ * one session — a completed campaign at index 0 no longer shows 模式 未知 here
+ * while the rail reads EXECUTION. */
+function pickRuntimeSession(list: SessionSummary[]): SessionSummary | null {
+  return list.find(s => s.kinds?.['runtime.boot'] !== undefined) ?? list[0] ?? null
+}
 interface BootRow {
   mode?: string | null
   mount_plan_sha?: string | null
@@ -57,9 +66,8 @@ export function StatusBar({
       const s = await fetchSessions()
       if (!s.ok) { setOnline(false); return }
       setOnline(true)
-      // discover_sessions is already newest-first (Python); index 0, no TS sort.
       const list = s.value as SessionSummary[]
-      const top = list[0] ?? null
+      const top = pickRuntimeSession(list)
       setLatest(top)
       // The 取景窗 source is polled with the sessions so a reboot's new pid/render
       // shows without a page reload; absent/null or a failed fetch → no chip.

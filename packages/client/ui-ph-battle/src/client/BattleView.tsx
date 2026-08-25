@@ -142,16 +142,18 @@ export function BattleView({
   }, [loadStores])
   /* jscpd:ignore-end */
 
-  // Seed the right pane once the first store list lands: the board returns
-  // newest-first, so stores[0] is the freshest campaign. Guarded by a ref so it
-  // fires exactly once and never overrides a later manual deselect. Deliberately
-  // twinned with EvolutionView per the panel-independence gate — not extracted.
+  // Seed the right pane once the first store list lands: the newest store by
+  // mtime is usually a calibration/campaign store with no held-out result, so
+  // opening on stores[0] shows an empty "无留出结果" pane. Seed instead to the
+  // newest store that carries a held-out verdict (summary `heldout` is
+  // result.heldout.fixed, absent → null); fall back to newest only if none has
+  // one. Guarded by a ref so it fires once and never overrides a manual deselect.
   /* jscpd:ignore-start */
   const seededSelection = useRef(false)
   useEffect(() => {
-    if (seededSelection.current || selected !== null) return
-    const first = stores?.[0]?.name
-    if (first !== undefined) { seededSelection.current = true; setSelected(first) }
+    if (seededSelection.current || selected !== null || stores === null) return
+    const seed = stores.find(s => finite(s.heldout) !== null) ?? stores[0]
+    if (seed !== undefined) { seededSelection.current = true; setSelected(seed.name) }
   }, [stores, selected])
   /* jscpd:ignore-end */
 

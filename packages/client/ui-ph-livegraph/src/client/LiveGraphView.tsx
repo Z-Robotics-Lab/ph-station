@@ -37,6 +37,12 @@ const STATUS_CLASS: Record<NodeStatus, string> = {
 
 type T = PropsLocale<'phlivegraph'>['t']
 
+// Floor the fit-to-view zoom: a wide-but-flat chain (11 M-nodes in one dagre LR
+// row) otherwise fits-to-width at ~0.27 zoom, shrinking 13px labels to ~4px —
+// unreadable on the flagship watch surface. Below this, stop shrinking and let
+// the chain overflow with horizontal pan (panOnDrag) rather than go illegible.
+const FIT_MIN_ZOOM = 0.6
+
 function MissionNode({ data, t }: { data: { model: LiveGraphModel } } & PropsLocale<'phlivegraph'>) {
   const m = data.model
   const status = m.task?.status
@@ -228,7 +234,7 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
   // literal `draggable: false` node type).
   const fitRef = useRef<(() => void) | null>(null)
   const {
-    online, sessionName, feed, sessionRows, version,
+    online, sessionName, sessions, selectSession, feed, sessionRows, version,
     runs, runIndex: effIndex, run, headSeq, live, playing,
     pick, seek, goLive, togglePlay,
   } = useRunFeed()
@@ -261,6 +267,7 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
   // tiny cards in a vast empty pane on a wide monitor: raise the fit cap so a
   // small graph fills the frame, keeping maxZoom≈1 only once it is large.
   const fitMax = flow.nodes.length <= 4 ? 1.8 : flow.nodes.length <= 8 ? 1.3 : 1
+  const fitOpts = { padding: 0.16, maxZoom: fitMax, minZoom: FIT_MIN_ZOOM }
   const nodeTypes = useMemo(() => ({
     mission: (p: { data: { model: LiveGraphModel } }) => <MissionNode data={p.data} t={t} />,
     plan: (p: { data: { node: PlanNodeState; predicate?: string } }) => <PlanNode data={p.data} t={t} />,
@@ -305,7 +312,18 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
   return (
     <div className={css.panel} tabIndex={0} onKeyDown={onKey}>
       <div className={css.header}>
-        <span className={css.headTitle}>{sessionName}</span>
+        {sessions.length > 1 ? (
+          <select
+            className={css.runPick}
+            value={sessionName ?? ''}
+            onChange={(e) => { selectSession(e.target.value); setSelectedKey(null) }}
+            title={t('sessionPick')}
+          >
+            {sessions.map(s => (
+              <option key={s.name} value={s.name}>{s.runtime ? '● ' : '○ '}{s.name}</option>
+            ))}
+          </select>
+        ) : <span className={css.headTitle}>{sessionName}</span>}
         <span className={`${css.feedDot} ${model.live ? css.feedLive : css.feedOff}`} />
         <span className={css.headSub}>{model.live ? t('sub') : t('sealedFallback')}</span>
         <span className={css.spacer} />
@@ -326,7 +344,7 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
       <div className={css.canvas} ref={canvasRef}>
         <ReactFlow
           key={`${sessionName}:${effIndex}:${flow.nodes.length}:${showRouting}`}
-          onInit={(inst) => { fitRef.current = () => { inst.fitView({ padding: 0.16, maxZoom: fitMax }) } }}
+          onInit={(inst) => { fitRef.current = () => { inst.fitView(fitOpts) } }}
           nodes={flow.nodes.map(n => ({ ...n, draggable: false, connectable: false, selectable: true }))}
           edges={flow.edges.map(e => ({
             id: e.id, source: e.source, target: e.target,
@@ -342,7 +360,7 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
           nodeTypes={nodeTypes}
           onNodeClick={(_e, n) => { setSelectedKey(n.id.startsWith('plan:') ? n.id.slice(5) : null) }}
           fitView
-          fitViewOptions={{ padding: 0.16, maxZoom: fitMax }}
+          fitViewOptions={fitOpts}
           minZoom={0.2}
           nodesDraggable={false}
           nodesConnectable={false}

@@ -88,16 +88,18 @@ export function EvolutionView({
 
   usePolledLoad(load)
 
-  // Seed the right pane once the first store list lands: the board returns
-  // newest-first, so stores[0] is the freshest store. Guarded by a ref so it
-  // fires exactly once and never overrides a later manual deselect. Deliberately
-  // twinned with BattleView per the panel-independence gate — not extracted.
+  // Seed the right pane once the first store list lands: the newest store by
+  // mtime is usually a calibration store with no generation records, so opening
+  // on stores[0] shows an empty "无演进记录" pane. Seed instead to the newest
+  // store that actually has generation records (summary `generations` count);
+  // fall back to newest only if none does. Guarded by a ref so it fires once and
+  // never overrides a later manual deselect.
   /* jscpd:ignore-start */
   const seededSelection = useRef(false)
   useEffect(() => {
-    if (seededSelection.current || selected !== null) return
-    const first = stores?.[0]?.name
-    if (first !== undefined) { seededSelection.current = true; setSelected(first) }
+    if (seededSelection.current || selected !== null || stores === null) return
+    const seed = stores.find(s => (s.generations ?? 0) > 0) ?? stores[0]
+    if (seed !== undefined) { seededSelection.current = true; setSelected(seed.name) }
   }, [stores, selected])
   /* jscpd:ignore-end */
 
