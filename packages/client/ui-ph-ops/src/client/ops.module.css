@@ -270,6 +270,14 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap;
 }
 .pipeNode { font-weight: 600; }
+/* The node pill doubles as the collapse toggle: reset button chrome, keep the
+   pill look, and show it is interactive. */
+.pipeNodeBtn {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: inherit; background: var(--ph-surface-2); cursor: pointer;
+}
+.pipeNodeBtn:hover { border-color: var(--ph-accent, currentColor); }
+.stageCount { font-weight: 700; opacity: 0.75; font-variant-numeric: tabular-nums; }
 .pipeStage::before { content: "›"; color: var(--ph-dim); margin-right: 5px; margin-left: -2px; }
 
 .progRow { display: flex; align-items: baseline; gap: 6px; }

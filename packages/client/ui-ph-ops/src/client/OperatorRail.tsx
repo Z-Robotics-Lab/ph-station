@@ -116,10 +116,21 @@ export function OperatorRail({
   )
 }
 
-/** Mission mini-map: run outcome dots + the latest task's node → stage chips. */
+/** Mission mini-map: run outcome dots + the latest task's node rows. Each node's
+ * stage chips fold to a `✓N/total` count so an 11-node plan stays a compact
+ * list in the rail; clicking a node row expands its stage strip in place. This
+ * is the far-LOD sibling of the 执行图谱 — same plan, collapsed to fit the rail. */
 function MissionCard({ runs, progress, t }: { runs: PlanComplete[]; progress: SessionProgress | null } & { t: T }) {
   const latest = progress?.latest ?? runs[runs.length - 1] ?? null
   const nodeEntries = Object.entries(latest?.nodes ?? {})
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  const toggle = (name: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name); else next.add(name)
+      return next
+    })
+  }
   return (
     <section className={css.card}>
       <div className={css.cardHead}>{t('card.mission')}</div>
@@ -131,19 +142,35 @@ function MissionCard({ runs, progress, t }: { runs: PlanComplete[]; progress: Se
             ))}
           </div>
           {latest?.goal ? <div className={css.miniGoal}>{latest.goal}</div> : null}
-          {nodeEntries.map(([nodeName, node]) => (
-            <div key={nodeName} className={css.pipeline}>
-              <span className={`${css.pipeNode} ${node.success === true ? css.state_pass : css.state_fail}`}>{nodeName}</span>
-              {(node.stages ?? []).map((st, i) => (
-                <span
-                  key={i}
-                  className={`${css.pipeStage} ${st.success === true ? css.state_pass : css.state_fail}`}
+          {nodeEntries.map(([nodeName, node]) => {
+            const stages = node.stages ?? []
+            const open = expanded.has(nodeName)
+            const ok = stages.filter(s => s.success === true).length
+            return (
+              <div key={nodeName} className={css.pipeline}>
+                <button
+                  type="button"
+                  className={`${css.pipeNode} ${css.pipeNodeBtn} ${node.success === true ? css.state_pass : css.state_fail}`}
+                  onClick={() => { toggle(nodeName) }}
+                  aria-expanded={open}
+                  title={t(open ? 'collapse' : 'expand')}
                 >
-                  {st.name ?? `s${i + 1}`}
-                </span>
-              ))}
-            </div>
-          ))}
+                  {nodeName}
+                  {stages.length > 0 ? <span className={css.stageCount}>{open ? '▾' : `✓${ok}/${stages.length}`}</span> : null}
+                </button>
+                {open
+                  ? stages.map((st, i) => (
+                    <span
+                      key={i}
+                      className={`${css.pipeStage} ${st.success === true ? css.state_pass : css.state_fail}`}
+                    >
+                      {st.name ?? `s${i + 1}`}
+                    </span>
+                  ))
+                  : null}
+              </div>
+            )
+          })}
         </>
       )}
     </section>

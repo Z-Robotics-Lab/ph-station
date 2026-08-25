@@ -19,6 +19,8 @@ export type PhOpsKey =
   | 'graph.wiring'
   | 'graph.empty'
   | 'stages'
+  | 'expand'
+  | 'collapse'
   | 'node'
   | 'stage'
   | 'capability'
@@ -85,6 +87,8 @@ export const zh: Record<PhOpsKey, string> = {
   'graph.wiring': '能力接线',
   'graph.empty': '暂无已封存的任务运行',
   'stages': '阶段',
+  'expand': '展开阶段',
+  'collapse': '收起阶段',
   'node': '节点',
   'stage': '阶段',
   'capability': '能力',
@@ -143,6 +147,8 @@ export const en: Record<PhOpsKey, string> = {
   'graph.wiring': 'Capability wiring',
   'graph.empty': 'No sealed task run yet',
   'stages': 'stages',
+  'expand': 'expand stages',
+  'collapse': 'collapse stages',
   'node': 'Node',
   'stage': 'Stage',
   'capability': 'Capability',
