@@ -180,7 +180,7 @@ function makeContainer(t: Tr) {
   }
 }
 
-// --- always-visible legend ---------------------------------------------------
+// --- collapsible legend ------------------------------------------------------
 
 /** The relation/kind key. Opens collapsed (the field below it is more useful at
  * a glance); lists only the relations that draw an edge, each with its
