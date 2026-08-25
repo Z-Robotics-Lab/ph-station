@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ph-scratch</title>
+    <style>
+      /* Frame only — theme tokens and body defaults come from the imported
+         ui-theme / web base sheets. */
+      #root { display: flex; flex-direction: column; height: 100%; }
+      nav.scratch { display: flex; gap: 12px; padding: 6px 12px; font-size: 12px;
+        border-bottom: 1px solid var(--dsw-alias-border-l2, #ddd); flex: none; }
+      main.scratch { flex: 1; min-height: 0; display: flex; }
+      main.scratch > * { flex: 1; min-width: 0; }
+      main.scratch.rail > * { flex: none; width: 320px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

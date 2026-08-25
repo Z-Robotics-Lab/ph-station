@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ph-scratch",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "exec node_modules/.bin/vite --config scratch/vite.config.ts"],
+      "port": 5180
+    }
+  ]
+}
