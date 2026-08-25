@@ -182,6 +182,50 @@ export const IconPlayerPause: IconComponent = props => (
   </Svg>
 )
 
+/** tabler `target`. */
+export const IconTarget: IconComponent = props => (
+  <Svg {...props}>
+    <path d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
+    <path d="M12 12m-5 0a5 5 0 1 0 10 0a5 5 0 1 0 -10 0" />
+    <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
+  </Svg>
+)
+
+/** tabler `activity`. */
+export const IconActivity: IconComponent = props => (
+  <Svg {...props}>
+    <path d="M3 12h4l3 8l4 -16l3 8h4" />
+  </Svg>
+)
+
+/** tabler `viewfinder`. */
+export const IconViewfinder: IconComponent = props => (
+  <Svg {...props}>
+    <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
+    <path d="M12 3l0 4" />
+    <path d="M12 21l0 -3" />
+    <path d="M3 12l4 0" />
+    <path d="M21 12l-3 0" />
+    <path d="M12 12l0 .01" />
+  </Svg>
+)
+
+/** tabler `cpu`. */
+export const IconCpu: IconComponent = props => (
+  <Svg {...props}>
+    <path d="M5 5m0 1a1 1 0 0 1 1 -1h12a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-12a1 1 0 0 1 -1 -1z" />
+    <path d="M9 9h6v6h-6z" />
+    <path d="M3 10h2" />
+    <path d="M3 14h2" />
+    <path d="M10 3v2" />
+    <path d="M14 3v2" />
+    <path d="M21 10h-2" />
+    <path d="M21 14h-2" />
+    <path d="M14 21v-2" />
+    <path d="M10 21v-2" />
+  </Svg>
+)
+
 /** Every icon keyed by its tabler outline name, for lookup by string. */
 export const Icon: Readonly<Record<string, IconComponent>> = {
   'layout-dashboard': IconLayoutDashboard,
@@ -198,4 +242,8 @@ export const Icon: Readonly<Record<string, IconComponent>> = {
   'broadcast': IconBroadcast,
   'player-play': IconPlayerPlay,
   'player-pause': IconPlayerPause,
+  'target': IconTarget,
+  'activity': IconActivity,
+  'viewfinder': IconViewfinder,
+  'cpu': IconCpu,
 }
