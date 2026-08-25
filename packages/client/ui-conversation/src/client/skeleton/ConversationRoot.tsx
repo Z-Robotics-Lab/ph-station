@@ -32,20 +32,24 @@ export function ConversationRoot({
   const [pendingWorkspaceId, setPendingWorkspaceId] = useState<WorkspaceId | undefined>()
   const pickerAnchor = useRef<HTMLButtonElement>(null)
 
-  // Publishes the seat's live height as --dsh-composer-height on the scroll
-  // body so floating controls (ChatView back-to-bottom) clear the composer as
-  // it grows. Callback ref, not an effect; stable identity prevents observer
-  // churn while the first blank session fills the resident body outlet.
+  // Publishes the composer's natural height as --dsh-composer-height on the
+  // scroll body so floating controls (ChatView back-to-bottom) clear it as it
+  // grows and the dash band reserves exactly its height. Observes the inner
+  // wrapper, not the seat: the seat may be capped by --dsh-dock-reserve (the
+  // dash sash), so its own box would report the clamped height, but the inner
+  // wrapper is never capped and reports the true content height, keeping the
+  // clamp ceiling honest. Callback ref, not an effect; stable identity prevents
+  // observer churn while the first blank session fills the resident body outlet.
   const seatObserver = useRef<ResizeObserver | null>(null)
-  const seatResizeRef = useCallback((seat: HTMLDivElement | null): void => {
+  const seatResizeRef = useCallback((inner: HTMLDivElement | null): void => {
     seatObserver.current?.disconnect()
     seatObserver.current = null
-    const scroller = seat?.parentElement ?? null
-    if (seat === null || scroller === null) return
+    const scroller = inner?.closest<HTMLElement>('[data-conversation-scroll]') ?? null
+    if (inner === null || scroller === null) return
     seatObserver.current = new ResizeObserver(() => {
-      scroller.style.setProperty('--dsh-composer-height', `${seat.offsetHeight}px`)
+      scroller.style.setProperty('--dsh-composer-height', `${inner.offsetHeight}px`)
     })
-    seatObserver.current.observe(seat)
+    seatObserver.current.observe(inner)
   }, [])
 
   const sessionWorkspace = sessionId === undefined
@@ -177,9 +181,15 @@ export function ConversationRoot({
   // only `.composerStack`: overlay:true renders those as siblings, and sticky
   // on the fallback alone would leave Question/Approval panels at the content
   // end off-screen when the user is not pinned to the floor.
+  // The inner wrapper carries the natural height the observer reads; the seat
+  // caps to --dsh-dock-reserve and bottom-aligns (justify-flex-end) so a
+  // shrunk band clips the chip rows from the top while the input row — the
+  // stack floor — stays visible.
   const composerSeat = (
-    <div ref={seatResizeRef} className={css.composerSeat} data-composer-seat="">
-      {composer}
+    <div className={css.composerSeat} data-composer-seat="">
+      <div ref={seatResizeRef} className={css.composerSeatInner}>
+        {composer}
+      </div>
     </div>
   )
 

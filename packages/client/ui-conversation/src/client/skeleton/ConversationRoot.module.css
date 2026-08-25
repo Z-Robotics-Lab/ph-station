@@ -249,6 +249,10 @@
   display: flex;
   flex: none;
   flex-direction: column;
+  /* Bottom-align the inner wrapper so, when --dsh-dock-reserve caps the seat
+     below its content, the top (chip/dock rows) clips and the input row at the
+     stack floor stays visible. A no-op until a cap is set. */
+  justify-content: flex-end;
   /* One cap for every scrolling text region a composer seat can hold: the
      InputBar draft (figma Input 75:8208 max 14 lines × 24px line) and the
      takeover panels' bodies top out at the same height, so electing a
@@ -257,6 +261,15 @@
      elected overlay are siblings — and custom properties inherit down to
      whichever entry is mounted. */
   --dsh-composer-text-max-height: 336px;
+}
+
+/* The measured, never-capped wrapper: the seat's resize observer reads this
+   element's natural height (--dsh-composer-height), independent of the seat's
+   --dsh-dock-reserve cap above. */
+.composerSeatInner {
+  display: flex;
+  flex: none;
+  flex-direction: column;
 }
 
 /* Active phase: header is ordinary column chrome above the scrollport (not
@@ -268,6 +281,17 @@
 
 .root[data-phase='active'] .header {
   flex: none;
+}
+
+/* The operator's dragged band cap. The dash sash writes --dsh-dock-reserve and
+   flags the scroll body [data-dock-capped]; only then does the seat clip. Kept
+   off the default seat so the slash-command popup (position:absolute above the
+   input) is never clipped when the band is at its natural height. When capped
+   below the content height, overflow clips the top (chip/dock rows) while the
+   input row at the stack floor stays visible via justify-content:flex-end. */
+.root[data-phase='active'] .scrollBody[data-dock-capped] .composerSeat {
+  max-height: var(--dsh-dock-reserve);
+  overflow: hidden;
 }
 
 .scrollBody {
