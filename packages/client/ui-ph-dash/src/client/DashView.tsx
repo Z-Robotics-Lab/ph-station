@@ -17,7 +17,7 @@
  */
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import { DockviewReact, themeDark, themeLight } from 'dockview-react'
 import type { DockviewApi, DockviewReadyEvent, IDockviewPanelProps } from 'dockview-react'
 import { IconLayoutDashboard, IconLayoutOff } from '@deepseek-ai/dsh-client-ui-ph-icons'
@@ -181,6 +181,28 @@ export function DashView(props: DashViewProps) {
     buildDefault(api, views.list())
   }
 
+  // Cmd/Ctrl-K panel switcher: focus an already-docked panel or dock it. Keyboard
+  // reach removes the pointer round-trips a 300ms-RTT remote browser makes painful.
+  const [palette, setPalette] = useState(false)
+  const openPanel = (id: string) => {
+    const api = apiRef.current
+    if (!api) return
+    const panel = api.getPanel(id)
+    if (panel) { panel.api.setActive(); return }
+    const tab = views.list().find(v => v.id === id)
+    if (tab) api.addPanel({ id, component: 'view', title: tab.label, params: { viewId: id } } as AddOpts)
+  }
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault()
+        setPalette(p => !p)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('keydown', onKey) }
+  }, [])
+
   return (
     <RenderCtx.Provider value={renderById}>
       <div className={css.dash}>
@@ -189,12 +211,21 @@ export function DashView(props: DashViewProps) {
           <span className={css.toolTitle}>{t('title')}</span>
           <span className={css.toolHint}>{t('hint')}</span>
           <span className={css.spacer} />
+          <button type="button" className={css.kbdHint} onClick={() => { setPalette(true) }} title={t('jump')}>⌘K</button>
           <button type="button" className={css.resetBtn} onClick={reset} title={t('resetHint')}>
             <IconLayoutOff size={14} />
             <span>{t('reset')}</span>
           </button>
         </div>
         <div className={css.stage}>
+          {palette ? (
+            <PalettePicker
+              tabs={views.list().filter(v => v.id !== SELF)}
+              onPick={(id) => { openPanel(id); setPalette(false) }}
+              onClose={() => { setPalette(false) }}
+              t={t}
+            />
+          ) : null}
           <DockviewReact
             className={`${css.dockRoot} dv-ph`}
             onReady={onReady}
@@ -208,6 +239,64 @@ export function DashView(props: DashViewProps) {
         </div>
       </div>
     </RenderCtx.Provider>
+  )
+}
+
+/** Cmd-K panel switcher body: a filtered list over the view ledger with
+ * keyboard-only reach (↑↓ move, Enter open, Esc close). Renders nothing of its
+ * own state upward — the parent owns open/closed. */
+function PalettePicker(
+  { tabs, onPick, onClose, t }:
+  { tabs: DashViewTab[]; onPick: (id: string) => void; onClose: () => void } & PropsLocale<'phdash'>,
+) {
+  const [q, setQ] = useState('')
+  const [active, setActive] = useState(0)
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  const needle = q.trim().toLowerCase()
+  const shown = needle
+    ? tabs.filter(v => v.label.toLowerCase().includes(needle) || v.id.toLowerCase().includes(needle))
+    : tabs
+  const clampedActive = shown.length === 0 ? 0 : Math.min(active, shown.length - 1)
+
+  const onKeyDown = (e: ReactKeyboardEvent) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, shown.length - 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)) }
+    else if (e.key === 'Enter') { e.preventDefault(); const pick = shown[clampedActive]; if (pick) onPick(pick.id) }
+    else if (e.key === 'Escape') { e.preventDefault(); onClose() }
+  }
+
+  return (
+    <div className={css.paletteScrim} onMouseDown={onClose}>
+      <div className={css.palette} onMouseDown={(e) => { e.stopPropagation() }}>
+        <input
+          ref={inputRef}
+          className={css.paletteInput}
+          placeholder={t('jumpPlaceholder')}
+          value={q}
+          onChange={(e) => { setQ(e.target.value); setActive(0) }}
+          onKeyDown={onKeyDown}
+        />
+        {shown.length === 0
+          ? <div className={css.paletteEmpty}>{t('jumpEmpty')}</div>
+          : (
+            <ul className={css.paletteList}>
+              {shown.map((v, i) => (
+                <li
+                  key={v.id}
+                  className={i === clampedActive ? `${css.paletteItem} ${css.paletteItemActive}` : css.paletteItem}
+                  onMouseEnter={() => { setActive(i) }}
+                  onMouseDown={(e) => { e.preventDefault(); onPick(v.id) }}
+                >
+                  <span>{v.label}</span>
+                  <span className={css.paletteId}>{v.id}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+      </div>
+    </div>
   )
 }
 

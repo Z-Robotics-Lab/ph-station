@@ -12,6 +12,9 @@ export type PhDashKey =
   | 'hint'
   | 'reset'
   | 'resetHint'
+  | 'jump'
+  | 'jumpPlaceholder'
+  | 'jumpEmpty'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -27,6 +30,9 @@ export const zh: Record<PhDashKey, string> = {
   'hint': '拖拽面板可重排 / 分屏 / 合成标签组 · 布局自动保存',
   'reset': '重置布局',
   'resetHint': '恢复默认排布（对话 · 执行台 · 其余面板）',
+  'jump': '跳转面板',
+  'jumpPlaceholder': '跳转到面板…（↑↓ 选择 · Enter 打开 · Esc 关闭）',
+  'jumpEmpty': '没有匹配的面板',
 }
 
 /** English dictionary. */
@@ -36,4 +42,7 @@ export const en: Record<PhDashKey, string> = {
   'hint': 'Drag panels to rearrange / split / group into tabs · layout auto-saves',
   'reset': 'Reset layout',
   'resetHint': 'Restore the default arrangement (chat · cockpit · the rest)',
+  'jump': 'Jump to panel',
+  'jumpPlaceholder': 'Jump to a panel… (↑↓ select · Enter open · Esc close)',
+  'jumpEmpty': 'No matching panel',
 }
