@@ -1,24 +1,25 @@
 /**
- * The 技能库 graph canvas: the React Flow surface that draws the grouped vault
- * layout. Renders three visually distinct node kinds (skill / package /
- * capability) as different SVG silhouettes in different hues, wraps each kind
- * region and skill task family in a titled background cluster, routes typed
- * relation edges across region boundaries (labeled only under the cursor or in
- * a node's focus set), and carries a collapsible legend that lists only the
- * relations that draw. Pure presentation over graph.ts's fold — no statistic.
+ * The 技能库 graph canvas: the React Flow surface that draws the global
+ * left→right vault layout. Renders three visually distinct node kinds (skill /
+ * package / capability) as different SVG silhouettes in different hues, routes
+ * typed relation edges horizontally (source handle right, target handle left;
+ * labeled only under the cursor or in a node's focus set), and carries a
+ * collapsible legend that lists only the relations that draw. React Flow's
+ * built-in MiniMap and Controls ride along. Pure presentation over graph.ts's
+ * fold — no statistic.
  *
  * Split out of VaultView so the same surface renders under the plugin (real
  * board data) and under a standalone harness (mock data) for visual proofs.
  */
 
 import { useMemo, useState } from 'react'
-import { Background, Handle, Position, ReactFlow } from '@xyflow/react'
+import { Background, Controls, Handle, MiniMap, Position, ReactFlow } from '@xyflow/react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   ALL_KINDS, KIND_COLOR, layout, NODE_SIZE, REL_COLOR, relTallies,
 } from './graph.ts'
 import type {
-  CapabilityNode, LaidOutContainer, PackageNode, RelTally, SkillNode,
+  CapabilityNode, PackageNode, RelTally, SkillNode,
   VaultFilters, VaultGraph, VaultKind, VaultNode, VaultRel,
 } from './graph.ts'
 import css from './VaultView.module.css'
@@ -26,10 +27,14 @@ import css from './VaultView.module.css'
 /** The bound locale reader for this view's namespace. */
 type Tr = PropsLocale<'phvault'>['t']
 
-/** A faint fill of a kind hue, for silhouettes and cluster backgrounds. */
+/** A faint fill of a kind hue, for the node silhouettes. */
 function tint(color: string, pct: number): string {
   return `color-mix(in srgb, ${color} ${pct}%, transparent)`
 }
+
+/** MiniMap dot color per node kind, matching the silhouette hue. */
+const miniMapColor = (type: string | undefined): string =>
+  KIND_COLOR[type as VaultKind] ?? 'var(--dsw-alias-label-tertiary, #9aa1ac)'
 
 // --- kind glyphs (tabler outline path data, MIT; see THIRD_PARTY_NOTICES) ----
 
@@ -158,28 +163,6 @@ function CapabilityGraphNode({ data }: { data: { node: VaultNode; dimmed: boolea
   )
 }
 
-// --- cluster containers ------------------------------------------------------
-
-/** A kind region background (band) titled by kind, or a skill task family box. */
-function makeContainer(t: Tr) {
-  return function Container({ data }: { data: { container: LaidOutContainer } }) {
-    const c = data.container
-    const color = KIND_COLOR[c.kind]
-    const band = c.variant === 'band'
-    return (
-      <div
-        className={`${css.cluster} ${band ? css.clusterBand : css.clusterTask}`}
-        style={{ width: c.width, height: c.height, borderColor: tint(color, 40), background: tint(color, band ? 5 : 8) }}
-      >
-        <div className={css.clusterTitle} style={{ color }}>
-          {band ? <KindGlyph kind={c.kind} size={13} /> : null}
-          <span>{band ? t(`kind.${c.kind}` as const) : c.title}</span>
-        </div>
-      </div>
-    )
-  }
-}
-
 // --- collapsible legend ------------------------------------------------------
 
 /** The relation/kind key. Opens collapsed (the field below it is more useful at
@@ -260,29 +243,17 @@ export function VaultGraphCanvas({
 
   const nodeTypes = useMemo(() => ({
     skill: SkillGraphNode, package: PackageGraphNode, capability: CapabilityGraphNode,
-    kindGroup: makeContainer(t), taskGroup: makeContainer(t),
-  }), [t])
+  }), [])
 
-  const rfNodes = useMemo(() => [
-    // Containers first, behind: translucent so cross-region edges show through.
-    ...flow.containers.map(c => ({
-      id: `c:${c.id}`, type: c.variant === 'band' ? 'kindGroup' : 'taskGroup',
-      position: c.position, data: { container: c },
-      width: c.width, height: c.height,
-      draggable: false, selectable: false, connectable: false, focusable: false,
-      zIndex: c.variant === 'band' ? 0 : 1,
-      style: { width: c.width, height: c.height, pointerEvents: 'none' as const },
-    })),
-    ...flow.nodes.map(n => ({
-      id: n.id, type: n.type, position: n.position, data: n.data,
-      // Fixed dimensions so React Flow routes edges without waiting on its
-      // ResizeObserver (which never fires in a headless/backgrounded tab).
-      width: NODE_SIZE[n.type].width, height: NODE_SIZE[n.type].height,
-      draggable: false, connectable: false, selectable: true, zIndex: 10,
-      // Fade every node outside the focused node's neighborhood.
-      ...(focus !== null && !focus.nodes.has(n.id) ? { style: { opacity: 0.22 } } : {}),
-    })),
-  ], [flow, focus])
+  const rfNodes = useMemo(() => flow.nodes.map(n => ({
+    id: n.id, type: n.type, position: n.position, data: n.data,
+    // Fixed dimensions so React Flow routes edges without waiting on its
+    // ResizeObserver (which never fires in a headless/backgrounded tab).
+    width: NODE_SIZE[n.type].width, height: NODE_SIZE[n.type].height,
+    draggable: false, connectable: false, selectable: true, zIndex: 10,
+    // Fade every node outside the focused node's neighborhood.
+    ...(focus !== null && !focus.nodes.has(n.id) ? { style: { opacity: 0.22 } } : {}),
+  })), [flow, focus])
 
   const rfEdges = useMemo(() => flow.edges.map((e) => {
     const incident = focus?.edges.has(e.id) ?? false
@@ -312,14 +283,14 @@ export function VaultGraphCanvas({
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
-        onNodeClick={(_e, node) => { if (!node.id.startsWith('c:')) setFocusId(id => id === node.id ? null : node.id) }}
-        onNodeDoubleClick={(_e, node) => { if (!node.id.startsWith('c:')) onSelect(node.id) }}
+        onNodeClick={(_e, node) => { setFocusId(id => id === node.id ? null : node.id) }}
+        onNodeDoubleClick={(_e, node) => { onSelect(node.id) }}
         onPaneClick={() => { setFocusId(null) }}
         onEdgeMouseEnter={(_e, edge) => { setHoverEdge(edge.id) }}
         onEdgeMouseLeave={() => { setHoverEdge(null) }}
         // A headless/backgrounded tab never fires React Flow's ResizeObserver,
         // so the initial fitView can run against a zero-size pane; refit once
-        // the instance is live to frame all three regions.
+        // the instance is live to frame the whole left→right flow.
         onInit={(inst) => { requestAnimationFrame(() => { void inst.fitView({ padding: 0.12, maxZoom: 1 }) }) }}
         fitView
         fitViewOptions={{ padding: 0.12, maxZoom: 1 }}
@@ -331,6 +302,13 @@ export function VaultGraphCanvas({
         proOptions={{ hideAttribution: false }}
       >
         <Background gap={18} size={1} />
+        <MiniMap
+          position="top-right" pannable zoomable
+          nodeColor={n => miniMapColor(n.type)} nodeStrokeWidth={2}
+          bgColor="var(--dsw-alias-bg-layer-1, #fff)"
+          maskColor="color-mix(in srgb, currentColor 14%, transparent)"
+        />
+        <Controls showInteractive={false} />
       </ReactFlow>
       <Legend t={t} rels={shownRels} tallies={tallies} />
       <div className={css.graphHint}>{t('graph.hint')}</div>
