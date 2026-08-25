@@ -106,6 +106,39 @@ describe('foldEvents replay', () => {
   })
 })
 
+describe('serpentine edge handles', () => {
+  // Six sequential nodes wrapped at ~2 cards per row: rows alternate direction,
+  // so edges must flip sides on reversed rows and drop through the gutter on wraps.
+  const model = foldEvents(null, [
+    { seq: 1, kind: 'task_claimed', task: 't', seed: 0, ts: 0 },
+    {
+      seq: 2, kind: 'plan_built', replan: 0, ts: 0,
+      nodes: ['a', 'b', 'c', 'd', 'e', 'f'].map(id => ({ id, skill: id })),
+    },
+  ] as unknown as OpEvent[])
+
+  it('anchors every chain edge on facing sides (no cross-card anchors)', () => {
+    const { nodes, edges } = layout(model, false, 500)
+    const byId = new Map(nodes.map(n => [n.id, n]))
+    for (const e of edges) {
+      const s = byId.get(e.source)!
+      const t = byId.get(e.target)!
+      if (t.position.y - s.position.y > 60) {
+        // wrap (or mission→row) edge: leaves the bottom, enters the top.
+        expect([e.sourceHandle, e.targetHandle]).toEqual(['b', 't'])
+      } else if (t.position.x >= s.position.x) {
+        expect([e.sourceHandle, e.targetHandle]).toEqual(['rs', 'lt'])
+      } else {
+        // reversed (right-to-left) row: sides flip.
+        expect([e.sourceHandle, e.targetHandle]).toEqual(['ls', 'rt'])
+      }
+    }
+    // The reflow actually produced both directions (guards the fixture).
+    expect(edges.some(e => e.sourceHandle === 'ls')).toBe(true)
+    expect(edges.some(e => e.sourceHandle === 'b')).toBe(true)
+  })
+})
+
 describe('runWindow — the per-experiment ticker slice', () => {
   const runs = foldRuns(FEED)
 
