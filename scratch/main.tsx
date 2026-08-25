@@ -257,10 +257,12 @@ function App() {
           <span className="lab-mark">PH</span>
           <span className="lab-title">
             <b>组件实验室 · Component Lab</b>
-            <small>ph 面板挂真实 board 快照的隔离试验场</small>
+            <small>面板隔离试验场 — 非控制台</small>
           </span>
+          <span className="lab-tag">试验场</span>
         </div>
         <Controls />
+        <a className="lab-console-link" href="http://172.26.112.106:3081">打开控制台 →</a>
       </header>
       <nav className="scratch lab-tabs">
         {Object.entries(nav).map(([id, v]) => {
@@ -278,7 +280,8 @@ function App() {
         <section className="lab-card">{view.render()}</section>
       </main>
       <footer className="lab-footer">
-        PH 组件实验室 — 面板挂真实 board 快照的隔离试验场；控制台入口 :3081
+        组件实验室 — 面板挂真实 board 快照的隔离试验场，非控制台；控制台入口{' '}
+        <a href="http://172.26.112.106:3081">http://172.26.112.106:3081</a>
       </footer>
     </>
   )
