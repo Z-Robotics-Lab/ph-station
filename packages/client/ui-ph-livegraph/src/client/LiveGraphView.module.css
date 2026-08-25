@@ -627,6 +627,24 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.3rem 0.5rem;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+
+/* corner resize handle: a hit area with a small drawn grip */
+.viewportResize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background:
+    linear-gradient(135deg, transparent 50%, color-mix(in srgb, currentColor 45%, transparent) 50%)
+    no-repeat right bottom / 10px 10px;
+  border-bottom-right-radius: 0.5rem;
 }
 
 .viewportTitle {
