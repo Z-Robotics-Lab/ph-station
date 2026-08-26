@@ -1,7 +1,7 @@
 <h1 align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="images/zlab-logo.webp">
-    <img src="images/zlab-logo-dark.webp" alt="Z Robotics Lab" height="40" align="top">
+    <img src="images/zlab-logo-dark.webp" alt="Z Robotics Lab" height="64" align="top">
   </picture>
   ph-station
 </h1>
@@ -25,26 +25,7 @@ The console holds no business logic. Every value a panel displays is fetched fro
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  subgraph browser["Browser — read-only panels"]
-    P1["任务台 chips"]
-    P2["战报 · 演进 · 机箱 · 账本"]
-    P3["执行图 · 技能库 · 实验台 dock"]
-    SB["status bar"]
-  end
-  subgraph station["ph-station (web console)"]
-    GW["web gateway<br/>POST /api/board/&lt;fn&gt;"]
-    HR["dsh-ph-board<br/>Host Remote (board.store / board.cards)"]
-  end
-  subgraph harness["physical-harness (separate repo)"]
-    BOARD["board CLI face<br/>(byte-equivalent to MCP)"]
-    RT["resident runtimes<br/>(session-main robosuite,<br/>session-robocasa, …)"]
-    EV["evidence layer<br/>runs/ · progress.md · seed ledger"]
-  end
-  browser -->|fetch| GW --> HR -->|spawns storecli| BOARD --> EV
-  RT --> EV
-```
+![ph-station system architecture](images/fig2-ph-station.png)
 
 The browser panels fetch `/api/board/<fn>` (for example `stores`, `store`, `cards`, `ledger`, `campaignProgress`, `sessions`). The gateway routes each request to the `dsh-ph-board` Host Remote, which shells the harness's `board` CLI face and returns its bytes unchanged. The harness's resident runtimes write the evidence; the console only reads it. When the board bridge is not mounted (a console started with no `PH_BOARD_*` environment), the panels report the data plane as unavailable — they never fabricate a value.
 
@@ -100,7 +81,7 @@ Full third-party disclosure: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 `ph-station` is the operator surface; **physical-harness** is the backend that owns the robots, the runtimes, and the evidence. Install the harness first (its README covers the base install and the per-sim venvs), then let it start this console:
 
 1. Install and build this console (above).
-2. Install physical-harness — the base install is `pip install -e ".[dev]"` (needs only numpy + zstandard); sim cards (robosuite, robocasa) are **separate venvs**, see the physical-harness README and its `requirements.md`.
+2. Install physical-harness — the base install is `pip install -e ".[dev]"` (needs only numpy); sim cards (robosuite, robocasa) are **separate venvs**, see the physical-harness README and its `requirements.md`.
 3. Start everything from the harness's cockpit script, which builds this fork, injects the `PH_BOARD_*` paths, and serves the Web UI at `http://127.0.0.1:3080`:
 
 ```sh
@@ -141,26 +122,7 @@ Repository conventions live in [AGENTS.md](AGENTS.md); architecture in [docs/arc
 
 ### 架构
 
-```mermaid
-flowchart LR
-  subgraph browser["Browser — read-only panels"]
-    P1["任务台 chips"]
-    P2["战报 · 演进 · 机箱 · 账本"]
-    P3["执行图 · 技能库 · 实验台 dock"]
-    SB["status bar"]
-  end
-  subgraph station["ph-station (web console)"]
-    GW["web gateway<br/>POST /api/board/&lt;fn&gt;"]
-    HR["dsh-ph-board<br/>Host Remote (board.store / board.cards)"]
-  end
-  subgraph harness["physical-harness (separate repo)"]
-    BOARD["board CLI face<br/>(byte-equivalent to MCP)"]
-    RT["resident runtimes<br/>(session-main robosuite,<br/>session-robocasa, …)"]
-    EV["evidence layer<br/>runs/ · progress.md · seed ledger"]
-  end
-  browser -->|fetch| GW --> HR -->|spawns storecli| BOARD --> EV
-  RT --> EV
-```
+![ph-station 系统框图](images/fig2-ph-station.png)
 
 浏览器面板请求 `/api/board/<fn>`（如 `stores`、`store`、`cards`、`ledger`、`campaignProgress`、`sessions`）。网关把每个请求路由给 `dsh-ph-board` Host Remote，后者调用 harness 的 `board` CLI 面并原样返回其字节。harness 的常驻运行时负责写证据，操作台只做读取。当 board 桥接未挂载（启动时未提供 `PH_BOARD_*` 环境变量）时，面板会报告数据面不可用，绝不伪造数值。
 
@@ -216,7 +178,7 @@ pnpm run dev:web                      # watch-mode Web UI for panel development
 `ph-station` 是操作员界面；**physical-harness** 是拥有机器人、运行时与证据的后端。请先安装 harness（其 README 覆盖 base install 与 per-sim venv），再由它拉起本操作台：
 
 1. 安装并构建本操作台（见上）。
-2. 安装 physical-harness —— base install 为 `pip install -e ".[dev]"`（只需 numpy + zstandard）；仿真卡（robosuite、robocasa）是**独立 venv**，见 physical-harness README 及其 `requirements.md`。
+2. 安装 physical-harness —— base install 为 `pip install -e ".[dev]"`（只需 numpy）；仿真卡（robosuite、robocasa）是**独立 venv**，见 physical-harness README 及其 `requirements.md`。
 3. 从 harness 的 cockpit 脚本一键启动全部：它会构建本 fork、注入 `PH_BOARD_*` 路径，并在 `http://127.0.0.1:3080` 提供 Web UI：
 
 ```sh
