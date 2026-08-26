@@ -5,7 +5,7 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yusenthebot/ph-station.git",
+    "url": "git+https://github.com/Z-Robotics-Lab/ph-station.git",
     "directory": "packages/client/ui-ph-icons"
   },
   "type": "module",
