@@ -1,13 +1,23 @@
-# ph-station — physical-harness operations console
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/zlab-logo.webp">
+    <img src="images/zlab-logo-dark.webp" alt="Z Robotics Lab" height="40" align="top">
+  </picture>
+  ph-station
+</h1>
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Node](https://img.shields.io/badge/Node-%5E22.19%20%7C%7C%20%3E%3D24-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![pnpm](https://img.shields.io/badge/pnpm-11.7-F69220?style=flat-square&logo=pnpm&logoColor=white)](https://pnpm.io/)
-[![React](https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
-[![dockview](https://img.shields.io/badge/dockview-1E88E5?style=flat-square)](https://dockview.dev/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+<p align="center">physical-harness operations console</p>
 
-English | [简体中文](#简体中文)
+<p align="center">
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-6.0-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript"></a>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node-%5E22.19%20%7C%7C%20%3E%3D24-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node"></a>
+  <a href="https://pnpm.io/"><img src="https://img.shields.io/badge/pnpm-11.7-F69220?style=flat-square&logo=pnpm&logoColor=white" alt="pnpm"></a>
+  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React"></a>
+  <a href="https://dockview.dev/"><img src="https://img.shields.io/badge/dockview-1E88E5?style=flat-square" alt="dockview"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
+</p>
+
+<p align="center">English | <a href="#简体中文">简体中文</a></p>
 
 `ph-station` is the web operations console for **[physical-harness](https://github.com/Z-Robotics-Lab/physical-harness)** — the robotics evidence harness that governs simulation rollouts, promotes skills through paired statistical gates, and maintains a chain-audited episode ledger. The console renders the harness's campaign evidence beside the agent chat as a set of read-only operator surfaces: the **execution graph**, the campaign **process flow** and battle report, run **trajectories**, the **simulation render** (取景窗), the **Skill Vault** lineage, and the **evolution panel**. From a single screen an operator drives missions and reviews their evidence, without a second terminal.
 
