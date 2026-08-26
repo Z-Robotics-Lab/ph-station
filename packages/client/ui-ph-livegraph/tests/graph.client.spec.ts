@@ -139,6 +139,33 @@ describe('serpentine edge handles', () => {
   })
 })
 
+describe('progressive reveal (collapse)', () => {
+  // a verified, b running, c/d/e/f still pending: the frontier is a+b + the
+  // single next pending (c); d/e/f collapse to a count.
+  const model = foldEvents(null, [
+    { seq: 1, kind: 'task_claimed', task: 't', seed: 0, ts: 0 },
+    { seq: 2, kind: 'plan_built', replan: 0, ts: 0, nodes: ['a', 'b', 'c', 'd', 'e', 'f'].map(id => ({ id, skill: id })) },
+    { seq: 3, kind: 'node_start', node: 'a', ts: 1 },
+    { seq: 4, kind: 'node_verified', node: 'a', ts: 2 },
+    { seq: 5, kind: 'node_start', node: 'b', ts: 3 },
+  ] as unknown as OpEvent[])
+
+  const planIds = (nodes: ReturnType<typeof layout>['nodes']) =>
+    nodes.filter(n => n.type === 'plan').map(n => (n.data as { node: { id: string } }).node.id)
+
+  it('shows completed + running + the next pending, collapses the rest', () => {
+    const { nodes, hiddenPending } = layout(model, false, undefined, true)
+    expect(planIds(nodes)).toEqual(['a', 'b', 'c'])
+    expect(hiddenPending).toBe(3)
+  })
+
+  it('lays out the whole plan when collapse is off', () => {
+    const { nodes, hiddenPending } = layout(model, false, undefined, false)
+    expect(planIds(nodes)).toEqual(['a', 'b', 'c', 'd', 'e', 'f'])
+    expect(hiddenPending).toBe(0)
+  })
+})
+
 describe('runWindow — the per-experiment ticker slice', () => {
   const runs = foldRuns(FEED)
 

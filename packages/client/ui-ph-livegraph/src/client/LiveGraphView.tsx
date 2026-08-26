@@ -226,11 +226,17 @@ function miniColor(node: { type?: string | undefined; data?: unknown }): string 
 /** The Fit / 100% zoom cluster — an explicit handle back to a readable frame
  * after the operator pans or hits the fit floor on a wide chain. Rides inside
  * the flow so `useReactFlow` binds to this canvas's instance. */
-function ZoomCluster({ t, fitOpts }: { t: T; fitOpts: { padding: number; maxZoom: number; minZoom: number } }) {
+function ZoomCluster(
+  { t, fitOpts, onOverview }:
+  { t: T; fitOpts: { padding: number; maxZoom: number; minZoom: number }; onOverview: () => void },
+) {
   const rf = useReactFlow()
   return (
     <Panel position="top-left" className={css.zoomCluster}>
-      <button type="button" className={css.zoomBtn} onClick={() => { void rf.fitView({ ...fitOpts, duration: 240 }) }}>{t('fit')}</button>
+      <button
+        type="button" className={css.zoomBtn}
+        onClick={() => { onOverview(); void rf.fitView({ ...fitOpts, duration: 240 }) }}
+      >{t('fit')}</button>
       <button type="button" className={css.zoomBtn} onClick={() => { void rf.zoomTo(1, { duration: 240 }) }}>100%</button>
     </Panel>
   )
@@ -267,8 +273,8 @@ function Evidence({ node, t, onClose }: { node: PlanNodeState; t: T; onClose: ()
 /** The replay scrubber: run selector + seq track + playhead + play/pause + the
  * LIVE badge, all driven off `runs` and the playhead seq. */
 function Scrubber({
-  runs, runIndex, run, playhead, live, playing, showRouting, t,
-  onPick, onSeek, onTogglePlay, onGoLive, onToggleRouting,
+  runs, runIndex, run, playhead, live, playing, showRouting, showFull, t,
+  onPick, onSeek, onTogglePlay, onGoLive, onToggleRouting, onToggleFull,
 }: {
   runs: RunInfo[]
   runIndex: number
@@ -277,12 +283,14 @@ function Scrubber({
   live: boolean
   playing: boolean
   showRouting: boolean
+  showFull: boolean
   t: T
   onPick: (i: number) => void
   onSeek: (seq: number) => void
   onTogglePlay: () => void
   onGoLive: () => void
   onToggleRouting: () => void
+  onToggleFull: () => void
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const span = run ? Math.max(1, run.lastSeq - run.firstSeq) : 1
@@ -345,6 +353,10 @@ function Scrubber({
         <span className={css.playhead} style={{ left: `${frac * 100}%` }} />
       </div>
       <span className={css.seqCount}>{run ? `${playhead - run.firstSeq}/${run.lastSeq - run.firstSeq}` : '—'}</span>
+      <label className={css.routeToggle} title={t('showFullHint')}>
+        <input type="checkbox" checked={showFull} onChange={onToggleFull} />
+        {t('showFull')}
+      </label>
       <label className={css.routeToggle} title={t('routingHint')}>
         <input type="checkbox" checked={showRouting} onChange={onToggleRouting} />
         {t('showRouting')}
@@ -359,6 +371,12 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
   // the instance's own node generic (a typed `fitView` ref would fight the
   // literal `draggable: false` node type).
   const fitRef = useRef<(() => void) | null>(null)
+  // True once the operator zooms/pans by hand: from then on live data updates
+  // must not steal the viewport (fitView only runs on mount and run/session
+  // switch — the key remount below — never on an incremental board poll). A
+  // programmatic fit passes a null onMoveStart event, so it never sets this.
+  // Reset per run/session (graphKey effect) so a fresh graph fits once.
+  const userMovedRef = useRef(false)
   const {
     online, sessionName, sessions, selectSession, feed, sessionRows, version,
     runs, runIndex: effIndex, run, headSeq, live, playing,
@@ -384,7 +402,7 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = requestAnimationFrame(() => {
         setPaneW(el.clientWidth)
-        fitRef.current?.()
+        if (!userMovedRef.current) fitRef.current?.()
       })
     })
     ro.observe(el)
@@ -392,6 +410,10 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
   }, [])
 
   const [showRouting, setShowRouting] = useState(false)
+  // Progressive reveal (default): show the execution frontier and collapse the
+  // not-yet-run tail to a count, so a deterministic 30+ node plan grows with
+  // execution instead of flashing whole. Off = the full plan at once.
+  const [progressive, setProgressive] = useState(true)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   // MiniMap collapse: operator preference wins; absent it, the pane width picks
   // the default (collapsed when narrow), so a small pane isn't covered on load.
@@ -411,7 +433,10 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
   const graphKeyRef = useRef(graphKey); graphKeyRef.current = graphKey
   const [manual, setManual] = useState<ManualState>(() => loadManual('phlivegraph', graphKey))
   const manualRef = useRef(manual); manualRef.current = manual
-  useEffect(() => { setManual(loadManual('phlivegraph', graphKey)) }, [graphKey])
+  useEffect(() => {
+    setManual(loadManual('phlivegraph', graphKey))
+    userMovedRef.current = false // a new run/session fits once, then locks on first gesture
+  }, [graphKey])
   const setWaypoints = useCallback((edgeId: string, wps: Point[], persist: boolean) => {
     const next: ManualState = { ...manualRef.current, edges: { ...manualRef.current.edges, [edgeId]: wps } }
     setManual(next)
@@ -433,22 +458,18 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
     return foldEvents(sessionRows.current, slice)
   }, [feed, sessionRows, version, headSeq])
 
-  const flow = useMemo(() => layout(model, showRouting, paneW || undefined), [model, showRouting, paneW])
-  // Serpentine row count as a geometry signature: when a reflow changes it, the
-  // ReactFlow key below changes so the instance remounts and its `fitView` prop
-  // frames the final (wrapped) nodes — the reliable fit path, versus an
-  // imperative refit racing React Flow's post-paint node measurement.
-  const geomSig = flow.nodes.reduce((m, n) => Math.max(m, n.position.y), 0).toFixed(0)
+  const flow = useMemo(() => layout(model, showRouting, paneW || undefined, progressive), [model, showRouting, paneW, progressive])
   // A sparse run (1-3 nodes) under the TB→LR dagre layout would otherwise sit as
   // tiny cards in a vast empty pane on a wide monitor: raise the fit cap so a
   // small graph fills the frame, keeping maxZoom≈1 only once it is large.
   const fitMax = flow.nodes.length <= 4 ? 1.8 : flow.nodes.length <= 8 ? 1.3 : 1
   const fitOpts = { padding: 0.16, maxZoom: fitMax, minZoom: FIT_MIN_ZOOM }
-  // Refit after the layout geometry changes (a serpentine reflow moves every
-  // node): the width-tracking observer refits against the pre-reflow DOM, so a
-  // post-paint refit reframes the wrapped grid. rAF lets the new positions
-  // paint first.
+  // Auto-fit the growing/reflowed graph ONLY while the operator is still
+  // following (has not zoomed/panned): the incremental node update keeps the
+  // instance mounted, so the viewport is preserved unless we refit here. rAF
+  // lets the new node positions (explicit w/h, no post-paint measure) settle.
   useEffect(() => {
+    if (userMovedRef.current) return
     const id = requestAnimationFrame(() => { fitRef.current?.() })
     return () => { cancelAnimationFrame(id) }
   }, [flow])
@@ -522,15 +543,21 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
       </div>
       <Scrubber
         runs={runs} runIndex={effIndex} run={run} playhead={headSeq === Infinity ? (run?.lastSeq ?? 0) : headSeq}
-        live={live} playing={playing} showRouting={showRouting} t={t}
+        live={live} playing={playing} showRouting={showRouting} showFull={!progressive} t={t}
         onPick={pickRun} onSeek={seek} onTogglePlay={togglePlay} onGoLive={goLive}
-        onToggleRouting={() => { setShowRouting(s => !s) }}
+        onToggleRouting={() => { userMovedRef.current = false; setShowRouting(s => !s) }}
+        onToggleFull={() => { userMovedRef.current = false; setProgressive(p => !p) }}
       />
       <div className={css.canvas} ref={setCanvas}>
         <EditProvider value={editCtx}>
           <ReactFlow
-            key={`${sessionName}:${effIndex}:${flow.nodes.length}:${showRouting}:${geomSig}`}
+            // Remount ONLY on run/session switch — that is the sole moment a
+            // fresh fitView is wanted. Live growth, routing/reveal toggles, and
+            // reflows update through the nodes/edges props with the viewport
+            // intact (fitView never re-fires without a remount).
+            key={`${sessionName}:${effIndex}`}
             onInit={(inst) => { fitRef.current = () => { inst.fitView(fitOpts) } }}
+            onMoveStart={(e) => { if (e) userMovedRef.current = true }}
             nodes={flow.nodes.map(n => ({
               ...n,
               // Auto-layout is only a suggestion: a dragged node's pinned position
@@ -575,7 +602,15 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
             proOptions={{ hideAttribution: false }}
           >
             <Background gap={18} size={1} />
-            <Controls showInteractive={false} />
+            <Controls
+              showInteractive={false}
+              // The +/- buttons zoom programmatically (null onMoveStart event),
+              // so mark manual control here too, else the next poll would refit
+              // away the operator's zoom. The fit button resumes auto-follow.
+              onZoomIn={() => { userMovedRef.current = true }}
+              onZoomOut={() => { userMovedRef.current = true }}
+              onFitView={() => { userMovedRef.current = false }}
+            />
             {miniCollapsed ? null : (
               <MiniMap
                 position="bottom-right" pannable zoomable nodeStrokeWidth={2}
@@ -585,7 +620,12 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
                 maskColor="color-mix(in srgb, currentColor 12%, transparent)"
               />
             )}
-            <ZoomCluster t={t} fitOpts={fitOpts} />
+            <ZoomCluster t={t} fitOpts={fitOpts} onOverview={() => { userMovedRef.current = false }} />
+            {progressive && flow.hiddenPending > 0 ? (
+              <Panel position="top-right" className={css.moreBadge} title={t('showFullHint')}>
+                +{flow.hiddenPending} {t('pendingMore')}
+              </Panel>
+            ) : null}
           </ReactFlow>
         </EditProvider>
         <div className={`${css.graphControls} ${miniCollapsed ? css.controlsLow : css.controlsHigh}`}>

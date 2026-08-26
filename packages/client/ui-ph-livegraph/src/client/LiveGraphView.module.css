@@ -262,6 +262,20 @@
   background: color-mix(in srgb, #2563eb 18%, transparent);
 }
 
+/* Progressive reveal's collapsed tail: a small count of not-yet-run nodes, so
+   the chain reads as growing rather than pre-drawn. */
+.moreBadge {
+  margin: 0.4rem !important;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px dashed color-mix(in srgb, currentColor 30%, transparent);
+  background: color-mix(in srgb, var(--ph-bg, Canvas) 88%, currentColor);
+  color: inherit;
+  opacity: 0.85;
+}
+
 /* --- status rings (nodes + stage chips + legend dots) ---------------------- */
 
 .stPending {

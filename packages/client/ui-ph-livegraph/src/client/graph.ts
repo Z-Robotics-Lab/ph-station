@@ -424,6 +424,7 @@ function edgeHandles(s: LaidOutNode, t: LaidOutNode): Pick<LaidOutEdge, 'sourceH
 function serpentine(
   nodes: LaidOutNode[],
   wrapWidth: number,
+  order: Map<string, number>,
 ): number {
   const nodeW = NODE_SIZE.plan.width
   const gap = 24
@@ -431,7 +432,13 @@ function serpentine(
   // lane between rows instead of grazing the cards above and below.
   const rowGap = 56
   const marginX = 8
-  const plan = nodes.filter(n => n.type === 'plan').sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x)
+  // Lay the grid in CHAIN order (the sequence the plan/branch edges define), not
+  // dagre's (y,x): a replan appends fresh attempts to planNodes out of chain
+  // order, so a dagre-position sort scattered a node's attempts across distant
+  // grid cells and their branch edges then raked across the intervening cards.
+  // Chain order keeps every edge between grid-adjacent cells (short hop, or one
+  // gutter drop on a row wrap), which is what removes the crossings.
+  const plan = nodes.filter(n => n.type === 'plan').sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
   const perRow = Math.max(2, Math.floor((wrapWidth - marginX) / (nodeW + gap)))
   // Mission heads the grid; the chain starts on the row beneath it.
   const mission = nodes.find(n => n.id === 'mission')
@@ -462,16 +469,37 @@ function serpentine(
  * @param showRouting - gates the capability-routing layer.
  * @param wrapWidth - the live pane width; folds an over-wide single row into a
  * serpentine grid that fits it. Omitted or wide enough, the chain stays flat.
- * @returns positioned React Flow nodes and edges.
+ * @param collapse - progressive reveal: show only the execution frontier
+ * (every non-pending node plus the single next pending one) and report the rest
+ * as `hiddenPending`; false lays the whole plan out. A pure display choice — the
+ * fold still carries every node.
+ * @returns positioned React Flow nodes and edges, and the count of pending nodes
+ * collapsed away under `collapse`.
  */
 export function layout(
   model: LiveGraphModel,
   showRouting: boolean,
   wrapWidth?: number,
-): { nodes: LaidOutNode[]; edges: LaidOutEdge[] } {
+  collapse = false,
+): { nodes: LaidOutNode[]; edges: LaidOutEdge[]; hiddenPending: number } {
   const g = new dagre.graphlib.Graph()
   g.setGraph({ rankdir: 'LR', nodesep: 20, ranksep: 60, marginx: 8, marginy: 8 })
   g.setDefaultEdgeLabel(() => ({}))
+
+  // Execution frontier: completed/running/replanned nodes stay, plus the FIRST
+  // pending node (the next step); later pending nodes collapse to a count. The
+  // reveal walks planNodes in order, so as execution advances the window grows.
+  let hiddenPending = 0
+  let visible = model.planNodes
+  if (collapse) {
+    let shownNext = false
+    visible = model.planNodes.filter((n) => {
+      if (n.status !== 'pending') return true
+      if (!shownNext) { shownNext = true; return true }
+      hiddenPending++
+      return false
+    })
+  }
 
   const nodes: LaidOutNode[] = []
   const edges: LaidOutEdge[] = []
@@ -484,14 +512,14 @@ export function layout(
     g.setNode(id, { width: w, height: h })
     nodes.push({ id, type, position: { x: 0, y: 0 }, w, h, data })
   }
-  const runningKey = model.planNodes.find(n => n.status === 'running')?.key
+  const runningKey = visible.find(n => n.status === 'running')?.key
 
   add('mission', 'mission', { model })
 
   // Group attempts by id in first-appearance order; chain ids, fork lineage.
   const groups: PlanNodeState[][] = []
   const byId = new Map<string, PlanNodeState[]>()
-  for (const n of model.planNodes) {
+  for (const n of visible) {
     let list = byId.get(n.id)
     if (!list) { list = []; byId.set(n.id, list); groups.push(list) }
     list.push(n)
@@ -510,10 +538,12 @@ export function layout(
     edges.push(e)
   }
   let prevTail = 'mission'
+  const chainOrder = new Map<string, number>()
   for (const list of groups) {
     let prevInGroup: string | null = null
     for (const n of list) {
       const target = `plan:${n.key}`
+      chainOrder.set(target, chainOrder.size)
       if (prevInGroup === null) edge(prevTail, target, 'plan')
       else edge(prevInGroup, target, 'branch', `replan #${n.attempt}`)
       prevInGroup = target
@@ -536,7 +566,7 @@ export function layout(
   // pane (perRow ≥ node count) leaves the row flat, so this is a no-op there.
   if (wrapWidth !== undefined && planRight - planLeft > wrapWidth) {
     planLeft = 8
-    planBottom = serpentine(nodes, wrapWidth)
+    planBottom = serpentine(nodes, wrapWidth, chainOrder)
   }
 
   // Re-anchor every plan/branch edge from the final node centers (post-reflow):
@@ -569,5 +599,5 @@ export function layout(
       })
     })
   }
-  return { nodes, edges }
+  return { nodes, edges, hiddenPending }
 }

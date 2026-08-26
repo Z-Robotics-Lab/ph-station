@@ -49,6 +49,9 @@ export type PhLiveGraphKey =
   | 'privileged'
   | 'showRouting'
   | 'routingHint'
+  | 'showFull'
+  | 'showFullHint'
+  | 'pendingMore'
   | 'keys'
   | 'live'
   | 'history'
@@ -124,6 +127,9 @@ export const zh: Record<PhLiveGraphKey, string> = {
   'privileged': '特权',
   'showRouting': '显示能力接线',
   'routingHint': '把能力路由（消费方→能力→提供方）叠加到图上',
+  'showFull': '显示完整计划',
+  'showFullHint': '关闭渐进显露，一次铺开整张计划图（含尚未执行的节点）',
+  'pendingMore': '待执行',
   'keys': '键盘：空格 播放/暂停 · ←→ 逐帧 · [ ] 切换实验 · Esc 收起证据',
   'live': 'LIVE',
   'history': 'HISTORY',
@@ -193,6 +199,9 @@ export const en: Record<PhLiveGraphKey, string> = {
   'privileged': 'privileged',
   'showRouting': 'show wiring',
   'routingHint': 'Overlay capability routing (consumer → capability → provider)',
+  'showFull': 'show full plan',
+  'showFullHint': 'Turn off progressive reveal and lay out the whole plan at once (including not-yet-run nodes)',
+  'pendingMore': 'pending',
   'keys': 'Keys: Space play/pause · ←→ step · [ ] switch run · Esc close evidence',
   'live': 'LIVE',
   'history': 'HISTORY',
