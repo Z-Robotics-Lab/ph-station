@@ -48,6 +48,7 @@ export function apply(ctx: Context): void {
           fetchRounds: () => board.rounds(),
           fetchStores: () => board.stores(),
           fetchStore: (name: string) => board.store({ name }),
+          fetchCampaignProgress: () => board.campaignProgress(),
         }),
       }, EvolutionView),
       ctx.slots.register({

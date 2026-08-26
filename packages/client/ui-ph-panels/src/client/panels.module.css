@@ -479,3 +479,105 @@
 .chip:hover {
   background: color-mix(in srgb, currentColor 10%, transparent);
 }
+
+/* --- 进行中 campaign progress card ------------------------------------------ */
+/* Live heartbeat card above the store split; rendered only while a script-path
+   battery is running, so it never reserves space. Same neutral currentColor
+   mixes as the rest of the panel; the green fill/dot echo .barPos. */
+
+.progressWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem 0.5rem 0.25rem;
+}
+
+.progressCard {
+  border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, currentColor 3%, transparent);
+  padding: 0.5rem 0.65rem;
+}
+
+.progressHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.progressDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  align-self: center;
+  background: color-mix(in srgb, currentColor 25%, #16a34a);
+  animation: progressPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes progressPulse {
+  50% { opacity: 0.35; }
+}
+
+.progressName {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.progressLabel {
+  opacity: 0.6;
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.progressCount {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.progressTrack {
+  position: relative;
+  height: 0.55rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  border-radius: 0.3rem;
+  overflow: hidden;
+}
+
+.progressFill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, currentColor 25%, #16a34a);
+  transition: width 0.6s ease;
+}
+
+.progressMeta {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  opacity: 0.85;
+  flex-wrap: wrap;
+}
+
+.progressDeaths {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.progressDeathChip {
+  padding: 0 0.35rem;
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  font-variant-numeric: tabular-nums;
+}

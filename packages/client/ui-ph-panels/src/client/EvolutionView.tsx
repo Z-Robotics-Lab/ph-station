@@ -7,16 +7,17 @@ import type { ReactNode } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { finite, pp } from './format.ts'
+import { finite, formatAgo, pp } from './format.ts'
 import { EmptyCard, PanelFrame, Term } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
 import css from './panels.module.css'
 
-/** The three board reads this panel drives, injected by the slot registration. */
+/** The four board reads this panel drives, injected by the slot registration. */
 export interface EvolutionInjected {
   fetchRounds: () => Promise<RemoteResult<unknown>>
   fetchStores: () => Promise<RemoteResult<unknown>>
   fetchStore: (name: string) => Promise<RemoteResult<unknown>>
+  fetchCampaignProgress: () => Promise<RemoteResult<unknown>>
 }
 
 // Presentation shapes over board.store JSON (subset of the fields rendered).
@@ -37,6 +38,20 @@ interface StoreDetail {
   error?: string
 }
 interface Round { round?: number | null; date?: string | null; title?: string | null; body?: string | null }
+/** One live campaign heartbeat (board.store.campaign_progress row): the counts,
+ * timestamps, and rolling stats are all folded python-side; this file only
+ * displays them (ETA below is a pure display conversion of these fields). */
+interface CampaignProgress {
+  name?: string
+  label?: string | null
+  done?: number
+  total?: number
+  started_ts?: number
+  updated_ts?: number
+  running?: boolean
+  succeeded?: number
+  first_death?: Record<string, number>
+}
 
 // ponytail: fixed 40pp full-scale bar reference. Δpp bars are a glance cue, not
 // a measurement; the exact signed value sits beside every bar. Swap for a
@@ -62,17 +77,33 @@ function Bar({ label, delta }: { label: ReactNode; delta: number | null | undefi
   )
 }
 
+/** Fast-poll cadence for the in-progress campaign card: an episode finishes
+ * every few seconds under a worker pool, so the 15s panel cadence would lag the
+ * heartbeat visibly. Only armed while a campaign is actually running. */
+const PROGRESS_POLL_MS = 5000
+
 export function EvolutionView({
-  fetchRounds, fetchStores, fetchStore, t,
+  fetchRounds, fetchStores, fetchStore, fetchCampaignProgress, t,
 }: ConvViewProps & InjectFace<EvolutionInjected> & PropsLocale<'phpanels'>) {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
   const [rounds, setRounds] = useState<Round[]>([])
+  const [progress, setProgress] = useState<CampaignProgress[]>([])
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [detail, setDetail] = useState<StoreDetail | null>(null)
   const [open, setOpen] = useState<number | null>(null)
 
+  const loadProgress = useCallback(async () => {
+    try {
+      const p = await fetchCampaignProgress()
+      if (p.ok) setProgress(p.value as CampaignProgress[])
+    } catch {
+      // keep the last-good card; the panel's own load() reports board-offline
+    }
+  }, [fetchCampaignProgress])
+
   const load = useCallback(async () => {
+    void loadProgress()
     try {
       const [s, r] = await Promise.all([fetchStores(), fetchRounds()])
       if (!s.ok) { setError(s.error.message); return }
@@ -84,9 +115,19 @@ export function EvolutionView({
       // fold into the offline state, never leave stores null on 加载中 forever.
       setError(cause instanceof Error ? cause.message : String(cause))
     }
-  }, [fetchStores, fetchRounds])
+  }, [fetchStores, fetchRounds, loadProgress])
 
   usePolledLoad(load)
+
+  // While a campaign is running, tighten just the heartbeat read to 5s (the
+  // rest of the panel keeps the 15s cadence); no interval otherwise.
+  const running = progress.filter(c => c.running === true)
+  const anyRunning = running.length > 0
+  useEffect(() => {
+    if (!anyRunning) return
+    const timer = setInterval(() => { if (!document.hidden) void loadProgress() }, PROGRESS_POLL_MS)
+    return () => { clearInterval(timer) }
+  }, [anyRunning, loadProgress])
 
   // Seed the right pane once the first store list lands: the newest store by
   // mtime is usually a calibration store with no generation records, so opening
@@ -126,6 +167,7 @@ export function EvolutionView({
   if (stores.length === 0) {
     return (
       <PanelFrame title={t('view.evolution')} sub={t('sub.evolution')}>
+        <ProgressCards items={running} t={t} />
         <EmptyCard>{t('emptyStores')}</EmptyCard>
       </PanelFrame>
     )
@@ -134,6 +176,7 @@ export function EvolutionView({
 
   return (
     <PanelFrame title={t('view.evolution')} sub={t('sub.evolution')}>
+      <ProgressCards items={running} t={t} />
       <div className={css.panel}>
         {/* Deliberately independent per panel: the two ph panel packages stay decoupled rather than share this sidebar. */}
         {/* jscpd:ignore-start */}
@@ -181,6 +224,56 @@ export function EvolutionView({
         </section>
       </div>
     </PanelFrame>
+  )
+}
+
+/** In-progress campaign cards ("进行中"): one per running heartbeat, nothing
+ * rendered when no campaign is live (the card never reserves space). Progress,
+ * counts, and the first-death histogram arrive folded from python; the ETA is a
+ * pure display conversion — remaining episodes × the observed pace
+ * ((updated_ts − started_ts) / done), no statistics computed here. */
+function ProgressCards({ items, t }: { items: CampaignProgress[] } & PropsLocale<'phpanels'>) {
+  if (items.length === 0) return null
+  return (
+    <div className={css.progressWrap}>
+      {items.map((c, i) => {
+        const done = finite(c.done) ?? 0
+        const total = finite(c.total) ?? 0
+        const pct = total > 0 ? Math.min(100, (done / total) * 100) : 0
+        const elapsed = (finite(c.updated_ts) ?? 0) - (finite(c.started_ts) ?? 0)
+        const etaS = done > 0 && total > done && elapsed > 0
+          ? Math.round(((total - done) * elapsed) / done)
+          : null
+        const deaths = Object.entries(c.first_death ?? {})
+          .sort((a, b) => b[1] - a[1]).slice(0, 3)
+        return (
+          <div key={c.name ?? i} className={css.progressCard}>
+            <div className={css.progressHead}>
+              <span className={css.progressDot} />
+              <span className={css.progressName}>{c.name ?? '—'}</span>
+              {c.label !== null && c.label !== undefined && c.label !== ''
+                ? <span className={css.progressLabel}>{c.label}</span> : null}
+              <span className={css.progressCount}>{done}/{total}</span>
+            </div>
+            <div className={css.progressTrack}>
+              <div className={css.progressFill} style={{ width: `${pct}%` }} />
+            </div>
+            <div className={css.progressMeta}>
+              <span>{t('progressSucceeded')} {finite(c.succeeded) ?? '—'}</span>
+              <span>{t('progressEta')} {etaS === null ? '—' : formatAgo(etaS)}</span>
+              {deaths.length > 0 ? (
+                <span className={css.progressDeaths}>
+                  <Term label={t('progressFirstDeath')} tip={t('firstDeath.tip')} />
+                  {deaths.map(([node, n]) => (
+                    <span key={node} className={css.progressDeathChip}>{node}×{n}</span>
+                  ))}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 

@@ -150,6 +150,19 @@ export class BoardBridge extends TypertRemoteService {
   }
 
   /**
+   * Every live campaign heartbeat under runs/ (`runs/<store>/progress.json`, written
+   * per finished episode by script-path batteries): done/total/label, the
+   * python-folded rolling stats, and a `running` flag (fresh heartbeat, not yet
+   * at total). Live state, never sealed evidence -- the 演进 panel's
+   * in-progress card renders it verbatim.
+   * @returns board.store.campaign_progress(runs) verbatim.
+   */
+  @Remote('campaignProgress')
+  campaignProgress(): Promise<JsonValue> {
+    return this.run('campaign_progress')
+  }
+
+  /**
    * Every runtime session under runs/, newest first (summary cards, no rows).
    * @returns board.store.discover_sessions(runs) verbatim (status-bar heartbeat).
    */

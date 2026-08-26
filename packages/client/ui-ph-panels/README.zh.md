@@ -4,7 +4,7 @@
 
 演进（RSI 监视器）、机箱、账本三个面板，加上全框架的状态栏。每个都是一个 slot 条目，通过 `board` Host Remote 读取 harness 证据层并只做渲染——没有服务、没有业务逻辑。每个数字都来自 `board.store` / `board.cards`；TS 只做格式化（pp ×100 带符号、mtime → 时长），不做任何计算。
 
-- **演进**（`conversation.view` 标签页）—— `/api/board/stores` + `/api/board/store` 渲染每代 Δpp 条形图（dev/blind/held-out 差值、晋升事件、McNemar fixed/broken），`/api/board/rounds` 渲染 progress.md feed。
+- **演进**（`conversation.view` 标签页）—— `/api/board/stores` + `/api/board/store` 渲染每代 Δpp 条形图（dev/blind/held-out 差值、晋升事件、McNemar fixed/broken），`/api/board/rounds` 渲染 progress.md feed`/api/board/campaignProgress` 驱动顶部的进行中卡片：每个正在跑的脚本路径电池（`runs/*/progress.json` 心跳）一张，含 done/total 进度条、成功数、首死 top-3 芯片，以及由 python 提供的时间戳纯显示换算出的预计剩余；campaign 运行期间仅心跳读取收紧到 5s 轮询，没有进行中 campaign 时卡片不渲染（不占位）。
 - **机箱**（`conversation.view` 标签页）—— `/api/board/cards` 卡片网格：名称、actuation、needs_sim、contribute 计数与 manifest 摘要。doctor 尚未接线（还没有 `scripts/plugin_doctor.py`），因此用一个标注 `体检: 未接入` 的槽位占位——绝不伪造。
 - **账本**（`conversation.view` 标签页）—— `/api/board/ledger` seed-block 表格：范围、burn 状态、来源行。`parse_ledger` 不返回 task / holdout 字段，这些列因此缺席而不是被发明出来。
 - **状态栏**（`shell.overlay` 条）—— MODE 与 boot 事实来自最新运行时会话的 `runtime.boot` 行（`/api/board/sessions` + `/api/board/session`），心跳来自会话 mtime，board 桥接可达性来自 fetch 是否成功。boot 行携带 `render` 键时还会显示取景窗开/关 chip；没有该键的行（较老的会话）不显示 chip——以存在为信号，绝不猜测。

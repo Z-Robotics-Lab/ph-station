@@ -32,6 +32,10 @@ export type PhPanelsKey =
   | 'rule'
   | 'rounds'
   | 'noRounds'
+  // 进行中 campaign progress card
+  | 'progressSucceeded'
+  | 'progressEta'
+  | 'progressFirstDeath'
   // 能力卡
   | 'noCards'
   | 'actuation'
@@ -69,6 +73,7 @@ export type PhPanelsKey =
   | 'off'
   // jargon tooltips (plain-Chinese one-liners, hover a `?` badge)
   | 'mcnemar.tip'
+  | 'firstDeath.tip'
   | 'heldout.tip'
   | 'promoted.tip'
   | 'delta.tip'
@@ -116,6 +121,9 @@ export const zh: Record<PhPanelsKey, string> = {
   'rule': '规则',
   'rounds': '轮次',
   'noRounds': 'progress.md 无轮次',
+  'progressSucceeded': '成功',
+  'progressEta': '预计剩余',
+  'progressFirstDeath': '首死 top3',
   'noCards': '还没读到能力卡。每张卡来自一个已装插件的 manifest.toml，描述它提供的技能、驱动方式与任务绑定。',
   'actuation': '驱动',
   'needsSim': '需要仿真',
@@ -149,6 +157,7 @@ export const zh: Record<PhPanelsKey, string> = {
   'on': '开',
   'off': '关',
   'mcnemar.tip': "McNemar 检验：只看被改动'修对'和'改坏'的题，判断这代改动是不是真变好（而非运气）。",
+  'firstDeath.tip': '首死：一集里第一个失败的环节；这里显示当前批次里最常见的三个死因。',
   'heldout.tip': '留出集：训练时从没见过的题，用来诚实检验泛化，防止背答案刷分。',
   'promoted.tip': '晋级：这一代通过了 dev / 盲测 / 留出集的门槛，被采纳为新基线。',
   'delta.tip': 'Δpp：相对上一代的成功率变化，单位百分点。',
@@ -189,6 +198,9 @@ export const en: Record<PhPanelsKey, string> = {
   'rule': 'rule',
   'rounds': 'Rounds',
   'noRounds': 'No rounds in progress.md',
+  'progressSucceeded': 'succeeded',
+  'progressEta': 'ETA',
+  'progressFirstDeath': 'first-death top3',
   'noCards': "No capability cards yet. Each card comes from an installed plugin's manifest.toml — the skills it provides, its actuation, and its task bindings.",
   'actuation': 'actuation',
   'needsSim': 'needs sim',
@@ -222,6 +234,7 @@ export const en: Record<PhPanelsKey, string> = {
   'on': 'on',
   'off': 'off',
   'mcnemar.tip': 'McNemar test: looks only at items this generation fixed vs broke, to judge whether the change is truly better (not luck).',
+  'firstDeath.tip': 'First death: the first node that fails in an episode; shown here are the three most common causes in the current batch.',
   'heldout.tip': 'Held-out set: items never seen during training, used to honestly check generalization and prevent memorized answers.',
   'promoted.tip': 'Promoted: this generation passed the dev / blind / held-out gates and became the new baseline.',
   'delta.tip': 'Δpp: change in success rate vs the previous generation, in percentage points.',

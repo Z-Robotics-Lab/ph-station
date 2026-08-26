@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-26-campaign-progress-live-card.md
+2026-08-26-campaign-progress-live-card.md: 16e08ed49b58939fd5e913242047d32b01fef4ad
+2026-08-26-campaign-progress-live-card.zh.md: 408b3679e69c5b099ebfb6ca91a7de3e71eddf97
