@@ -12,6 +12,7 @@ import type {
   ConversationSessionHeaderSlotProps, ConversationSessionSlotProps, ConvViewOwnerProps,
 } from '../contract/slots.ts'
 import type { ViewTab } from '../contract/views.ts'
+import { VIEW_GROUP, type ViewGroup } from './view-groups.ts'
 import css from './ConversationRoot.module.css'
 
 /** Full props composed from the strict session body contract. */
@@ -43,6 +44,15 @@ const VIEW_TAB_ICONS: Readonly<Record<string, IconComponent>> = {
   cards: IconBox,
   ledger: IconBook,
   vault: IconBooks,
+  rsi: IconTrendingUp,
+}
+
+/** The tab-strip group headers, in strip order. Copy is looked up per render so
+ * the labels follow the active locale like every other tab. */
+const VIEW_GROUP_ORDER: readonly ViewGroup[] = ['exec', 'evo']
+const VIEW_GROUP_LABEL: Readonly<Record<ViewGroup, 'group.exec' | 'group.evo'>> = {
+  exec: 'group.exec',
+  evo: 'group.evo',
 }
 
 /** Resolve by id; with no valid selection, default to the leftmost tab (tabs are
@@ -175,21 +185,33 @@ export function ConversationSessionHeader({
           <div className={css.tabsRow}>
             {tabs.length > 1 ? (
               <div className={css.tabs} role="tablist">
-                {tabs.map((viewTab) => {
-                  const TabIcon = VIEW_TAB_ICONS[viewTab.id]
-                  return (
-                    <button
-                      key={viewTab.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={viewTab.id === active?.id}
-                      className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
-                      onClick={() => { actions.setView(viewTab.id) }}
+                {VIEW_GROUP_ORDER.flatMap((group, groupIndex) => {
+                  const groupTabs = tabs.filter(viewTab => (VIEW_GROUP[viewTab.id] ?? 'exec') === group)
+                  if (groupTabs.length === 0) return []
+                  return [
+                    <span
+                      key={`group-${group}`}
+                      className={clsx(css.tabGroup, groupIndex > 0 && css.tabGroupDivided)}
                     >
-                      {TabIcon !== undefined && <TabIcon size={14} />}
-                      {viewTab.label}
-                    </button>
-                  )
+                      {t(VIEW_GROUP_LABEL[group])}
+                    </span>,
+                    ...groupTabs.map((viewTab) => {
+                      const TabIcon = VIEW_TAB_ICONS[viewTab.id]
+                      return (
+                        <button
+                          key={viewTab.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={viewTab.id === active?.id}
+                          className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
+                          onClick={() => { actions.setView(viewTab.id) }}
+                        >
+                          {TabIcon !== undefined && <TabIcon size={14} />}
+                          {viewTab.label}
+                        </button>
+                      )
+                    }),
+                  ]
                 })}
               </div>
             ) : <span />}

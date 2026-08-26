@@ -628,3 +628,33 @@
 .progressVerdictGo { background: color-mix(in srgb, #2e7d32 30%, transparent); }
 /* NO-GO is a finished result, not an error -- amber (attention), never red. */
 .progressVerdictNo { background: color-mix(in srgb, #b26a00 32%, transparent); }
+
+/* 演化台 sub-tab strip: a quiet segmented row under the panel head that swaps the
+   aggregated RSI panel body (代际进化 / 战报 / 账本), each rendered by renderView. */
+.consoleTabs {
+  display: flex;
+  gap: 18px;
+  padding: 0.4rem 0.5rem 0;
+}
+.consoleTab {
+  padding: 0 0 6px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.consoleTabActive {
+  color: var(--dsw-alias-state-business-primary);
+  border-bottom-color: var(--dsw-alias-state-business-primary);
+}
+/* The body fills the rest so the docked sub-panel (its own height:100% .frame)
+   fills the console instead of collapsing to content height. */
+.consoleBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}

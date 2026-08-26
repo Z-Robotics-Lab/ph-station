@@ -24,6 +24,7 @@ import { ComposerBlockRegistry } from './input/blocks.ts'
 import type { ComposerBlock } from './input/blocks.ts'
 import { InputHub } from './input/hub.ts'
 import { ComposerSubmissionPolicy } from './input/submission-policy.ts'
+import { HIDDEN_STRIP_VIEW_IDS } from './skeleton/view-groups.ts'
 import { InputBar } from './skeleton/InputBar.tsx'
 import { EnterBehaviorRow } from './settings/EnterBehaviorRow.tsx'
 import type { EnterBehaviorRowInjected } from './settings/EnterBehaviorRow.tsx'
@@ -155,6 +156,9 @@ export function apply(ctx: Context): void {
     for (const entry of slots.entries('conversation.view')) {
       /* v8 ignore next -- unreachable: list registration validates id at load. */
       if (entry.options.id === undefined) continue
+      // Redundant / aggregated panels stay registered (the 实验台 dashboard docks
+      // them, and 演化台 renders them by id) but drop out of the flat tab strip.
+      if (HIDDEN_STRIP_VIEW_IDS.has(entry.options.id)) continue
       tabs.push({ id: entry.options.id, label: resolveSlotLabel(entry.options.label) ?? entry.options.id })
     }
     return tabs

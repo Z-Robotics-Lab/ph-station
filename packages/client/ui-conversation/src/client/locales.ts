@@ -76,6 +76,9 @@ export const zh = {
   'hero.chooseWorkspace': '选择工作区',
   'session.hierarchy': '会话层级',
   'session.new': '新会话',
+  // Tab-strip group labels: harness execution panels vs the RSI evolution panels.
+  'group.exec': '执行',
+  'group.evo': '演化',
   'details.title': '详情',
   'details.close': '关闭详情',
   'details.empty': '点击消息流中的工具行查看详情',
@@ -254,6 +257,8 @@ export const en = {
   'hero.chooseWorkspace': 'Choose workspace',
   'session.hierarchy': 'Session hierarchy',
   'session.new': 'New conversation',
+  'group.exec': 'Execution',
+  'group.evo': 'Evolution',
   'details.title': 'Details',
   'details.close': 'Close details',
   'details.empty': 'Click a tool row in the message flow to view its details',

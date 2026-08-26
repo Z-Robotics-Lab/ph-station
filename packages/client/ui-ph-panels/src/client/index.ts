@@ -16,6 +16,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: the generated ctx.remote merge, including the board namespace.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { en, NS, zh } from './locales.ts'
+import { EvolutionConsole } from './EvolutionConsole.tsx'
 import { EvolutionView, type EvolutionInjected } from './EvolutionView.tsx'
 import { CardsView, type CardsInjected } from './CardsView.tsx'
 import { LedgerView, type LedgerInjected } from './LedgerView.tsx'
@@ -38,6 +39,16 @@ export function apply(ctx: Context): void {
 
   ctx.slots.inject('conversation.view', () => {
     const disposers = [
+      // 演化台: the aggregate RSI panel (leftmost of the 演化 group). It renders
+      // the 代际进化 / 战报 / 账本 panels by id through the owner's renderView, so
+      // those three stay registered but drop out of the flat tab strip.
+      ctx.slots.register({
+        name: 'conversation.view',
+        id: 'rsi',
+        order: 20,
+        locale: NS,
+        label: () => t('view.rsi'),
+      }, EvolutionConsole),
       ctx.slots.register({
         name: 'conversation.view',
         id: 'evolution',

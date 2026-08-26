@@ -162,6 +162,27 @@
   padding-left: 8px;
 }
 
+/* Tab-strip group header (执行 / 演化): a small uppercase marker that splits the
+   harness-execution tabs from the RSI-evolution tabs. The second group carries a
+   left divider so the two halves read apart at a glance. */
+.tabGroup {
+  align-self: flex-start;
+  flex: none;
+  line-height: 16px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-tertiary);
+  opacity: 0.7;
+  user-select: none;
+}
+.tabGroupDivided {
+  padding-left: 36px;
+  border-left: 1px solid var(--dsw-alias-line-border-standard, color-mix(in srgb, currentColor 18%, transparent));
+}
+
 /* New Conversation "+": a quiet ghost button that brightens on hover, sized to
    sit on the tab baseline without adding strip height. */
 .newConversation {

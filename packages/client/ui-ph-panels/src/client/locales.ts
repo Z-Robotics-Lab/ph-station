@@ -10,6 +10,10 @@ export type PhPanelsKey =
   | 'view.evolution'
   | 'view.cards'
   | 'view.ledger'
+  // 演化台 (Evolution Console): the aggregate RSI panel + its sub-tab labels
+  | 'view.rsi'
+  | 'sub.rsi'
+  | 'rsi.battle'
   // one-line panel subtitles (rendered in the panel head under the tab name)
   | 'sub.evolution'
   | 'sub.cards'
@@ -116,6 +120,9 @@ export const zh: Record<PhPanelsKey, string> = {
   'view.evolution': '代际进化',
   'view.cards': '能力卡',
   'view.ledger': '账本',
+  'view.rsi': '演化台',
+  'sub.rsi': '自我进化侧的全景：战役进度、战报门禁、代际 Δpp 与预算账本',
+  'rsi.battle': '战报',
   'sub.evolution': '每一代改动相对上一代的成绩变化和是否晋级',
   'sub.cards': '已装的技能/能力：驱动方式、是否需仿真、任务绑定',
   'sub.ledger': '各 seed 区块的预算占用：已烧 / 预留 / 计划',
@@ -211,6 +218,9 @@ export const en: Record<PhPanelsKey, string> = {
   'view.evolution': 'Generations',
   'view.cards': 'Capability cards',
   'view.ledger': 'Ledger',
+  'view.rsi': 'Evolution',
+  'sub.rsi': 'The self-improvement side at a glance: campaign progress, battle gates, generation Δpp, and the budget ledger.',
+  'rsi.battle': 'Battle report',
   'sub.evolution': "Each generation's score change vs the previous, and whether it was promoted.",
   'sub.cards': 'Installed skills/capabilities: actuation, whether sim is needed, task bindings.',
   'sub.ledger': 'Budget usage per seed block: burned / reserved / planned.',

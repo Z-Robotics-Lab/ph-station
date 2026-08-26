@@ -45,7 +45,7 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
     id: 'vault',
-    order: 28,
+    order: 21,
     locale: NS,
     label: () => t('view.vault'),
     inject: (_sessionId: SessionId): VaultInjected => ({
