@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PhPanelsKey } from './locales.ts'
 import { finite, formatAgo, pp } from './format.ts'
 import { EmptyCard, PanelFrame, Term } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
@@ -49,9 +50,27 @@ interface CampaignProgress {
   started_ts?: number
   updated_ts?: number
   running?: boolean
+  /** Heartbeat written inside board.store's freshness window. Forwarded apart
+   * from `running` (which also requires done < total) so a finished rsi chain's
+   * verdict heartbeat is still displayable. */
+  fresh?: boolean
   succeeded?: number
   first_death?: Record<string, number>
+  // An `rsi` chain (kind:"rsi") heartbeats the SAME file with one extra field:
+  // which link of the discipline chain it is on (calibrate / gate / dev / done
+  // / stopped), plus the gate's verdict and the node the attribution chose.
+  // Folded python-side like everything else here; this file only displays it.
+  stage?: string | null
+  verdict?: string | null
+  target_node?: string | null
 }
+
+/** The rsi chain's stages, as locale keys. A stage outside this set renders its
+ * raw python name -- a new link in the chain shows up untranslated rather than
+ * silently disappearing from the card. */
+const STAGE_KEYS = new Set<PhPanelsKey>([
+  'stage.calibrate', 'stage.gate', 'stage.dev', 'stage.done', 'stage.stopped',
+])
 
 // ponytail: fixed 40pp full-scale bar reference. Δpp bars are a glance cue, not
 // a measurement; the exact signed value sits beside every bar. Swap for a
@@ -121,7 +140,13 @@ export function EvolutionView({
 
   // While a campaign is running, tighten just the heartbeat read to 5s (the
   // rest of the panel keeps the 15s cadence); no interval otherwise.
-  const running = progress.filter(c => c.running === true)
+  // Cards worth showing: anything still running, plus a just-finished rsi chain
+  // whose last heartbeat carries the gate verdict — that one lands at
+  // done == total (so `running` is false) and is the whole point of watching.
+  // Both booleans are folded python-side; this only selects.
+  const running = progress.filter(
+    c => c.running === true
+      || (c.fresh === true && c.verdict !== null && c.verdict !== undefined))
   const anyRunning = running.length > 0
   useEffect(() => {
     if (!anyRunning) return
@@ -246,6 +271,13 @@ function ProgressCards({ items, t }: { items: CampaignProgress[] } & PropsLocale
           : null
         const deaths = Object.entries(c.first_death ?? {})
           .sort((a, b) => b[1] - a[1]).slice(0, 3)
+        // The rsi chain's stage, localized through the same dictionary as every
+        // other string here; an unknown stage falls back to its raw name rather
+        // than vanishing.
+        const stageKey = `stage.${c.stage ?? ''}` as PhPanelsKey
+        const stage = c.stage === null || c.stage === undefined || c.stage === ''
+          ? null
+          : (STAGE_KEYS.has(stageKey) ? t(stageKey) : c.stage)
         return (
           <div key={c.name ?? i} className={css.progressCard}>
             <div className={css.progressHead}>
@@ -255,6 +287,21 @@ function ProgressCards({ items, t }: { items: CampaignProgress[] } & PropsLocale
                 ? <span className={css.progressLabel}>{c.label}</span> : null}
               <span className={css.progressCount}>{done}/{total}</span>
             </div>
+            {stage === null ? null : (
+              <div className={css.progressStage}>
+                <span className={css.progressStageChip}>{stage}</span>
+                {c.verdict === null || c.verdict === undefined ? null : (
+                  <span className={c.verdict === 'NO-GO'
+                    ? css.progressVerdictNo
+                    : css.progressVerdictGo}>{c.verdict}</span>
+                )}
+                {c.target_node === null || c.target_node === undefined ? null : (
+                  <span className={css.progressDeathChip}>
+                    {t('progressTargetNode')} {c.target_node}
+                  </span>
+                )}
+              </div>
+            )}
             <div className={css.progressTrack}>
               <div className={css.progressFill} style={{ width: `${pct}%` }} />
             </div>

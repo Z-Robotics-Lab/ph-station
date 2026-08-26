@@ -581,3 +581,29 @@
   background: color-mix(in srgb, currentColor 8%, transparent);
   font-variant-numeric: tabular-nums;
 }
+
+/* rsi chain stage strip: which link of the discipline chain a live run is on. */
+.progressStage {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+}
+
+.progressStageChip {
+  padding: 0 0.35rem;
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.progressVerdictGo,
+.progressVerdictNo {
+  padding: 0 0.35rem;
+  border-radius: 0.3rem;
+  font-weight: 600;
+}
+
+.progressVerdictGo { background: color-mix(in srgb, #2e7d32 30%, transparent); }
+/* NO-GO is a finished result, not an error -- amber (attention), never red. */
+.progressVerdictNo { background: color-mix(in srgb, #b26a00 32%, transparent); }

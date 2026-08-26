@@ -94,6 +94,15 @@ export type PhPanelsKey =
   | 'chips.packLunch.template'
   | 'chips.steamPrep'
   | 'chips.steamPrep.template'
+  | 'chips.rsi'
+  | 'chips.rsi.template'
+  // rsi chain stages (progress.json `stage`, folded python-side)
+  | 'progressTargetNode'
+  | 'stage.calibrate'
+  | 'stage.gate'
+  | 'stage.dev'
+  | 'stage.done'
+  | 'stage.stopped'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -186,6 +195,15 @@ export const zh: Record<PhPanelsKey, string> = {
   'chips.steamPrep': '蒸菜备餐',
   'chips.steamPrep.template':
     '开始一个 steam_prep 长程任务：seed=4250，session=session-robocasa，max_actuations=32。水龙头驱动未落地，预期在 water-on 诚实失败。先说明计划，再执行。',
+  'chips.rsi': 'RSI 提升 kitchen_thaw',
+  'chips.rsi.template':
+    'RSI 提升 kitchen_thaw：投一张 {"kind":"rsi","task":"kitchen_thaw"} 到进化态 session。最小形态只要任务名——领块、标定、门禁、prereg、dev、held-out 由 runtime 自己走完；目标节点由首死归因选，不要替它挑。先说明计划，再执行。',
+  'progressTargetNode': '目标节点',
+  'stage.calibrate': '标定',
+  'stage.gate': '门禁',
+  'stage.dev': 'dev 世代',
+  'stage.done': '完成',
+  'stage.stopped': '停在门禁',
 }
 
 /** English dictionary. */
@@ -272,4 +290,13 @@ export const en: Record<PhPanelsKey, string> = {
   'chips.steamPrep': 'steam prep',
   'chips.steamPrep.template':
     'Start a steam_prep long-horizon task: seed=4250, session=session-robocasa, max_actuations=32. No sink driver yet -- expect an honest water-on failure. Outline the plan, then run.',
+  'chips.rsi': 'RSI-improve kitchen_thaw',
+  'chips.rsi.template':
+    'RSI-improve kitchen_thaw: submit {"kind":"rsi","task":"kitchen_thaw"} to an evolution-mode session. The task name is the whole brief -- the runtime allocates the seed blocks, calibrates, scores the go/no-go gate, seals the prereg, runs dev and held-out. The target node comes from first-death attribution; do not pick it yourself. Outline the plan, then run.',
+  'progressTargetNode': 'target node',
+  'stage.calibrate': 'calibrate',
+  'stage.gate': 'gate',
+  'stage.dev': 'dev generations',
+  'stage.done': 'done',
+  'stage.stopped': 'stopped at gate',
 }
