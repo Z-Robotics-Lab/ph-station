@@ -466,7 +466,17 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.15rem 0;
+  /* Ride the input card's width column (the dock-occupant idiom, cf. the
+     conversation TodoPanel): center the row in the composer stack and pad by
+     the shared side clearance so the first chip's left edge meets the card's
+     left edge — in the hero (centered card) and the docked composer alike;
+     wrapped rows stay inside the same column. The fallbacks only fire outside
+     a conversation composer stack, where the row just spans its container. */
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(var(--dsh-composer-card-max-width, 100%) + 2 * var(--dsh-composer-side-clearance, 0px));
+  margin: 0 auto;
+  padding: 0.15rem var(--dsh-composer-side-clearance, 0);
 }
 
 .chip {
