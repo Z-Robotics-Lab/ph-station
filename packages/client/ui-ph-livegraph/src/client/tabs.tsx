@@ -10,6 +10,7 @@ import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { LiveGraphView } from './LiveGraphView.tsx'
 import type { LiveGraphInjected } from './LiveGraphView.tsx'
 import { TickerView } from './TickerView.tsx'
+import { Viewport } from './Viewport.tsx'
 import { RunFeedProvider } from './RunFeed.tsx'
 
 type TabProps = ConvViewProps & InjectFace<LiveGraphInjected> & PropsLocale<'phlivegraph'>
@@ -22,4 +23,9 @@ export function LiveGraphTab(props: TabProps) {
 /** The 过程流 ticker as a self-contained tab. */
 export function TickerTab(props: TabProps) {
   return <RunFeedProvider inject={props}><TickerView t={props.t} /></RunFeedProvider>
+}
+
+/** The 取景窗 sim viewport as a self-contained tab (the fourth dash cell). */
+export function ViewportTab(props: TabProps) {
+  return <RunFeedProvider inject={props}><Viewport t={props.t} /></RunFeedProvider>
 }

@@ -20,6 +20,16 @@ export interface BoardRuntimeEventsRequest {
   readonly afterSeq?: number
 }
 
+/** A name-addressed runtime-frame read with the poller's timestamp cursor. */
+export interface BoardRuntimeFrameRequest {
+  /** Runtime session directory name; storecli rejects a traversal name. */
+  readonly name: string
+  /** The frame `ts` last displayed; an unchanged file returns the short
+   * `{unchanged, ts, age_s}` reply with no image bytes. Omitted or 0 reads the
+   * full frame. */
+  readonly afterTs?: number
+}
+
 /** A vault node read: the content-addressed node id (skill digest, package dir, or capability seam). */
 export interface BoardVaultNodeRequest {
   /** Node id; an unknown id returns board.vault's {error: 'unknown node'} dict. */

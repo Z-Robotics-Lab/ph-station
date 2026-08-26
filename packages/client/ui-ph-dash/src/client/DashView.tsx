@@ -48,8 +48,10 @@ export type DashViewProps =
   & PropsLocale<'phdash'>
 
 /** localStorage key for the serialized layout (versioned; a schema drift or a
- * corrupt store is caught and falls back to the default arrangement). */
-const LAYOUT_KEY = 'ph.dash.layout.v1'
+ * corrupt store is caught and falls back to the default arrangement). v2: the
+ * 2×2 grid default (图谱/过程流/轨迹/取景窗 right of chat) — bumping the key
+ * retires every stored v1 arrangement so the new default actually lands. */
+const LAYOUT_KEY = 'ph.dash.layout.v2'
 const PERSIST_DEBOUNCE_MS = 300
 
 /** localStorage key for the operator's composer-band reserve override. Absent →
@@ -61,8 +63,9 @@ const MIN_RESERVE = 56
 
 /** The view the dashboard never docks: itself (no self-nesting). */
 const SELF = 'dash'
-/** Views placed as the two primary columns; the rest tab together bottom-right. */
-const PRIMARY: readonly string[] = ['chat', 'lab']
+/** Views with a fixed seat in the default arrangement (chat column + the 2×2
+ * grid); the rest tab into the bottom-left grid cell. */
+const PRIMARY: readonly string[] = ['chat', 'livegraph', 'ticker', 'trajectory', 'viewport']
 
 type AddOpts = Parameters<DockviewApi['addPanel']>[0]
 
@@ -137,8 +140,10 @@ function composerCeiling(scroller: HTMLElement): number {
   return Number.isFinite(px) && px > 0 ? px : 160
 }
 
-/** Lay out the default arrangement: chat left, the cockpit (lab) right, and
- * every other view tabbed into one bottom-right group. */
+/** Lay out the default arrangement: the chat column left (composer inside it),
+ * a 2×2 grid right — 图谱 top-left, 过程流 top-right, 轨迹 bottom-left, 取景窗
+ * bottom-right — and every other view tabbed into the 轨迹 cell. Each grid
+ * boundary is a dockview splitter (drag to resize; the layout persists). */
 function buildDefault(api: DockviewApi, tabs: DashViewTab[]): void {
   const byId = new Map(tabs.map(t => [t.id, t]))
   const add = (id: string, position?: AddOpts['position'], inactive?: boolean): boolean => {
@@ -151,12 +156,15 @@ function buildDefault(api: DockviewApi, tabs: DashViewTab[]): void {
     return true
   }
   add('chat')
-  const anchor = add('lab', { referencePanel: 'chat', direction: 'right' }) ? 'lab' : 'chat'
+  const graph = add('livegraph', { referencePanel: 'chat', direction: 'right' }) ? 'livegraph' : 'chat'
+  const flow = add('ticker', { referencePanel: graph, direction: 'right' }) ? 'ticker' : graph
+  const traj = add('trajectory', { referencePanel: graph, direction: 'below' }) ? 'trajectory' : null
+  add('viewport', { referencePanel: flow, direction: 'below' })
   const rest = tabs.map(t => t.id).filter(id => id !== SELF && !PRIMARY.includes(id))
-  let groupAnchor: string | null = null
+  let groupAnchor: string | null = traj
   for (const id of rest) {
     const ok = groupAnchor === null
-      ? add(id, { referencePanel: anchor, direction: 'below' })
+      ? add(id, { referencePanel: graph, direction: 'below' })
       : add(id, { referencePanel: groupAnchor, direction: 'within' }, true)
     if (ok && groupAnchor === null) groupAnchor = id
   }
@@ -186,9 +194,24 @@ export function DashView(props: DashViewProps) {
   const [dark, setDark] = useState(isDark)
 
   // The panel body renderer, held in a ref so the context value is stable while
-  // always calling the latest delegated renderView from the skeleton.
+  // always calling the latest delegated renderView from the skeleton. The chat
+  // panel is a column with a composer OUTLET under the transcript:
+  // ConversationRoot portals its (single) composer seat into the outlet while
+  // it exists, so 对话 and the input bar share one dock column and the
+  // full-width reserved band under the grid disappears (the ported CSS below).
   const renderRef = useRef<(id: string) => ReactNode>(() => null)
-  renderRef.current = (id: string) => (id === SELF || !renderView ? null : renderView(id))
+  renderRef.current = (id: string) => {
+    if (id === SELF || !renderView) return null
+    if (id === 'chat') {
+      return (
+        <div className={css.chatCol}>
+          <div className={css.chatBody}>{renderView('chat')}</div>
+          <div className={css.chatComposer} data-composer-outlet="" />
+        </div>
+      )
+    }
+    return renderView(id)
+  }
   const renderById = useRef((id: string) => renderRef.current(id)).current
 
   // Follow the app's light/dark palette so the dockview chrome matches.

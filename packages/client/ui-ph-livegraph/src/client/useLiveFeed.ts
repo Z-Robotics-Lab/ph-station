@@ -21,7 +21,7 @@ export interface FeedInjected {
   fetchSessions: () => Promise<RemoteResult<unknown>>
   fetchSession: (name: string) => Promise<RemoteResult<unknown>>
   fetchRuntimeEvents: (name: string, afterSeq: number) => Promise<RemoteResult<unknown>>
-  fetchRuntimeFrame: (name: string) => Promise<RemoteResult<unknown>>
+  fetchRuntimeFrame: (name: string, afterTs: number) => Promise<RemoteResult<unknown>>
 }
 
 /** One discovered session for the header picker: its name and whether it carries

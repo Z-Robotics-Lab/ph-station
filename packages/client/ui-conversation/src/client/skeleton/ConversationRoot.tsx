@@ -3,6 +3,7 @@
 // no-session/session transitions — the bar renders inert via owner props.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import type { WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ConversationSlotProps, InputZone } from '../contract/slots.ts'
@@ -31,6 +32,30 @@ export function ConversationRoot({
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pendingWorkspaceId, setPendingWorkspaceId] = useState<WorkspaceId | undefined>()
   const pickerAnchor = useRef<HTMLButtonElement>(null)
+
+  // Composer outlet: a view may host the (single) composer seat inside its own
+  // column by rendering an empty `[data-composer-outlet]` element (the 实验台
+  // dash does, under its chat panel). While one exists in this root's subtree
+  // the seat renders THERE via portal — same React position, same textarea
+  // machinery — and the scroll body is flagged `data-composer-ported` so the
+  // sticky/reserve geometry stands down (the view column owns the footer).
+  // Discovery is a subtree observer, not a prop: the outlet lives across a
+  // package boundary (a docked view), and its mount/unmount — dash tab shown or
+  // hidden — is a DOM fact this skeleton can watch without a new contract.
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [outlet, setOutlet] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    const root = rootRef.current
+    if (root === null) return
+    const sync = () => {
+      const next = root.querySelector<HTMLElement>('[data-composer-outlet]')
+      setOutlet(prev => (prev === next ? prev : next))
+    }
+    sync()
+    const mo = new MutationObserver(sync)
+    mo.observe(root, { childList: true, subtree: true })
+    return () => { mo.disconnect() }
+  }, [])
 
   // Publishes the composer's natural height as --dsh-composer-height on the
   // scroll body so floating controls (ChatView back-to-bottom) clear it as it
@@ -193,12 +218,19 @@ export function ConversationRoot({
     </div>
   )
 
+  // Hero/settling always keep the seat in the scroll body (the hero centers
+  // it); only the active phase may port it into a view's outlet.
+  const ported = phase === 'active' && outlet !== null
   return (
-    <div className={css.root} data-phase={phase}>
+    <div className={css.root} data-phase={phase} ref={rootRef}>
       {renderSlot('conversation.session.header', {})}
-      <div className={css.scrollBody} data-conversation-scroll="">
+      <div
+        className={css.scrollBody}
+        data-conversation-scroll=""
+        {...(ported ? { 'data-composer-ported': '' } : {})}
+      >
         {renderSlot('conversation.session', {})}
-        {composerSeat}
+        {ported ? createPortal(composerSeat, outlet) : composerSeat}
       </div>
     </div>
   )

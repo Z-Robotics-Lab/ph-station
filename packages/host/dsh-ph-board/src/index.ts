@@ -22,8 +22,8 @@ import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 // The Typert-generated ./typert and ./remote artifacts import Zod at runtime.
 import type {} from 'zod'
 import type {
-  BoardRuntimeEventsRequest, BoardSessionRequest, BoardStoreRequest,
-  BoardVaultNeighborsRequest, BoardVaultNodeRequest,
+  BoardRuntimeEventsRequest, BoardRuntimeFrameRequest, BoardSessionRequest,
+  BoardStoreRequest, BoardVaultNeighborsRequest, BoardVaultNodeRequest,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -176,12 +176,17 @@ export class BoardBridge extends TypertRemoteService {
    * dumped offscreen by the harness frames overlay while a task runs):
    * `{jpeg_b64, ts, age_s}`, or `{error: 'no frame'}` when none exists. The
    * base64 is encoded harness-side; this panel-facing face only forwards it.
-   * @param request - the session name (guarded by storecli's safe_child).
+   * `afterTs` is the poller's cursor: an unchanged file returns the short
+   * `{unchanged, ts, age_s}` reply with no image bytes, so a ~200ms poll only
+   * pays for new frames.
+   * @param request - session name (guarded by storecli's safe_child) + cursor.
    * @returns board.store.read_runtime_frame(...) verbatim, or an {error} dict.
    */
   @Remote('runtimeFrame')
-  runtimeFrame(request: BoardSessionRequest): Promise<JsonValue> {
-    return this.run('runtime_frame', request.name)
+  runtimeFrame(request: BoardRuntimeFrameRequest): Promise<JsonValue> {
+    const ts = request.afterTs ?? 0
+    return this.run('runtime_frame', request.name,
+      Number.isFinite(ts) && ts > 0 ? ['--after-ts', String(ts)] : [])
   }
 
   /**

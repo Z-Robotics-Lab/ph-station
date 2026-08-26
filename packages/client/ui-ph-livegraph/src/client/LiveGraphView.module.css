@@ -601,55 +601,37 @@
   position: relative;
 }
 
-/* --- 取景窗 viewport -------------------------------------------------------- */
+/* --- 取景窗 viewport panel -------------------------------------------------- */
 
-.viewport {
-  position: absolute;
-  top: 0.6rem;
-  right: 0.6rem;
-  z-index: 6; /* above the canvas, below nothing that matters */
-  width: min(21rem, 46%);
-  border-radius: 0.5rem;
-  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-  background: color-mix(in srgb, var(--ph-bg, Canvas) 92%, currentColor);
-  backdrop-filter: blur(4px);
-  box-shadow: 0 4px 16px color-mix(in srgb, currentColor 18%, transparent);
+.viewportPanel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
   font-size: 0.72rem;
-  overflow: hidden;
-}
-
-.viewportCollapsed {
-  width: auto;
 }
 
 .viewportHead {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.3rem 0.5rem;
-  cursor: move;
-  touch-action: none;
-  user-select: none;
-}
-
-/* corner resize handle: a hit area with a small drawn grip */
-.viewportResize {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 14px;
-  height: 14px;
-  cursor: nwse-resize;
-  touch-action: none;
-  background:
-    linear-gradient(135deg, transparent 50%, color-mix(in srgb, currentColor 45%, transparent) 50%)
-    no-repeat right bottom / 10px 10px;
-  border-bottom-right-radius: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
 }
 
 .viewportTitle {
   font-weight: 700;
+}
+
+.viewportSession {
+  font-family: ui-monospace, monospace;
+  opacity: 0.6;
   flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .viewportAge {
@@ -657,18 +639,24 @@
   opacity: 0.55;
 }
 
+/* The frame stage: letterboxed dark ground so any cell shape frames the 4:3. */
+.viewportStage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  overflow: hidden;
+}
+
 .viewportImg {
-  display: block;
   width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-  image-rendering: auto;
+  height: 100%;
+  object-fit: contain;
 }
 
 .viewportNone {
-  display: grid;
-  place-items: center;
-  aspect-ratio: 4 / 3;
   opacity: 0.55;
 }
 

@@ -16,7 +16,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { en, NS, zh } from './locales.ts'
 import type { LiveGraphInjected } from './LiveGraphView.tsx'
 import { LabView } from './LabView.tsx'
-import { LiveGraphTab, TickerTab } from './tabs.tsx'
+import { LiveGraphTab, TickerTab, ViewportTab } from './tabs.tsx'
 import xyflowBase from './xyflow-base.css?inline'
 
 const PLUGIN_ID = '@deepseek-ai/dsh-client-ui-ph-livegraph'
@@ -45,7 +45,7 @@ export function apply(ctx: Context): void {
     fetchSessions: () => board.sessions(),
     fetchSession: (name: string) => board.session({ name }),
     fetchRuntimeEvents: (name: string, afterSeq: number) => board.runtimeEvents({ name, afterSeq }),
-    fetchRuntimeFrame: (name: string) => board.runtimeFrame({ name }),
+    fetchRuntimeFrame: (name: string, afterTs: number) => board.runtimeFrame({ name, afterTs }),
   })
 
   // 图谱·过程流: the same-screen cockpit pane — the execution graph and the 过程流
@@ -81,4 +81,15 @@ export function apply(ctx: Context): void {
     label: () => t('process'),
     inject,
   }, TickerTab))
+
+  // 取景窗: the live sim viewport as its own panel — the fourth cell of the
+  // 实验台 2×2 default grid (dockview owns its splitters and persistence).
+  ctx.slots.inject('conversation.view', () => ctx.slots.register({
+    name: 'conversation.view',
+    id: 'viewport',
+    order: 17,
+    locale: NS,
+    label: () => t('viewport'),
+    inject,
+  }, ViewportTab))
 }

@@ -218,3 +218,39 @@
   flex-direction: column;
   overflow: auto;
 }
+
+/* --- composer ported into the chat panel ----------------------------------- */
+
+/* The chat panel column: transcript above, the composer outlet below — one
+   vertical panel, so the input bar lives with 对话 instead of a full-width
+   band under the whole grid. */
+.chatCol {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.chatBody {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+
+.chatComposer {
+  flex: none;
+}
+
+/* While the composer seat is ported into the outlet (ConversationRoot flags the
+   shared scroll body), the stage stops reserving the band and the sash — whose
+   only job is resizing that band — disappears with it. */
+:global([data-composer-ported]) .stage {
+  padding-bottom: 0;
+}
+
+:global([data-composer-ported]) .sash {
+  display: none;
+}

@@ -41,7 +41,7 @@ interface SessionDetail { rows?: { 'runtime.boot'?: BootRow[] } }
 /** The runtime's live status file (runs/<session>/runtime_status.json). Null
  * when the session has not booted since the file existed. Shown verbatim: pid is
  * displayed, never judged. */
-interface RuntimeStatus { pid?: number | null; render?: unknown }
+interface RuntimeStatus { pid?: number | null; render?: unknown; frames?: unknown }
 
 /** Whether a `render` value reads as viewfinder-on. Defensive over the value:
  * a boolean as-is, a string on unless an explicit off token, any other present
@@ -140,7 +140,7 @@ export function StatusBar({
       {rtStatus === null ? null : (
         <span className={css.statusItem}>
           <span className={css.statusLabel}><Term label={t('viewfinder')} tip={t('viewfinder.tip')} /></span>
-          <span className={css.statusValue}>{renderOn(rtStatus.render) ? t('on') : t('off')}</span>
+          <span className={css.statusValue}>{renderOn(rtStatus.frames) || renderOn(rtStatus.render) ? t('on') : t('off')}</span>
           {rtStatus.pid == null ? null : (
             <span className={css.statusMono}>pid {rtStatus.pid}</span>
           )}

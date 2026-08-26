@@ -435,3 +435,14 @@
 .root[data-phase='settling'] .composerSeat {
   visibility: hidden;
 }
+
+/* Composer ported into a view-owned outlet (`[data-composer-outlet]`, e.g. the
+   实验台 chat column): the seat is an ordinary column footer there — no sticky,
+   no reserve cap, no fade mask; the hosting column owns the geometry. Last in
+   the file on purpose: it must out-cascade the sticky and dock-capped rules
+   above at equal-or-lower specificity. */
+.root[data-phase='active'] .scrollBody[data-composer-ported] .composerSeat {
+  position: static;
+  max-height: none;
+  background: none;
+}
