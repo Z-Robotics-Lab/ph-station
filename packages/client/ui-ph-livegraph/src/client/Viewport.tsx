@@ -19,8 +19,10 @@ import { useRunFeed } from './RunFeed.tsx'
 import css from './LiveGraphView.module.css'
 
 /** Poll cadence for the frame read (one storecli spawn per tick; the spawn is
- * ~35ms and an unchanged tick carries no image bytes, so 200ms stays cheap). */
-const POLL_MS = 200
+ * ~35ms and an unchanged tick carries no image bytes, so this stays cheap).
+ * The measured round trip is ~40ms, so the effective cycle is ~190ms — ~5fps
+ * in the browser while the writer (~16fps on a paced rollout) stays ahead. */
+const POLL_MS = 150
 
 /** A frame older than this (by the board's own `age_s`) reads as "no picture":
  * the runtime is idle between tasks or was booted without the frames overlay. */
