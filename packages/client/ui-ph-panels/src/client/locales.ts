@@ -88,6 +88,12 @@ export type PhPanelsKey =
   | 'chips.lift.template'
   | 'chips.battle'
   | 'chips.battle.template'
+  | 'chips.recycle'
+  | 'chips.recycle.template'
+  | 'chips.packLunch'
+  | 'chips.packLunch.template'
+  | 'chips.steamPrep'
+  | 'chips.steamPrep.template'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -171,6 +177,15 @@ export const zh: Record<PhPanelsKey, string> = {
   'chips.lift.template': '开始一个 lift_geometric 任务：seed=0，渲染开启。先说明计划，再执行。',
   'chips.battle': '看最新战报',
   'chips.battle.template': '打开最新战报，用最近一次战役的 held-out 结果做小结。',
+  'chips.recycle': '回收易拉罐',
+  'chips.recycle.template':
+    '开始一个 recycle_cans 长程任务：seed=4243，session=session-robocasa，max_actuations=48。先说明计划，再执行。',
+  'chips.packLunch': '打包午餐',
+  'chips.packLunch.template':
+    '开始一个 pack_lunch 长程任务：seed=4250，session=session-robocasa，max_actuations=48。先说明计划，再执行。',
+  'chips.steamPrep': '蒸菜备餐',
+  'chips.steamPrep.template':
+    '开始一个 steam_prep 长程任务：seed=4250，session=session-robocasa，max_actuations=32。水龙头驱动未落地，预期在 water-on 诚实失败。先说明计划，再执行。',
 }
 
 /** English dictionary. */
@@ -248,4 +263,13 @@ export const en: Record<PhPanelsKey, string> = {
   'chips.lift.template': 'Start a lift_geometric task: seed=0, render on. Outline the plan, then run.',
   'chips.battle': 'latest battle report',
   'chips.battle.template': "Open the latest battle report and summarize the most recent campaign's held-out result.",
+  'chips.recycle': 'recycle cans',
+  'chips.recycle.template':
+    'Start a recycle_cans long-horizon task: seed=4243, session=session-robocasa, max_actuations=48. Outline the plan, then run.',
+  'chips.packLunch': 'pack lunch',
+  'chips.packLunch.template':
+    'Start a pack_lunch long-horizon task: seed=4250, session=session-robocasa, max_actuations=48. Outline the plan, then run.',
+  'chips.steamPrep': 'steam prep',
+  'chips.steamPrep.template':
+    'Start a steam_prep long-horizon task: seed=4250, session=session-robocasa, max_actuations=32. No sink driver yet -- expect an honest water-on failure. Outline the plan, then run.',
 }

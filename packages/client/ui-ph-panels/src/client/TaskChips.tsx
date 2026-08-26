@@ -16,6 +16,9 @@ import css from './panels.module.css'
 const CHIPS: readonly { readonly label: PhPanelsKey; readonly template: PhPanelsKey }[] = [
   { label: 'chips.stack', template: 'chips.stack.template' },
   { label: 'chips.lift', template: 'chips.lift.template' },
+  { label: 'chips.recycle', template: 'chips.recycle.template' },
+  { label: 'chips.packLunch', template: 'chips.packLunch.template' },
+  { label: 'chips.steamPrep', template: 'chips.steamPrep.template' },
   { label: 'chips.battle', template: 'chips.battle.template' },
 ]
 
