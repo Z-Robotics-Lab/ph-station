@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-ph-livegraph/README.md
-README.md: 8af06b27e4a945f36ebbd51cba025cb78bcea310
-README.zh.md: 01b3e00291e6e69dcf635f9efe587d42e6611668
+README.md: 74835bfece807a5ee54930663d403e452d457562
+README.zh.md: 5d20fedf9aeb685d4b2c35a0f4673fe0095831a3

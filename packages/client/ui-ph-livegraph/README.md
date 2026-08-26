@@ -8,7 +8,7 @@ English | [中文](README.zh.md)
 - **task plan** — `plan_built`'s full node graph from the operational feed, or the newest sealed `task.plan_complete` when the feed is absent;
 - **live state** — node/stage lifecycle animated from the board Remote's `runtimeEvents` incremental feed (`runs/<session>/runtime_events.jsonl`, written by `harness.opstream`; truncated per boot, `last_seq < cursor` means reboot → reset and re-read).
 
-Pure consumer: every status is copied verbatim from board payloads; the fold (`src/client/graph.ts`) assembles rendering state and computes nothing (charter: TS renders only). Poll cadence is ~1.5s while a task is in flight, ~8s idle, paused while the document is hidden.
+Pure consumer: every status is copied verbatim from board payloads; the fold (`src/client/graph.ts`) assembles rendering state and computes nothing (charter: TS renders only). Poll cadence is ~1.5s while a task is in flight, ~8s idle, paused while the document is hidden. The 取景窗 viewport panel instead LONG-POLLS the board's `runtimeFrame` face (`afterTs` cursor + `waitMs` ≈0.9s server-side block), re-issuing the moment a reply lands, so its to-hand frame rate tracks the harness frame-dump rate.
 
 Graph rendering is `@xyflow/react` (React Flow v12, MIT) with `@dagrejs/dagre` (MIT) layered layout — the component pair sanctioned by `physical-harness/docs/ph-ui-redesign.md` §5, shared with the mission-cockpit redesign so both surfaces speak one graph idiom. React Flow's structural stylesheet is vendored at `src/client/xyflow-base.css` (MIT, from `@xyflow/react/dist/style.css`) and injected through the `?inline` channel for the plugin lifetime, because the client bundler's CSS pipeline is package-local.
 

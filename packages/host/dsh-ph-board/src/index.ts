@@ -177,16 +177,21 @@ export class BoardBridge extends TypertRemoteService {
    * `{jpeg_b64, ts, age_s}`, or `{error: 'no frame'}` when none exists. The
    * base64 is encoded harness-side; this panel-facing face only forwards it.
    * `afterTs` is the poller's cursor: an unchanged file returns the short
-   * `{unchanged, ts, age_s}` reply with no image bytes, so a ~200ms poll only
-   * pays for new frames.
-   * @param request - session name (guarded by storecli's safe_child) + cursor.
+   * `{unchanged, ts, age_s}` reply with no image bytes. `waitMs` long-polls:
+   * storecli blocks up to that long (capped board-side at 2s) for the frame to
+   * change past the cursor before answering, so the 取景窗 re-issues the call
+   * on reply and its to-hand fps tracks the writer's dump rate.
+   * @param request - session name (guarded by storecli's safe_child) + cursors.
    * @returns board.store.read_runtime_frame(...) verbatim, or an {error} dict.
    */
   @Remote('runtimeFrame')
   runtimeFrame(request: BoardRuntimeFrameRequest): Promise<JsonValue> {
     const ts = request.afterTs ?? 0
-    return this.run('runtime_frame', request.name,
-      Number.isFinite(ts) && ts > 0 ? ['--after-ts', String(ts)] : [])
+    const wait = Math.trunc(request.waitMs ?? 0)
+    const extra: string[] = []
+    if (Number.isFinite(ts) && ts > 0) extra.push('--after-ts', String(ts))
+    if (Number.isFinite(wait) && wait > 0) extra.push('--wait-ms', String(wait))
+    return this.run('runtime_frame', request.name, extra)
   }
 
   /**

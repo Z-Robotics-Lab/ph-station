@@ -28,6 +28,11 @@ export interface BoardRuntimeFrameRequest {
    * `{unchanged, ts, age_s}` reply with no image bytes. Omitted or 0 reads the
    * full frame. */
   readonly afterTs?: number
+  /** Long-poll budget in ms: storecli blocks up to this long (capped
+   * board-side at 2s) for the frame to change past `afterTs` before answering,
+   * so a viewport that re-issues on reply tracks the writer's frame rate with
+   * zero idle polling. Omitted or 0 answers immediately. */
+  readonly waitMs?: number
 }
 
 /** A vault node read: the content-addressed node id (skill digest, package dir, or capability seam). */
