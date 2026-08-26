@@ -78,7 +78,7 @@ export const zh: Record<PhVaultKey, string> = {
   'kind.skill': '技能',
   'kind.package': '机箱',
   'kind.capability': '能力',
-  'status.promoted': '已晋级',
+  'status.promoted': '已通过 (promoted)',
   'status.candidate': '候选',
   'status.retired': '已退役',
   'privileged': '特权',

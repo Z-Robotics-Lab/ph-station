@@ -78,7 +78,7 @@ export const zh = {
   'session.new': '新会话',
   // Tab-strip group labels: harness execution panels vs the RSI evolution panels.
   'group.exec': '执行',
-  'group.evo': '演化',
+  'group.evo': 'RSI',
   'details.title': '详情',
   'details.close': '关闭详情',
   'details.empty': '点击消息流中的工具行查看详情',
