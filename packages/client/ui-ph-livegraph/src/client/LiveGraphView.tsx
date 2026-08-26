@@ -23,7 +23,7 @@ import {
   IconBroadcast, IconLayoutDashboard, IconLayoutOff, IconPlayerPause, IconPlayerPlay, IconSitemap,
 } from '@deepseek-ai/dsh-client-ui-ph-icons'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { foldEvents, HANDLE, layout, NODE_SIZE } from './graph.ts'
+import { foldEvents, HANDLE, layout } from './graph.ts'
 import type { LiveGraphModel, NodeStatus, PlanNodeState, RoutingRow, RunInfo } from './graph.ts'
 import type { FeedInjected } from './useLiveFeed.ts'
 import { useRunFeed } from './RunFeed.tsx'
@@ -540,10 +540,11 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
               // Cards sit above the edge layer so a gutter-routed wrap edge is
               // occluded by any card it passes rather than drawn over its face.
               zIndex: 10,
-              // Fixed dimensions so React Flow frames the graph from known bounds
-              // instead of measuring after paint — a serpentine reflow otherwise
-              // lets fitView run against the stale flat row and clamp to the floor.
-              width: NODE_SIZE[n.type].width, height: NODE_SIZE[n.type].height,
+              // The layout's own footprint (plan cards sized to their near-LOD
+              // content) so React Flow frames from known bounds instead of
+              // measuring after paint, and the box encloses the card so every
+              // edge handle anchors on its real edge rather than mid-card.
+              width: n.w, height: n.h,
             }))}
             edges={flow.edges.map(e => ({
               id: e.id, source: e.source, target: e.target,

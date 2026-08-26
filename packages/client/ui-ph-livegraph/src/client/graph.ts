@@ -321,19 +321,49 @@ export function isRunning(model: LiveGraphModel): boolean {
 
 // --- dagre layout ------------------------------------------------------------
 
-/** Fixed node footprints the layout uses (React Flow measures after mount, but
- * a deterministic layout wants deterministic sizes). */
+/** Node footprints the layout uses. Width is fixed per type; height is a base
+ * used for mission/cap and as the plan fallback — a plan card's real height is
+ * derived per node by `planCardHeight` from its content, because the layout
+ * (dagre ranks, serpentine row pitch, edge anchors) must reserve the height the
+ * NEAR-LOD card actually renders. React Flow measures after mount, but a
+ * deterministic, LOD-stable layout wants deterministic sizes, so we estimate. */
 export const NODE_SIZE = {
-  mission: { width: 212, height: 70 },
+  mission: { width: 212, height: 78 },
   plan: { width: 198, height: 104 },
   cap: { width: 172, height: 48 },
 } as const
 
-/** A positioned node ready for React Flow. */
+/**
+ * Rendered height of a plan card at NEAR LOD (the tallest band — cards only
+ * shrink zooming out, and positions must stay put across LOD). Estimated from
+ * the same content `PlanNode` draws: a title row, one wrapped stage-chip block
+ * (or a single sub line when there are no stages), and a meta row when any of
+ * steps/duration/faults/predicate is present. Deliberately runs a touch high so
+ * the box always encloses the card — a short overshoot only adds slack below the
+ * content; an undershoot overlaps the next row and floats the edge anchors.
+ * @param n - the plan node whose stage/meta content drives its height.
+ * @param hasPredicate - whether a verify predicate chip renders in the meta row.
+ * @returns the card height in px for the layout footprint.
+ */
+function planCardHeight(n: PlanNodeState, hasPredicate: boolean): number {
+  const stageLines = n.stages.length > 0 ? Math.ceil(n.stages.length / 3) : 1
+  const metaItems = (n.steps !== undefined ? 1 : 0) + (n.ms !== undefined ? 1 : 0)
+    + (n.faults?.length ? 1 : 0) + (hasPredicate ? 1 : 0)
+  const metaLines = metaItems > 0 ? Math.ceil(metaItems / 2) : 0
+  return 16 /* padding */ + 22 /* title */
+    + stageLines * 20 + (n.stages.length > 0 ? 6 : 4) /* stage chips or sub line */
+    + metaLines * 18 + (metaLines > 0 ? 4 : 0) /* meta row(s) */
+}
+
+/** A positioned node ready for React Flow, carrying its final footprint (`w`/`h`)
+ * so the renderer forces the wrapper to the box the layout reserved and every
+ * edge anchor sits on the real card edge. */
 export interface LaidOutNode {
   id: string
   type: keyof typeof NODE_SIZE
   position: { x: number; y: number }
+  w: number
+  h: number
   data: Record<string, unknown>
 }
 
@@ -366,11 +396,14 @@ export const HANDLE = {
  * lower target drops through the row gutter (bottom→top). Keeps every edge off
  * the intervening card faces once the boustrophedon reflow reverses a row. */
 function edgeHandles(s: LaidOutNode, t: LaidOutNode): Pick<LaidOutEdge, 'sourceHandle' | 'targetHandle'> {
-  const sx = s.position.x + NODE_SIZE[s.type].width / 2
-  const sy = s.position.y + NODE_SIZE[s.type].height / 2
-  const tx = t.position.x + NODE_SIZE[t.type].width / 2
-  const ty = t.position.y + NODE_SIZE[t.type].height / 2
-  if (ty - sy > NODE_SIZE.plan.height * 0.6) return { sourceHandle: HANDLE.bottomSrc, targetHandle: HANDLE.topTgt }
+  const sx = s.position.x + s.w / 2
+  const sy = s.position.y + s.h / 2
+  const tx = t.position.x + t.w / 2
+  const ty = t.position.y + t.h / 2
+  // A wrap/next-row edge drops far enough that it clears both cards' half-heights;
+  // top-aligned same-row neighbors differ only by (h−h)/2 < this, so they anchor
+  // on facing sides instead. Threshold rides the taller card so it scales with h.
+  if (ty - sy > Math.max(s.h, t.h) * 0.6) return { sourceHandle: HANDLE.bottomSrc, targetHandle: HANDLE.topTgt }
   return tx >= sx
     ? { sourceHandle: HANDLE.rightSrc, targetHandle: HANDLE.leftTgt }
     : { sourceHandle: HANDLE.leftSrc, targetHandle: HANDLE.rightTgt }
@@ -402,18 +435,22 @@ function serpentine(
   const perRow = Math.max(2, Math.floor((wrapWidth - marginX) / (nodeW + gap)))
   // Mission heads the grid; the chain starts on the row beneath it.
   const mission = nodes.find(n => n.id === 'mission')
-  const y0 = (mission ? NODE_SIZE.mission.height : 0) + rowGap
+  const y0 = (mission ? mission.h : 0) + rowGap
   if (mission) mission.position = { x: marginX, y: 0 }
-  const rowH = NODE_SIZE.plan.height + rowGap
-  let bottom = 0
+  // Each row's top is the previous row's top plus that row's TALLEST card (a
+  // failed/multi-stage card is taller than its neighbors), so no row bleeds into
+  // the next. A uniform pitch off the base height overlapped exactly those rows.
+  const rowTop: number[] = []
+  let acc = y0
   plan.forEach((n, i) => {
     const row = Math.floor(i / perRow)
-    const idxInRow = i % perRow
-    const col = row % 2 === 0 ? idxInRow : perRow - 1 - idxInRow
-    n.position = { x: marginX + col * (nodeW + gap), y: y0 + row * rowH }
-    bottom = Math.max(bottom, n.position.y + NODE_SIZE.plan.height)
+    if (i % perRow === 0) rowTop[row] = acc // row opens at the previous row's bottom
+    const top = rowTop[row] ?? y0
+    acc = Math.max(acc, top + n.h + rowGap) // next row's top: tallest card in this row + gutter
+    const col = row % 2 === 0 ? i % perRow : perRow - 1 - (i % perRow)
+    n.position = { x: marginX + col * (nodeW + gap), y: top }
   })
-  return bottom
+  return acc - rowGap
 }
 
 /**
@@ -439,8 +476,13 @@ export function layout(
   const nodes: LaidOutNode[] = []
   const edges: LaidOutEdge[] = []
   const add = (id: string, type: keyof typeof NODE_SIZE, data: Record<string, unknown>) => {
-    g.setNode(id, { ...NODE_SIZE[type] })
-    nodes.push({ id, type, position: { x: 0, y: 0 }, data })
+    const w = NODE_SIZE[type].width
+    // Plan cards size to their content (near-LOD height); mission/cap are fixed.
+    const h = type === 'plan'
+      ? planCardHeight((data.node as PlanNodeState), data.predicate !== undefined)
+      : NODE_SIZE[type].height
+    g.setNode(id, { width: w, height: h })
+    nodes.push({ id, type, position: { x: 0, y: 0 }, w, h, data })
   }
   const runningKey = model.planNodes.find(n => n.status === 'running')?.key
 
@@ -517,7 +559,7 @@ export function layout(
     model.routing.forEach((cap, i) => {
       const id = `cap:${cap.capability}`
       nodes.push({
-        id, type: 'cap',
+        id, type: 'cap', w: capW, h: capH,
         position: { x: planLeft + (i % 3) * (capW + 20), y: planBottom + 44 + Math.floor(i / 3) * (capH + 18) },
         data: { cap },
       })
