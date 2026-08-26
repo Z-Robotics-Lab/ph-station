@@ -26,4 +26,4 @@ physical-harness fork 的主机侧桥接包。一个只读的 Typert Remote（`b
 
 ## 已知限制与暂缓事项
 
-- 每次请求一个 Python 子进程，冷 import `board.store`。在小型 store 上以人类节奏轮询完全够用；取景窗长轮询也把开销压到每送达一帧一次 spawn（约 35ms，占约 60ms 帧周期）。若实测该 spawn 成本成为帧率天花板，再升级为常驻读 worker。
+- 面板读方法每次请求一个 Python 子进程，冷 import `board.store`。在小型 store 上以人类节奏轮询完全够用。仅 `runtimeFrame` 走常驻 `storecli serve` worker（行式 JSON stdio，同一 dispatch）：实测每请求约 60ms 的 spawn 成本曾是取景窗帧率天花板。worker 串行处理帧读取，第二个浏览器标签页与之共享一条帧管线。

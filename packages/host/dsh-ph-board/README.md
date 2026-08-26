@@ -26,4 +26,4 @@ None; the package never assembles or sends provider requests.
 
 ## Known Limitations and Deferred Work
 
-- One Python subprocess per request; cold-imports `board.store`. Fine at human-cadence panel polling on tiny stores, and the 取景窗 long-poll keeps it to one spawn per delivered frame (~35ms of a ~60ms frame cycle). Promote to a persistent read worker if that spawn cost is ever the measured fps ceiling.
+- One Python subprocess per request on the panel-read methods; cold-imports `board.store`. Fine at human-cadence polling on tiny stores. `runtimeFrame` alone rides a resident `storecli serve` worker (line-JSON stdio, same dispatch): the measured ~60ms per-request spawn was the viewport's fps ceiling. The worker serializes frame reads, so a second browser tab shares one frame pipeline.

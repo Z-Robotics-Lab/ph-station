@@ -6,14 +6,20 @@
  * The charter's "MCP 与 CLI 是同一函数的两个调用面": the MCP server serves the
  * chat LLM; this Remote serves the panels. Every method execFiles storecli and
  * forwards its stdout JSON verbatim -- zero statistics, zero interpretation, so
- * a panel renders the byte-identical dict the LLM gets. `execFile` (not a shell)
- * plus the fixed fn per method (never user input) plus storecli's own
- * `safe_child` guard on the name argument leave no injection surface.
+ * a panel renders the byte-identical dict the LLM gets. (`runtimeFrame` alone
+ * rides a resident `storecli serve` worker over line-JSON stdio -- the same
+ * dispatch and the same dicts, just without the per-frame interpreter spawn.)
+ * `execFile`/`spawn` (not a shell) plus the fixed fn per method (never user
+ * input) plus storecli's own `safe_child` guard on the name argument leave no
+ * injection surface.
  *
  * @module @deepseek-ai/dsh-ph-board
  */
 
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
+import type { Readable, Writable } from 'node:stream'
+import type { ChildProcessByStdio } from 'node:child_process'
+import { createInterface } from 'node:readline'
 import { promisify } from 'node:util'
 import type { Context } from '@deepseek-ai/cordis'
 import s from '@deepseek-ai/schemastery'
@@ -64,6 +70,18 @@ export class BoardBridge extends TypertRemoteService {
 
   private readonly config: Config
 
+  /** Resident `storecli serve` child for the 取景窗 long poll, spawned lazily
+   * by {@link runtimeFrame} (every other method keeps one-shot execFile). The
+   * per-request interpreter+import spawn (~60ms) was the measured browser fps
+   * ceiling; the worker answers over line-JSON stdio with replies strictly in
+   * request order, so a FIFO of pending settlers pairs them. Any exit or error
+   * rejects the backlog and nulls the field; the next call respawns. */
+  private frameWorker: ChildProcessByStdio<Writable, Readable, null> | null = null
+
+  /** Pending {@link runtimeFrame} settlers, oldest first (one per request line
+   * written to {@link frameWorker}; the worker replies in the same order). */
+  private framePending: Array<{ resolve: (v: JsonValue) => void; reject: (e: Error) => void }> = []
+
   /**
    * @param ctx - owning Cordis Context.
    * @param config - box-specific spawn paths.
@@ -71,6 +89,8 @@ export class BoardBridge extends TypertRemoteService {
   constructor(ctx: Context, config: Config) {
     super(ctx, 'board')
     this.config = config
+    ctx.effect(() => () => { this.frameWorkerDown(new Error('board bridge disposed')) },
+      'ph-board: frame worker reaper')
   }
 
   /**
@@ -188,10 +208,54 @@ export class BoardBridge extends TypertRemoteService {
   runtimeFrame(request: BoardRuntimeFrameRequest): Promise<JsonValue> {
     const ts = request.afterTs ?? 0
     const wait = Math.trunc(request.waitMs ?? 0)
-    const extra: string[] = []
-    if (Number.isFinite(ts) && ts > 0) extra.push('--after-ts', String(ts))
-    if (Number.isFinite(wait) && wait > 0) extra.push('--wait-ms', String(wait))
-    return this.run('runtime_frame', request.name, extra)
+    const line = JSON.stringify({
+      fn: 'runtime_frame',
+      name: request.name,
+      after_ts: Number.isFinite(ts) && ts > 0 ? ts : 0,
+      wait_ms: Number.isFinite(wait) && wait > 0 ? wait : 0,
+    })
+    return new Promise<JsonValue>((resolve, reject) => {
+      const child = this.frameWorkerUp()
+      // Wedge guard: the reply must land within the long-poll budget (storecli
+      // caps the wait at 2s) plus slack; a silent worker is killed, which
+      // rejects the backlog through its exit handler and forces a respawn.
+      const budget = setTimeout(() => { child.kill() }, Math.max(wait, 2000) + 3000)
+      this.framePending.push({
+        resolve: (v) => { clearTimeout(budget); resolve(v) },
+        reject: (e) => { clearTimeout(budget); reject(e) },
+      })
+      child.stdin.write(`${line}\n`, (err) => { if (err !== null && err !== undefined) child.kill() })
+    })
+  }
+
+  /** The live worker, spawning it if none is up. */
+  private frameWorkerUp(): ChildProcessByStdio<Writable, Readable, null> {
+    if (this.frameWorker !== null) return this.frameWorker
+    const child = spawn(this.config.pythonPath, ['-m', 'board.storecli', 'serve', '--runs', this.config.runsDir],
+      { cwd: this.config.repoRoot, stdio: ['pipe', 'pipe', 'ignore'] })
+    createInterface({ input: child.stdout }).on('line', (reply) => {
+      const p = this.framePending.shift()
+      if (p === undefined) return
+      try { p.resolve(JSON.parse(reply) as JsonValue) } catch (e) { p.reject(e as Error) }
+    })
+    const down = () => {
+      if (this.frameWorker === child) this.frameWorker = null
+      this.frameWorkerDown(new Error('storecli serve worker exited'))
+    }
+    child.on('error', down)
+    child.on('exit', down)
+    this.frameWorker = child
+    return child
+  }
+
+  /** Kill the worker (if any) and reject every pending frame settler. */
+  private frameWorkerDown(err: Error): void {
+    const child = this.frameWorker
+    this.frameWorker = null
+    if (child !== null) child.kill()
+    const backlog = this.framePending
+    this.framePending = []
+    for (const p of backlog) p.reject(err)
   }
 
   /**
