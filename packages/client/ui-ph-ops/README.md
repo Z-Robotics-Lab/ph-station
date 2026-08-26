@@ -7,7 +7,7 @@ physical-harness operator rail + mission cockpit. Two browser surfaces that read
 - **Mission cockpit** — a `conversation.view` tab (任务图). The graph-first view of the running mission: goal → task node → stage pipeline plus the capability-wiring fan, one interactive React Flow DAG (pan/zoom, minimap, click-to-select). A run-history strip switches between sealed task attempts; clicking a node opens its evidence (stages, faults, provider `ref`) beside the graph. Status color is the established three (green pass / red fail / neutral pending), so it reads as one system with 战报/演进/账本.
 - **Operator rail** — a `sidebar.section` occupant: a persistent stack of at-a-glance cards (mission mini-map, progress, runtime vitals, evolution ticker) answering "where is the mission / is it progressing / is the machine healthy / is it getting better" without a click. Collapses to status dots when the sidebar is an icon rail.
 
-Every number comes from `board.store` — the Python `session_progress` fold and the session chain — through the board Host Remote (`sessionProgress`, `session`, `sessions`, `runtimeStatus`, `stores`, `rounds`). No statistics are computed here (the charter's audited hard rule: the fork renders, Python aggregates).
+Every number comes from `board.store` — the Python `session_progress` fold and the session chain — through the board Host Remote (`sessionProgress`, `session`, `sessions`, `runtimeStatus`, `runtimeEvents`, `stores`, `rounds`). No statistics are computed here (the charter's audited hard rule: the fork renders, Python aggregates). The rail reads `runtimeEvents` only to tell a still-open run from a settled one — the board's own `task_claimed` / `task_done` / `task_failed` markers, read verbatim, never a verdict computed here.
 
 ## Dependencies
 
@@ -26,7 +26,8 @@ None; the package never assembles or sends provider requests.
 
 ## Known Limitations and Deferred Work
 
-- **Live in-flight state.** The cockpit shows the last *sealed* `task.plan_complete` tree, not interim stage progress. When the resident runtime writes its operational feed (`runtime_events.jsonl`, read by `board.store.read_runtime_events`), the graph can animate the in-flight node; today that feed is empty on this box, so the surface shows sealed state only — never invented liveness.
+- **Live in-flight state.** The cockpit shows the last *sealed* `task.plan_complete` tree, not interim stage progress. The operational feed (`runtime_events.jsonl`, read by `board.store.read_runtime_events`) already drives the rail's mission card between a live/running render and its settled (收场) final line; animating the cockpit graph's in-flight node from that same feed is still deferred.
+- **Settled dwell is fixed.** After a run seals, the mission card's final line lingers `SETTLE_MS` (30s) before yielding to idle; a new run re-reveals it. Fixed constant, not config — expose it only if an operator asks.
 - **Node evidence renders inline** in the cockpit rather than routing to the right-hand `details` slot. Cross-slot session-scoped selection wiring is deferred; the inline panel is self-contained.
-- **Per-poll board calls.** The rail drives six board reads per 15s poll (sessions, session, session_progress, runtime_status, stores, rounds), each a cold `board.storecli` subprocess. Fine at human cadence on tiny stores; batch into one read fn if poll latency is ever measured to matter.
+- **Per-poll board calls.** The rail drives seven board reads per 15s poll (sessions, session, session_progress, runtime_status, runtime_events, stores, rounds), each a cold `board.storecli` subprocess. Fine at human cadence on tiny stores; batch into one read fn if poll latency is ever measured to matter.
 - **Cards are not individually collapsible.** The section scrolls as a whole; add per-card collapse if the rail grows.

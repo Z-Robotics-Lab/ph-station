@@ -20,7 +20,8 @@ import { agoSeconds, finite, formatAgo, pct } from './format.ts'
 import { Term } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
 import type {
-  BootRow, PlanComplete, RuntimeStatus, SessionDetail, SessionProgress, SessionSummary,
+  BootRow, PlanComplete, RuntimeEvent, RuntimeEventsPayload, RuntimeStatus,
+  SessionDetail, SessionProgress, SessionSummary,
 } from './types.ts'
 import css from './ops.module.css'
 
@@ -30,6 +31,7 @@ export interface RailInjected {
   fetchSession: (name: string) => Promise<RemoteResult<unknown>>
   fetchSessionProgress: (name: string) => Promise<RemoteResult<unknown>>
   fetchRuntimeStatus: (name: string) => Promise<RemoteResult<unknown>>
+  fetchRuntimeEvents: (name: string) => Promise<RemoteResult<unknown>>
   fetchStores: () => Promise<RemoteResult<unknown>>
   fetchRounds: () => Promise<RemoteResult<unknown>>
 }
@@ -54,13 +56,30 @@ function renderOn(value: unknown): boolean {
 }
 /* jscpd:ignore-end */
 
+/** Whether the newest run in the operational feed is still open: a `task_claimed`
+ * with no following `task_done`/`task_failed`. The terminal markers are the
+ * board's (harness.opstream), read verbatim — the same close rule as the
+ * livegraph fold, so both surfaces call a run finished at the same event; this
+ * only reads which of those markers is last, it computes no verdict. An empty or
+ * absent feed reads as not-open (nothing running). */
+function feedRunOpen(events: RuntimeEvent[]): boolean {
+  let open = false
+  for (const e of events) {
+    if (e.kind === 'task_claimed') open = true
+    else if (e.kind === 'task_done' || e.kind === 'task_failed') open = false
+  }
+  return open
+}
+
 export function OperatorRail({
-  wide, fetchSessions, fetchSession, fetchSessionProgress, fetchRuntimeStatus, fetchStores, fetchRounds, t,
+  wide, fetchSessions, fetchSession, fetchSessionProgress, fetchRuntimeStatus, fetchRuntimeEvents,
+  fetchStores, fetchRounds, t,
 }: SidebarSectionProps & InjectFace<RailInjected> & PropsLocale<'phops'>) {
   const [latest, setLatest] = useState<SessionSummary | null>(null)
   const [detail, setDetail] = useState<SessionDetail | null>(null)
   const [progress, setProgress] = useState<SessionProgress | null>(null)
   const [rtStatus, setRtStatus] = useState<RuntimeStatus | null>(null)
+  const [running, setRunning] = useState(false)
   const [stores, setStores] = useState<StoreSummary[]>([])
   const [rounds, setRounds] = useState<Round[]>([])
   const [online, setOnline] = useState<boolean | null>(null)
@@ -77,13 +96,14 @@ export function OperatorRail({
       /* jscpd:ignore-end */
       setLatest(top)
       if (top?.name === undefined) { setDetail(null); setProgress(null); setRtStatus(null); return }
-      const [d, p, r, st, rd] = await Promise.all([
+      const [d, p, r, ev, st, rd] = await Promise.all([
         fetchSession(top.name), fetchSessionProgress(top.name), fetchRuntimeStatus(top.name),
-        fetchStores(), fetchRounds(),
+        fetchRuntimeEvents(top.name), fetchStores(), fetchRounds(),
       ])
       if (d.ok) setDetail(d.value as SessionDetail)
       if (p.ok) setProgress(p.value as SessionProgress)
       setRtStatus(r.ok ? ((r.value as RuntimeStatus | null) ?? null) : null)
+      if (ev.ok) setRunning(feedRunOpen((ev.value as RuntimeEventsPayload | null)?.events ?? []))
       if (st.ok) setStores(st.value as StoreSummary[])
       if (rd.ok) setRounds(rd.value as Round[])
     } catch {
@@ -93,7 +113,7 @@ export function OperatorRail({
       // healthy poll sets online + detail again, so the cards return to live.
       setOnline(false)
     }
-  }, [fetchSessions, fetchSession, fetchSessionProgress, fetchRuntimeStatus, fetchStores, fetchRounds])
+  }, [fetchSessions, fetchSession, fetchSessionProgress, fetchRuntimeStatus, fetchRuntimeEvents, fetchStores, fetchRounds])
 
   usePolledLoad(load)
   // Local clock so the heartbeat age counts up between polls (no network).
@@ -113,7 +133,7 @@ export function OperatorRail({
   return (
     <div className={css.rail}>
       <div className={css.railTitle}>{t('rail.title')}</div>
-      <MissionCard runs={runs} progress={progress} t={t} />
+      <MissionCard runs={runs} progress={progress} running={running} t={t} />
       <ProgressCard progress={progress} t={t} />
       <VitalsCard boot={boot} rtStatus={rtStatus} secs={secs} online={online} t={t} />
       <EvolutionCard stores={stores} rounds={rounds} t={t} />
@@ -166,12 +186,18 @@ function VitalRow({ icon, label, children }: { icon: ReactNode; label: ReactNode
   )
 }
 
+/** How long the 收场 final line lingers before the mission card yields to idle.
+ * ponytail: fixed dwell — expose as config only if an operator asks for it. */
+const SETTLE_MS = 30000
+
 /** Mission mini-map: a status-dot title, the run-outcome strip, then the latest
  * task's node chips — each a colored state glyph + name + a `N/total` stage
  * badge; clicking a chip expands its stage strip in place. Chips group by
  * verdict (fail › pending › pass) so trouble surfaces first: the fold delivers
  * the node map name-sorted, not in execution order. Far-LOD sibling of 执行图谱. */
-function MissionCard({ runs, progress, t }: { runs: PlanComplete[]; progress: SessionProgress | null } & { t: T }) {
+function MissionCard({
+  runs, progress, running, t,
+}: { runs: PlanComplete[]; progress: SessionProgress | null; running: boolean } & { t: T }) {
   const latest = progress?.latest ?? runs[runs.length - 1] ?? null
   const nodes = Object.entries(latest?.nodes ?? {})
     .sort(([, a], [, b]) => ({ fail: 0, pending: 1, pass: 2 })[phState(a.success)] - ({ fail: 0, pending: 1, pass: 2 })[phState(b.success)])
@@ -183,6 +209,26 @@ function MissionCard({ runs, progress, t }: { runs: PlanComplete[]; progress: Se
       return next
     })
   }
+  // 收场: once the feed's run is no longer open (a terminal marker was last), the
+  // live dot strip + chips give way to a compact final line, which then yields to
+  // idle after a dwell. A fresh claim (running) or a new sealed run (runs.length)
+  // re-reveals it. Reading which terminal marker is last is the board's call, not
+  // a computed verdict here.
+  const [dismissed, setDismissed] = useState(false)
+  useEffect(() => {
+    setDismissed(false)
+    if (running || runs.length === 0) return
+    const id = setTimeout(() => { setDismissed(true) }, SETTLE_MS)
+    return () => { clearTimeout(id) }
+  }, [running, runs.length])
+  if (runs.length !== 0 && !running) {
+    return (
+      <section className={css.card}>
+        <CardHead icon={<IconRoute size={14} />}>{t('card.mission')}</CardHead>
+        {dismissed ? <div className={css.cardEmpty}>{t('idle')}</div> : <MissionSettled latest={latest} t={t} />}
+      </section>
+    )
+  }
   return (
     <section className={css.card}>
       <CardHead icon={<IconRoute size={14} />}>{t('card.mission')}</CardHead>
@@ -192,7 +238,7 @@ function MissionCard({ runs, progress, t }: { runs: PlanComplete[]; progress: Se
             ? (
               <div className={css.missionGoal}>
                 <span className={`${css.goalDot} ${stCss[phState(latest.success)]}`} />
-                <span className={css.goalText}>{latest.goal}</span>
+                <span className={css.goalText} title={latest.goal}>{latest.goal}</span>
               </div>
             )
             : null}
@@ -237,6 +283,26 @@ function MissionCard({ runs, progress, t }: { runs: PlanComplete[]; progress: Se
         </>
       )}
     </section>
+  )
+}
+
+/** The 收场 final line for a settled run: a verdict glyph + verdict word, the
+ * goal (hover for the full string), and the node pass count — every field read
+ * verbatim from the sealed latest run (its `success` and node map). */
+function MissionSettled({ latest, t }: { latest: PlanComplete | null } & { t: T }) {
+  const st = phState(latest?.success)
+  const entries = Object.values(latest?.nodes ?? {})
+  const pass = entries.filter(n => n.success === true).length
+  const verdict = latest?.success === true ? t('success') : latest?.success === false ? t('failure') : t('settled')
+  return (
+    <div className={`${css.settled} ${stCss[st]}`}>
+      <span className={css.settledGlyph}>{stGlyph[st]}</span>
+      <div className={css.settledBody}>
+        <span className={css.settledVerdict}>{verdict}</span>
+        {latest?.goal ? <span className={css.settledMeta} title={latest.goal}>{latest.goal}</span> : null}
+        <span className={css.settledMeta}>{pass}/{entries.length} {t('nodesPassed')}</span>
+      </div>
+    </div>
   )
 }
 
@@ -323,14 +389,14 @@ function EvolutionCard({ stores, rounds, t }: { stores: StoreSummary[]; rounds: 
         ? (
           <div className={css.feedItem}>
             <span className={css.roundChip}>#{round.round}</span>
-            <span className={css.feedTitle}>{round.title ?? ''}</span>
+            <span className={css.feedTitle} title={round.title ?? ''}>{round.title ?? ''}</span>
           </div>
         )
         : <div className={css.cardEmpty}>{t('noRounds')}</div>}
       {store
         ? (
           <div className={css.evoStore}>
-            <span className={css.storeName}>{store.name ?? ''}</span>
+            <span className={css.storeName} title={store.name ?? ''}>{store.name ?? ''}</span>
             <span className={css.promoteBadge}>{store.promoted ?? 0}/{store.generations ?? 0} <Term label={t('promoted')} tip={t('promoted.tip')} /></span>
           </div>
         )

@@ -455,15 +455,26 @@
   flex: 1 1 auto;
 }
 
-/* 任务台 quick chips: a wrapping row above the composer card. */
+/* 任务台 quick chips: a wrapping row above the composer card. Each chip is an
+   inline flex box that centers its label, with box-sizing and a shared
+   min-height so every chip in a row is the same height and its text is centered
+   (not baseline-floated) regardless of label script/length; the container's
+   align-items keeps the row centered and the single gap sets both column and
+   row spacing so wrapped rows stay evenly spaced. */
 .chips {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.4rem;
   padding: 0.15rem 0;
 }
 
 .chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 1.6rem;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, currentColor 18%, transparent);

@@ -290,12 +290,33 @@
 /* mission — title row, run-outcome strip, node chips */
 .missionGoal { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .goalDot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--st); box-shadow: 0 0 0 3px color-mix(in srgb, var(--st) 22%, transparent); }
-.goalText { font-size: 12px; font-weight: 600; color: var(--ph-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Goal reads in full: wrap to at most two lines then ellipsis (the JSX carries a
+   title so the whole string is still hover-readable) instead of a one-line clip. */
+.goalText {
+  font-size: 12px; font-weight: 600; color: var(--ph-ink);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; line-height: 1.3;
+}
 
 .dotRow { display: flex; gap: 4px; flex-wrap: wrap; }
 .runDot { width: 8px; height: 8px; border-radius: 50%; background: var(--st); }
 
-.chips { display: flex; flex-direction: column; gap: 5px; }
+/* A long node list scrolls inside the card instead of stretching the whole
+   sidebar; the cap keeps the mission card a glanceable height. */
+.chips { display: flex; flex-direction: column; gap: 5px; max-height: 9rem; overflow-y: auto; }
+
+/* 收场 (settled) state: once a run reaches its terminal verdict the live dot
+   strip + node chips give way to this compact final line — a verdict glyph, the
+   goal, and the node pass count — so a finished run stops painting a whole field
+   of stale dots. */
+.settled { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.settledGlyph { flex: none; font-size: 15px; font-weight: 700; line-height: 1; color: var(--st); }
+.settledBody { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.settledVerdict { font-size: 12px; font-weight: 700; color: var(--ph-ink); }
+.settledMeta {
+  font-size: 11px; color: var(--ph-dim); font-variant-numeric: tabular-nums;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .pipeline { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .chip {
   display: inline-flex; align-items: center; gap: 5px;

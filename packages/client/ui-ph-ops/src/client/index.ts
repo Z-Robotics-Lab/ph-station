@@ -39,6 +39,7 @@ export function apply(ctx: Context): void {
       fetchSession: (name: string) => board.session({ name }),
       fetchSessionProgress: (name: string) => board.sessionProgress({ name }),
       fetchRuntimeStatus: (name: string) => board.runtimeStatus({ name }),
+      fetchRuntimeEvents: (name: string) => board.runtimeEvents({ name }),
       fetchStores: () => board.stores(),
       fetchRounds: () => board.rounds(),
     }),

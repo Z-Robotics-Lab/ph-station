@@ -91,3 +91,17 @@ export interface RuntimeStatus {
   render?: unknown
   mode?: string | null
 }
+
+/** One line of the operational event feed (harness.opstream): its sequence and
+ * kind are all the rail reads — `task_claimed` opens a run, `task_done` /
+ * `task_failed` seal it (the board's terminal markers, read verbatim). */
+export interface RuntimeEvent {
+  seq?: number
+  kind?: string
+}
+
+/** `runtimeEvents({name})`: events past the cursor plus the newest seq. */
+export interface RuntimeEventsPayload {
+  events?: RuntimeEvent[]
+  last_seq?: number
+}

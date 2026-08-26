@@ -35,6 +35,8 @@ export type PhOpsKey =
   | 'actuations'
   | 'success'
   | 'failure'
+  | 'settled'
+  | 'nodesPassed'
   // rail section + cards
   | 'rail.title'
   | 'card.mission'
@@ -103,6 +105,8 @@ export const zh: Record<PhOpsKey, string> = {
   'actuations': '驱动次数',
   'success': '成功',
   'failure': '失败',
+  'settled': '本次终局',
+  'nodesPassed': '节点通过',
   'rail.title': '运行台',
   'card.mission': '任务小图',
   'card.progress': '进度',
@@ -163,6 +167,8 @@ export const en: Record<PhOpsKey, string> = {
   'actuations': 'actuations',
   'success': 'success',
   'failure': 'failure',
+  'settled': 'Final',
+  'nodesPassed': 'nodes passed',
   'rail.title': 'Operations',
   'card.mission': 'Mission map',
   'card.progress': 'Progress',
