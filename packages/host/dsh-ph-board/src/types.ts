@@ -35,6 +35,15 @@ export interface BoardRuntimeFrameRequest {
   readonly waitMs?: number
 }
 
+/** A keyframe still read: the session plus the runtime-events seq it is pinned to. */
+export interface BoardRuntimeKeyframeRequest {
+  /** Runtime session directory name; storecli rejects a traversal name. */
+  readonly name: string
+  /** The `runtime_events` seq whose still to fetch; a seq holding none returns
+   * `{error: 'no keyframe'}`. */
+  readonly seq: number
+}
+
 /** A vault node read: the content-addressed node id (skill digest, package dir, or capability seam). */
 export interface BoardVaultNodeRequest {
   /** Node id; an unknown id returns board.vault's {error: 'unknown node'} dict. */

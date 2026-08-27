@@ -30,8 +30,8 @@ import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 // The Typert-generated ./typert and ./remote artifacts import Zod at runtime.
 import type {} from 'zod'
 import type {
-  BoardRuntimeEventsRequest, BoardRuntimeFrameRequest, BoardSessionRequest,
-  BoardStoreRequest, BoardVaultNeighborsRequest, BoardVaultNodeRequest,
+  BoardRuntimeEventsRequest, BoardRuntimeFrameRequest, BoardRuntimeKeyframeRequest,
+  BoardSessionRequest, BoardStoreRequest, BoardVaultNeighborsRequest, BoardVaultNodeRequest,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -288,6 +288,36 @@ export class BoardBridge extends TypertRemoteService {
     const after = Math.trunc(request.afterSeq ?? 0)
     return this.run('runtime_events', request.name,
       ['--after', String(Number.isFinite(after) && after > 0 ? after : 0)])
+  }
+
+  /**
+   * The INDEX of one runtime session's keyframe stills (`runs/<session>/keyframes/`,
+   * one JPEG the harness pins to an interesting `runtimeEvents` seq and clears on
+   * every boot): `{frames: [{seq, kind, ts}], count}`. Index only — no image
+   * bytes — so a panel polls it at event cadence and fetches a still through
+   * {@link runtimeKeyframe} on demand. An absent directory reads as an empty
+   * index, because a keyframe is live state and never sealed evidence.
+   * @param request - the session name (guarded by storecli's safe_child).
+   * @returns board.store.read_runtime_keyframes(...) verbatim, or an {error} dict.
+   */
+  @Remote('runtimeKeyframes')
+  runtimeKeyframes(request: BoardSessionRequest): Promise<JsonValue> {
+    return this.run('runtime_keyframes', request.name)
+  }
+
+  /**
+   * One keyframe still by the `runtimeEvents` seq it is pinned to:
+   * `{jpeg_b64, seq, kind}`, or `{error: 'no keyframe'}` when that seq holds
+   * none (never captured, or cleared by a later boot). The base64 is encoded
+   * harness-side; this face only forwards it.
+   * @param request - session name (guarded by storecli's safe_child) + the seq.
+   * @returns board.store.read_runtime_keyframe(...) verbatim, or an {error} dict.
+   */
+  @Remote('runtimeKeyframe')
+  runtimeKeyframe(request: BoardRuntimeKeyframeRequest): Promise<JsonValue> {
+    const seq = Math.trunc(request.seq)
+    return this.run('runtime_keyframe', request.name,
+      ['--seq', String(Number.isFinite(seq) && seq > 0 ? seq : 0)])
   }
 
   /**
