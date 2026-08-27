@@ -11,7 +11,9 @@
  * dispatch and the same dicts, just without the per-frame interpreter spawn.)
  * `execFile`/`spawn` (not a shell) plus the fixed fn per method (never user
  * input) plus storecli's own `safe_child` guard on the name argument leave no
- * injection surface.
+ * injection surface. `submitBrief` is the one write: the same storecli face's
+ * atomic brief drop, forwarded with zero client-side validation because the
+ * resident runtime is the only authority over what a brief means.
  *
  * @module @deepseek-ai/dsh-ph-board
  */
@@ -57,7 +59,8 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /**
- * Read-only Remote over board.store via the storecli subprocess. The gateway
+ * Remote over board.store via the storecli subprocess: read methods plus the
+ * one write (`submitBrief`, storecli's atomic brief drop). The gateway
  * auto-serves each @Remote method at POST /api/board/<name>.
  */
 export class BoardBridge extends TypertRemoteService {
@@ -285,6 +288,23 @@ export class BoardBridge extends TypertRemoteService {
     const after = Math.trunc(request.afterSeq ?? 0)
     return this.run('runtime_events', request.name,
       ['--after', String(Number.isFinite(after) && after > 0 ? after : 0)])
+  }
+
+  /**
+   * Drop one brief into a runtime session's inbox (`storecli submit_brief`,
+   * which shares board/brief_drop's atomic write with mcp_server.submit_brief).
+   * The one write on this Remote, and deliberately zero-validation on both
+   * sides: the resident runtime is the sole authority over what a brief means,
+   * so a malformed brief is filed under the session's failed/ by the runtime
+   * rather than second-guessed here.
+   * @param briefJson - the brief as a JSON string, forwarded verbatim as --brief.
+   * @param session - runtime session directory name, forwarded as --session.
+   * @returns storecli's stdout verbatim ({submitted, inbox}, the same JSON
+   * mcp_server.submit_brief returns), or an {error} dict.
+   */
+  @Remote('submitBrief')
+  submitBrief(briefJson: string, session: string): Promise<JsonValue> {
+    return this.run('submit_brief', undefined, ['--brief', briefJson, '--session', session])
   }
 
   /**
