@@ -10,6 +10,8 @@
 
 纯消费者：每个状态都从 board 载荷原样拷贝；折叠层（`src/client/graph.ts`）只组装渲染状态，不做任何计算（宪章：TS 只渲染）。轮询节奏在任务进行中约 1.5s、空闲约 8s，文档隐藏时暂停。取景窗面板则对 board 的 `runtimeFrame` 面做长轮询（`afterTs` 游标 + 约 0.9s 的 `waitMs` 服务端阻塞），回复一到立刻重发，到手帧率因此跟上 harness 的转储帧率。
 
+会话范围：面板自动跟随最新的实时运行时会话，并且只显示挂载它的那个对话打开之后到达的事件——运行时 feed 是全局的，否则会重放上一个对话的运行。表头选择器按 board 自己的 `runtime.boot` 标记把发现到的会话分成「实时运行时」与「历史归档」两组；手动选中的会话则完整重放。
+
 图渲染采用 `@xyflow/react`（React Flow v12，MIT）加 `@dagrejs/dagre`（MIT）分层布局——`physical-harness/docs/ph-ui-redesign.md` §5 认可的组件组合，与任务驾驶舱重设计共用，两个面共讲同一套图语言。React Flow 的结构样式表 vendor 在 `src/client/xyflow-base.css`（MIT，取自 `@xyflow/react/dist/style.css`），经 `?inline` 通道注入并伴随插件整个生命周期，因为客户端打包器的 CSS 管线是包内局部的。
 
 ## 模型体验
@@ -23,5 +25,5 @@
 ## 已知限制与暂缓事项
 
 - 升级 `@xyflow/react` 时必须同步刷新 vendor 的 `xyflow-base.css`（打包器的 `?inline` 通道不解析 `node_modules` 说明符）。
-- 面板只绑定最新会话；会话切换器随 ui-redesign 的指挥员侧栏一起到来，由后者负责会话切换。
+- feed 的「按对话」起始 seq 只存在页面内存里：刷新后每个对话重新从空白开始，在新标签页里重开同一个对话也会以该标签页的队尾为起点。要持久化需要一个面板并不拥有的存储。
 - 阶段事件按 feed 顺序归属到当前运行的节点（常驻运行时串行处理 brief）；并发任务需要 `stage_transition` 携带节点 id。

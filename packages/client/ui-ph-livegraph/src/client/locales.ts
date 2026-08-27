@@ -68,6 +68,9 @@ export type PhLiveGraphKey =
   | 'legend.failed'
   | 'legend.replanned'
   | 'sessionPick'
+  | 'sessionLive'
+  | 'sessionArchived'
+  | 'sessionArchivedHint'
   | 'viewport'
   | 'viewportPick'
   | 'viewportFollow'
@@ -149,7 +152,10 @@ export const zh: Record<PhLiveGraphKey, string> = {
   'legend.verified': '已验证',
   'legend.failed': '失败',
   'legend.replanned': '已重规划',
-  'sessionPick': '切换会话（● 有运行时）',
+  'sessionPick': '切换会话',
+  'sessionLive': '实时运行时',
+  'sessionArchived': '历史归档',
+  'sessionArchivedHint': '已归档的历史记录：不会再有新事件，也不会有画面。',
   'viewport': '取景窗',
   'viewportPick': '固定看某个 session（默认跟随共享选择）',
   'viewportFollow': '跟随',
@@ -225,7 +231,10 @@ export const en: Record<PhLiveGraphKey, string> = {
   'legend.verified': 'verified',
   'legend.failed': 'failed',
   'legend.replanned': 'replanned',
-  'sessionPick': 'Switch session (● has runtime)',
+  'sessionPick': 'Switch session',
+  'sessionLive': 'Live runtimes',
+  'sessionArchived': 'Archived',
+  'sessionArchivedHint': 'Archived record: it will never gain a new event or a frame.',
   'viewport': 'Viewport',
   'viewportPick': 'Pin to one session (default: follow the shared selection)',
   'viewportFollow': 'Follow',

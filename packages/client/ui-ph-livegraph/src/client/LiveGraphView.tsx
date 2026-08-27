@@ -26,7 +26,7 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { foldEvents, HANDLE, layout } from './graph.ts'
 import type { LiveGraphModel, NodeStatus, PlanNodeState, RoutingRow, RunInfo } from './graph.ts'
 import type { FeedInjected } from './useLiveFeed.ts'
-import { useRunFeed } from './RunFeed.tsx'
+import { SessionOptions, useRunFeed } from './RunFeed.tsx'
 import {
   EditableEdge, EditProvider, EMPTY_MANUAL, hasManual, loadManual, saveManual,
 } from './editable.tsx'
@@ -378,7 +378,7 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
   // Reset per run/session (graphKey effect) so a fresh graph fits once.
   const userMovedRef = useRef(false)
   const {
-    online, sessionName, sessions, selectSession, feed, sessionRows, version,
+    online, sessionName, sessions, selectSession, feed, sessionRows, version, scoped,
     runs, runIndex: effIndex, run, headSeq, live, playing,
     pick, seek, goLive, togglePlay,
   } = useRunFeed()
@@ -455,8 +455,12 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
 
   const model = useMemo(() => {
     const slice = headSeq === Infinity ? feed.current : feed.current.filter(e => e.seq <= headSeq)
-    return foldEvents(sessionRows.current, slice)
-  }, [feed, sessionRows, version, headSeq])
+    // A conversation-scoped feed with nothing in it yet withholds the session
+    // rows: their sealed `task.plan_complete` fallback would paint the run that
+    // finished before this conversation opened, which is what the floor hides.
+    const rows = scoped && slice.length === 0 ? null : sessionRows.current
+    return foldEvents(rows, slice)
+  }, [feed, sessionRows, version, headSeq, scoped])
 
   const flow = useMemo(() => layout(model, showRouting, paneW || undefined, progressive), [model, showRouting, paneW, progressive])
   // A sparse run (1-3 nodes) under the TB→LR dagre layout would otherwise sit as
@@ -525,9 +529,7 @@ export function LiveGraphView({ t }: PropsLocale<'phlivegraph'>) {
             onChange={(e) => { selectSession(e.target.value); setSelectedKey(null) }}
             title={t('sessionPick')}
           >
-            {sessions.map(s => (
-              <option key={s.name} value={s.name}>{s.runtime ? '● ' : '○ '}{s.name}</option>
-            ))}
+            <SessionOptions sessions={sessions} t={t} />
           </select>
         ) : <span className={css.headTitle}>{sessionName}</span>}
         <span className={`${css.feedDot} ${model.live ? css.feedLive : css.feedOff}`} />
