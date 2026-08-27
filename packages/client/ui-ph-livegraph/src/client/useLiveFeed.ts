@@ -18,13 +18,18 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { OpEvent } from './graph.ts'
 
 /** The board reads the feed needs (same face the graph view injects).
- * `fetchRuntimeFrame` is not polled here — the 取景窗 viewport owns its own
- * cadence — but rides the same injected face so panels receive one object. */
+ * `fetchRuntimeFrame` and the two keyframe reads are not polled here — the 取景窗
+ * viewport and the 过程流 ticker own their own cadence — but ride the same
+ * injected face so panels receive one object. */
 export interface FeedInjected {
   fetchSessions: () => Promise<RemoteResult<unknown>>
   fetchSession: (name: string) => Promise<RemoteResult<unknown>>
   fetchRuntimeEvents: (name: string, afterSeq: number) => Promise<RemoteResult<unknown>>
   fetchRuntimeFrame: (name: string, afterTs: number, waitMs: number) => Promise<RemoteResult<unknown>>
+  /** Keyframe index for one session: seq/kind/ts triples, no image bytes. */
+  fetchKeyframes: (name: string) => Promise<RemoteResult<unknown>>
+  /** One keyframe's JPEG by event seq (lazy: viewport entry or click only). */
+  fetchKeyframe: (name: string, seq: number) => Promise<RemoteResult<unknown>>
 }
 
 /** The board reads plus the dsh conversation the panel is mounted under — the
@@ -80,6 +85,24 @@ const SLOW_MS = 4000
  */
 const baseline = new Map<string, number>()
 
+/**
+ * The floor a fresh conversation should adopt: the tail, unless a run is still
+ * in flight — then the seq just before that run's `task_claimed`, so the run
+ * arrives whole. Scans backwards and stops at the first terminal row, because
+ * anything before a finished run is history the floor exists to hide.
+ * @param events - the rows read for this session, oldest first.
+ * @param tail - the feed's `last_seq`, the floor when no run is open.
+ * @returns the floor seq.
+ */
+export function runningSince(events: readonly OpEvent[], tail: number): number {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const kind = events[i]?.kind
+    if (kind === 'task_done' || kind === 'task_failed') return tail
+    if (kind === 'task_claimed') return Math.max((events[i]?.seq ?? 0) - 1, 0)
+  }
+  return tail
+}
+
 /** Baseline key: conversation id and runtime session name, NUL-joined. */
 function baseKey(sessionId: string, name: string): string {
   return `${sessionId}\u0000${name}`
@@ -99,6 +122,21 @@ interface SessionSummary { name?: string; kinds?: Record<string, number> }
  */
 export function pickRuntimeSession(list: SessionSummary[]): string | null {
   return (list.find(s => s.kinds?.['runtime.boot'] !== undefined) ?? list[0])?.name ?? null
+}
+
+/**
+ * Keep the previous keyframe index object when the poll returned the same seq
+ * set, so an unchanged `keyframes/` listing costs zero re-renders of the (long)
+ * 过程流 ticker list. A shrunk result means `opstream.arm()` cleared the
+ * directory and these seqs now name a new boot's images.
+ * @param prev - the seq→kind index in hand.
+ * @param next - the seq→kind index just polled.
+ * @returns `prev` when both hold the same seqs, else `next`.
+ */
+export function mergeIndex(prev: Map<number, string>, next: Map<number, string>): Map<number, string> {
+  if (prev.size !== next.size) return next
+  for (const seq of next.keys()) if (!prev.has(seq)) return next
+  return prev
 }
 
 /**
@@ -166,9 +204,15 @@ export function useLiveFeed(inj: FeedScope, fast: MutableRefObject<boolean>): Li
         // now on. `feed` is empty here — the only path with no baseline is the
         // reset above. A session the operator picked by hand is never floored:
         // asking for it IS asking for its history.
-        baseline.set(key, lastSeq)
-        cursor.current = lastSeq
-        setScoped(lastSeq > 0)
+        // ...except a run still IN FLIGHT, which is the present, not the last
+        // conversation's history. `foldRuns` can only open a run at its
+        // `task_claimed`, so a floor landing inside a running task leaves 执行图谱
+        // permanently empty ("no task running") while 过程流 fills from the same
+        // feed — the split the operator saw as "the graph vanished mid-run".
+        const floorSeq = runningSince(payload.events ?? [], lastSeq)
+        baseline.set(key, floorSeq)
+        cursor.current = floorSeq
+        setScoped(floorSeq > 0)
       } else if (lastSeq < cursor.current) {
         // Runtime reboot truncated the feed: every row in the new file is new,
         // so the floor drops with the cursor.

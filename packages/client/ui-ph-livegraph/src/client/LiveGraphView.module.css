@@ -979,3 +979,109 @@
   opacity: 0.7;
   line-height: 1.5;
 }
+
+/* --- 关键帧 keyframes (ticker thumbnails + lightbox) ----------------------- */
+
+/* Per-row thumbnail: fixed box so a row's height never jumps between the
+   pre-load placeholder and the decoded JPEG. */
+.kfThumb {
+  flex: none;
+  align-self: center;
+  width: 3rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  overflow: hidden;
+  cursor: zoom-in;
+  line-height: 0;
+}
+
+.kfThumb:hover {
+  border-color: #2563eb;
+}
+
+.kfThumbImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.kfThumbWait {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Lightbox over the whole window: a docked ticker cell is far too small to
+   read a frame in. */
+.kfBox {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  background: color-mix(in srgb, #000 62%, transparent);
+}
+
+.kfStage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-width: 100%;
+  max-height: 100%;
+  cursor: default;
+}
+
+.kfImg {
+  max-width: 100%;
+  min-height: 0;
+  object-fit: contain;
+  border-radius: 0.35rem;
+  background: #000;
+}
+
+.kfWait {
+  display: grid;
+  place-items: center;
+  min-width: 18rem;
+  min-height: 12rem;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, #000 40%, transparent);
+  color: #fff;
+  opacity: 0.7;
+}
+
+.kfCap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: #fff;
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+}
+
+.kfCapText {
+  flex: 1;
+  text-align: center;
+  opacity: 0.85;
+}
+
+.kfNav {
+  flex: none;
+  min-width: 1.6rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid color-mix(in srgb, #fff 30%, transparent);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+
+.kfNav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}

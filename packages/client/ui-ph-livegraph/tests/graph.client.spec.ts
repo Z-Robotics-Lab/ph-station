@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { foldEvents, foldRuns, layout, type OpEvent } from '../src/client/graph.ts'
 import { runWindow } from '../src/client/RunFeed.tsx'
-import { pickRuntimeSession } from '../src/client/useLiveFeed.ts'
+import { mergeIndex, pickRuntimeSession, runningSince } from '../src/client/useLiveFeed.ts'
 import { fmtAge } from '../src/client/Viewport.tsx'
 
 describe('fmtAge', () => {
@@ -206,5 +206,41 @@ describe('runWindow — the per-experiment ticker slice', () => {
 
   it('yields nothing when no run is selected', () => {
     expect(runWindow(FEED, undefined, Infinity)).toEqual([])
+  })
+})
+
+describe('mergeIndex', () => {
+  const idx = (...seqs: number[]) => new Map(seqs.map(s => [s, 'node_start']))
+  it('keeps the previous object when the poll returned the same seqs', () => {
+    // Identity is the re-render guard: an unchanged keyframes/ listing must not
+    // re-render the ticker list every INDEX_MS.
+    const prev = idx(3, 7)
+    expect(mergeIndex(prev, idx(7, 3))).toBe(prev)
+  })
+  it('takes the new index when a keyframe appeared', () => {
+    const next = idx(3, 7, 9)
+    expect(mergeIndex(idx(3, 7), next)).toBe(next)
+  })
+  it('takes the new index when the same size holds a different seq', () => {
+    // opstream.arm() clears keyframes/ and the next boot reuses low seqs: same
+    // count, different frames — the cached JPEGs must be dropped.
+    const next = idx(1, 2)
+    expect(mergeIndex(idx(3, 7), next)).toBe(next)
+  })
+})
+
+describe('runningSince', () => {
+  const ev = (seq: number, kind: string) => ({ ts: seq, seq, kind }) as never
+
+  it('floors at the tail when the last run already ended', () => {
+    expect(runningSince([ev(1, 'task_claimed'), ev(2, 'task_done')], 2)).toBe(2)
+  })
+
+  it('floors just before a run still in flight, so foldRuns sees its claim', () => {
+    expect(runningSince([ev(1, 'task_done'), ev(4, 'task_claimed'), ev(5, 'plan_built')], 5)).toBe(3)
+  })
+
+  it('floors at the tail on an empty feed', () => {
+    expect(runningSince([], 7)).toBe(7)
   })
 })

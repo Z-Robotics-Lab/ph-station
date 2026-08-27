@@ -34,6 +34,8 @@ function board(log: OpEvent[]) {
       }))
     },
     fetchRuntimeFrame: () => Promise.resolve(ok({ error: 'no frame' })),
+    fetchKeyframes: () => Promise.resolve(ok({ frames: [], count: 0 })),
+    fetchKeyframe: () => Promise.resolve(ok({ error: 'no keyframe' })),
   }
 }
 

@@ -26,6 +26,11 @@ export type PhLiveGraphKey =
   | 'tk.done'
   | 'tk.taskFailed'
   | 'tk.current'
+  | 'kf.frame'
+  | 'kf.open'
+  | 'kf.prev'
+  | 'kf.next'
+  | 'kf.close'
   | 'loading'
   | 'unavailable'
   | 'sealedFallback'
@@ -111,6 +116,11 @@ export const zh: Record<PhLiveGraphKey, string> = {
   'tk.done': '任务完成',
   'tk.taskFailed': '任务失败',
   'tk.current': '当前',
+  'kf.frame': '关键帧',
+  'kf.open': '点击放大这一步的关键帧',
+  'kf.prev': '上一张关键帧（←）',
+  'kf.next': '下一张关键帧（→）',
+  'kf.close': '关闭（Esc）',
   'loading': '加载中…',
   'unavailable': '数据面不可用（board bridge 未挂载）',
   'sealedFallback': '实时流不可用（运行时早于 runtime_events）— 显示链上最后一次任务',
@@ -190,6 +200,11 @@ export const en: Record<PhLiveGraphKey, string> = {
   'tk.done': 'task done',
   'tk.taskFailed': 'task failed',
   'tk.current': 'current',
+  'kf.frame': 'keyframe',
+  'kf.open': 'Click to enlarge this step’s keyframe',
+  'kf.prev': 'Previous keyframe (←)',
+  'kf.next': 'Next keyframe (→)',
+  'kf.close': 'Close (Esc)',
   'loading': 'Loading…',
   'unavailable': 'Data plane unavailable (board bridge not mounted)',
   'sealedFallback': 'Live feed unavailable (runtime pre-dates runtime_events) — showing the last sealed task',
