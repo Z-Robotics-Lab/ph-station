@@ -5,6 +5,17 @@ import { describe, expect, it } from 'vitest'
 import { foldEvents, foldRuns, layout, type OpEvent } from '../src/client/graph.ts'
 import { runWindow } from '../src/client/RunFeed.tsx'
 import { pickRuntimeSession } from '../src/client/useLiveFeed.ts'
+import { fmtAge } from '../src/client/Viewport.tsx'
+
+describe('fmtAge', () => {
+  it('formats seconds, minutes, and hours at their unit boundaries', () => {
+    expect(fmtAge(3.2)).toBe('3s')
+    expect(fmtAge(59)).toBe('59s')
+    expect(fmtAge(60)).toBe('1m')
+    expect(fmtAge(3599)).toBe('60m')
+    expect(fmtAge(93600)).toBe('26h')
+  })
+})
 
 describe('pickRuntimeSession', () => {
   it('skips a newer non-runtime session for the newest runtime one', () => {

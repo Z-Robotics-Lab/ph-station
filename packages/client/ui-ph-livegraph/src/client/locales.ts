@@ -69,7 +69,11 @@ export type PhLiveGraphKey =
   | 'legend.replanned'
   | 'sessionPick'
   | 'viewport'
-  | 'viewportNone'
+  | 'viewportPick'
+  | 'viewportFollow'
+  | 'viewportAgo'
+  | 'viewportNoFrame'
+  | 'viewportWaiting'
   | 'fit'
   | 'minimapShow'
   | 'minimapHide'
@@ -147,7 +151,11 @@ export const zh: Record<PhLiveGraphKey, string> = {
   'legend.replanned': '已重规划',
   'sessionPick': '切换会话（● 有运行时）',
   'viewport': '取景窗',
-  'viewportNone': '无画面',
+  'viewportPick': '固定看某个 session（默认跟随共享选择）',
+  'viewportFollow': '跟随',
+  'viewportAgo': '前',
+  'viewportNoFrame': '该 session 从未产出画面：runtime 启动时没带 --frames，或任务/标定还没跑过。',
+  'viewportWaiting': '等待画面…',
   'fit': '适应',
   'minimapShow': '显示缩略图',
   'minimapHide': '收起缩略图',
@@ -219,7 +227,11 @@ export const en: Record<PhLiveGraphKey, string> = {
   'legend.replanned': 'replanned',
   'sessionPick': 'Switch session (● has runtime)',
   'viewport': 'Viewport',
-  'viewportNone': 'No picture',
+  'viewportPick': 'Pin to one session (default: follow the shared selection)',
+  'viewportFollow': 'Follow',
+  'viewportAgo': 'ago',
+  'viewportNoFrame': 'This session never produced a frame: the runtime was started without --frames, or no task/calibration has run yet.',
+  'viewportWaiting': 'Waiting for a frame…',
   'fit': 'Fit',
   'minimapShow': 'Show minimap',
   'minimapHide': 'Hide minimap',
