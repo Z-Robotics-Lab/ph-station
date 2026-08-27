@@ -15,10 +15,11 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { foldRuns } from './graph.ts'
 import type { OpEvent, RunInfo } from './graph.ts'
 import { useLiveFeed } from './useLiveFeed.ts'
-import type { FeedInjected, LiveFeed } from './useLiveFeed.ts'
+import type { FeedInjected, FeedScope, LiveFeed, SessionMeta } from './useLiveFeed.ts'
 
 const PLAY_MS = 300
 
@@ -53,9 +54,9 @@ export function useRunFeed(): RunFeed {
 
 /** The root provider: owns the single poll and the run-selection state that the
  * graph's scrubber writes and the ticker reads. */
-function RootRunFeed({ inject, children }: { inject: FeedInjected; children: ReactNode }) {
+function RootRunFeed({ inject, children }: { inject: FeedScope; children: ReactNode }) {
   const fastRef = useRef(false)
-  const { online, sessionName, sessions, selectSession, feed, sessionRows, version } = useLiveFeed(inject, fastRef)
+  const { online, sessionName, sessions, selectSession, feed, sessionRows, version, scoped } = useLiveFeed(inject, fastRef)
 
   // playhead === null follows the live tail; runIndex === null selects the last run.
   const [playhead, setPlayhead] = useState<number | null>(null)
@@ -93,7 +94,7 @@ function RootRunFeed({ inject, children }: { inject: FeedInjected; children: Rea
   }, [playing, run, feed])
 
   const value: RunFeed = {
-    online, sessionName, sessions, selectSession, feed, sessionRows, version,
+    online, sessionName, sessions, selectSession, feed, sessionRows, version, scoped,
     fetchRuntimeFrame: inject.fetchRuntimeFrame,
     runs, runIndex: effIndex, run, headSeq, live, playing,
     pick: (i) => { setRunIndex(i); setPlayhead(runs[i] ? runs[i].lastSeq : null); setPlaying(false) },
@@ -106,10 +107,42 @@ function RootRunFeed({ inject, children }: { inject: FeedInjected; children: Rea
 
 /** Provide the shared run feed, reusing an ancestor provider if one exists so a
  * docked graph/ticker panel folds into the dashboard's single feed. */
-export function RunFeedProvider({ inject, children }: { inject: FeedInjected; children: ReactNode }) {
+export function RunFeedProvider({ inject, children }: { inject: FeedScope; children: ReactNode }) {
   const parent = useContext(RunFeedCtx)
   if (parent !== null) return <>{children}</>
   return <RootRunFeed inject={inject}>{children}</RootRunFeed>
+}
+
+/**
+ * The `<option>` rows of a session picker, split into two `<optgroup>`s: live
+ * runtimes (the board reported a `runtime.boot` row) and archived campaign
+ * stores. The split is the board's own `kinds` marker carried on
+ * {@link SessionMeta}, never a name pattern — an archived entry is a finished
+ * record that will never gain an event or a frame, which its option title says.
+ * @param props - the discovered sessions and the panel's bound translator.
+ * @returns two option groups, each omitted when empty.
+ */
+export function SessionOptions(
+  { sessions, t }: { sessions: SessionMeta[]; t: PropsLocale<'phlivegraph'>['t'] },
+) {
+  const live = sessions.filter(s => s.runtime)
+  const archived = sessions.filter(s => !s.runtime)
+  return (
+    <>
+      {live.length > 0 ? (
+        <optgroup label={t('sessionLive')}>
+          {live.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+        </optgroup>
+      ) : null}
+      {archived.length > 0 ? (
+        <optgroup label={t('sessionArchived')}>
+          {archived.map(s => (
+            <option key={s.name} value={s.name} title={t('sessionArchivedHint')}>{s.name}</option>
+          ))}
+        </optgroup>
+      ) : null}
+    </>
+  )
 }
 
 /** Rows of the run window a ticker/scrubber consumer sees: `[firstSeq, headSeq]`. */

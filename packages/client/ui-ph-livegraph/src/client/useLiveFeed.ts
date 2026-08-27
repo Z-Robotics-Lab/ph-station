@@ -7,6 +7,9 @@
  *
  * `fast` is read live from a ref each tick so the caller can raise the cadence
  * once its folded model shows an in-flight task without re-arming the timer.
+ *
+ * The feed is scoped to the mounting conversation by a per-`conversation ×
+ * session` seq floor ({@link baseline}); an operator-picked session is exempt.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -23,6 +26,12 @@ export interface FeedInjected {
   fetchRuntimeEvents: (name: string, afterSeq: number) => Promise<RemoteResult<unknown>>
   fetchRuntimeFrame: (name: string, afterTs: number, waitMs: number) => Promise<RemoteResult<unknown>>
 }
+
+/** The board reads plus the dsh conversation the panel is mounted under — the
+ * framework-supplied `sessionId` of the `conversation.view` slot, which scopes
+ * the feed baseline (see {@link baseline}). A conversation view's own props
+ * satisfy this, so panels keep passing `props` straight through. */
+export type FeedScope = FeedInjected & { sessionId: string }
 
 /** One discovered session for the header picker: its name and whether it carries
  * a live runtime marker (a `runtime.boot` chain row). */
@@ -41,12 +50,40 @@ export interface LiveFeed {
   feed: MutableRefObject<OpEvent[]>
   /** Latest `board.session` rows payload (routing + sealed plan source). */
   sessionRows: MutableRefObject<unknown>
+  /**
+   * True while the cursor sits on a conversation floor above 0 (see
+   * {@link baseline}). An empty `feed` then means "nothing has happened in this
+   * conversation yet", not "this session has no feed", so a consumer must not
+   * fall back to the session's last sealed plan — that is exactly the earlier
+   * conversation's run the floor exists to hide.
+   */
+  scoped: boolean
   /** Increments whenever `feed` or `sessionRows` changes (a fold trigger). */
   version: number
 }
 
 const FAST_MS = 1200
 const SLOW_MS = 4000
+
+/**
+ * First seq each `conversation × runtime session` pair is allowed to show,
+ * keyed `<sessionId>\0<name>`. The runtime feed is global — one opstream per
+ * runtime session, independent of dsh conversations — so without a floor every
+ * newly opened conversation replays the previous one's runs. The first poll
+ * under a conversation adopts the feed's current tail as that pair's floor and
+ * drops the backlog; later mounts (a view-tab switch, or returning to the
+ * conversation) reuse the stored floor, so the panel restores the window it was
+ * showing instead of re-blanking. A runtime reboot truncates the feed and
+ * resets the floor to 0, because everything in the new file is new.
+ *
+ * Page lifetime only: a reload starts every conversation blank again.
+ */
+const baseline = new Map<string, number>()
+
+/** Baseline key: conversation id and runtime session name, NUL-joined. */
+function baseKey(sessionId: string, name: string): string {
+  return `${sessionId}\u0000${name}`
+}
 
 interface EventsPayload { events?: OpEvent[]; last_seq?: number; error?: string }
 interface SessionSummary { name?: string; kinds?: Record<string, number> }
@@ -70,12 +107,13 @@ export function pickRuntimeSession(list: SessionSummary[]): string | null {
  * @param fast - ref read live each tick: true drives the ~1.2s lane, else ~4s.
  * @returns the accumulated feed, session rows, discovery state, and a fold trigger.
  */
-export function useLiveFeed(inj: FeedInjected, fast: MutableRefObject<boolean>): LiveFeed {
-  const { fetchSessions, fetchSession, fetchRuntimeEvents } = inj
+export function useLiveFeed(inj: FeedScope, fast: MutableRefObject<boolean>): LiveFeed {
+  const { fetchSessions, fetchSession, fetchRuntimeEvents, sessionId } = inj
   const [online, setOnline] = useState<boolean | null>(null)
   const [sessionName, setSessionName] = useState<string | null>(null)
   const [sessions, setSessions] = useState<SessionMeta[]>([])
   const [version, setVersion] = useState(0)
+  const [scoped, setScoped] = useState(false)
   const cursor = useRef(0)
   const feed = useRef<OpEvent[]>([])
   const sessionRows = useRef<unknown>(null)
@@ -102,7 +140,11 @@ export function useLiveFeed(inj: FeedInjected, fast: MutableRefObject<boolean>):
         // session appeared) — drop the old feed so the graph/ticker do not blend
         // two sessions' events.
         knownSession.current = chosen
-        cursor.current = 0
+        const floor = chosen !== null && chosen !== override.current
+          ? (baseline.get(baseKey(sessionId, chosen)) ?? 0)
+          : 0
+        cursor.current = floor
+        setScoped(floor > 0)
         feed.current = []
         sessionRows.current = null
         setVersion(v => v + 1)
@@ -116,8 +158,23 @@ export function useLiveFeed(inj: FeedInjected, fast: MutableRefObject<boolean>):
     if (ev.ok) {
       const payload = ev.value as EventsPayload
       const lastSeq = payload.last_seq ?? 0
-      if (lastSeq < cursor.current) {
+      const key = baseKey(sessionId, name)
+      if (name !== override.current && !baseline.has(key)) {
+        // This conversation's first look at the auto-followed session: floor the
+        // cursor at the current tail and drop the backlog that came with this
+        // read, so the panels open blank and fill only with what happens from
+        // now on. `feed` is empty here — the only path with no baseline is the
+        // reset above. A session the operator picked by hand is never floored:
+        // asking for it IS asking for its history.
+        baseline.set(key, lastSeq)
+        cursor.current = lastSeq
+        setScoped(lastSeq > 0)
+      } else if (lastSeq < cursor.current) {
+        // Runtime reboot truncated the feed: every row in the new file is new,
+        // so the floor drops with the cursor.
+        baseline.set(key, 0)
         cursor.current = 0
+        setScoped(false)
         feed.current = []
         const again = await fetchRuntimeEvents(name, 0)
         if (again.ok) {
@@ -136,7 +193,7 @@ export function useLiveFeed(inj: FeedInjected, fast: MutableRefObject<boolean>):
       const d = await fetchSession(name)
       if (d.ok) { sessionRows.current = d.value; setVersion(v => v + 1) }
     }
-  }, [fetchSessions, fetchSession, fetchRuntimeEvents])
+  }, [fetchSessions, fetchSession, fetchRuntimeEvents, sessionId])
 
   // Pin the feed to an operator-chosen session: force a rediscovery (which re-picks
   // `chosen` = the override and resets the feed) on the next tick, then poke it now.
@@ -176,5 +233,5 @@ export function useLiveFeed(inj: FeedInjected, fast: MutableRefObject<boolean>):
     }
   }, [load, fast])
 
-  return { online, sessionName, sessions, selectSession, feed, sessionRows, version }
+  return { online, sessionName, sessions, selectSession, feed, sessionRows, version, scoped }
 }

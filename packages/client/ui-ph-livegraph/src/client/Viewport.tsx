@@ -25,7 +25,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { useRunFeed } from './RunFeed.tsx'
+import { SessionOptions, useRunFeed } from './RunFeed.tsx'
 import css from './LiveGraphView.module.css'
 
 /** Server-side long-poll budget per request: the board re-stats the frame every
@@ -136,9 +136,7 @@ export function Viewport({ t }: PropsLocale<'phlivegraph'>) {
           title={t('viewportPick')}
         >
           <option value="">{t('viewportFollow')}</option>
-          {sessions.map(s => (
-            <option key={s.name} value={s.name}>{s.runtime ? '● ' : '○ '}{s.name}</option>
-          ))}
+          <SessionOptions sessions={sessions} t={t} />
           {pin !== null && !sessions.some(s => s.name === pin)
             ? <option value={pin}>{pin}</option>
             : null}
