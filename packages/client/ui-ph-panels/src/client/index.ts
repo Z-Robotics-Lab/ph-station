@@ -17,6 +17,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { en, NS, zh } from './locales.ts'
 import { EvolutionConsole } from './EvolutionConsole.tsx'
+import type { RsiConsoleInjected } from './RsiRun.tsx'
 import { EvolutionView, type EvolutionInjected } from './EvolutionView.tsx'
 import { CardsView, type CardsInjected } from './CardsView.tsx'
 import { LedgerView, type LedgerInjected } from './LedgerView.tsx'
@@ -41,13 +42,23 @@ export function apply(ctx: Context): void {
     const disposers = [
       // 演化台: the aggregate RSI panel (leftmost of the 演化 group). It renders
       // the 代际进化 / 战报 / 账本 panels by id through the owner's renderView, so
-      // those three stay registered but drop out of the flat tab strip.
+      // those three stay registered but drop out of the flat tab strip. Its own
+      // inject face feeds the Run-RSI launcher + chain stepper at the head —
+      // including submitBrief, the board Remote's one write.
       ctx.slots.register({
         name: 'conversation.view',
         id: 'rsi',
         order: 20,
         locale: NS,
         label: () => t('view.rsi'),
+        inject: (_sessionId: SessionId): RsiConsoleInjected => ({
+          fetchCards: () => board.cards(),
+          fetchSessions: () => board.sessions(),
+          fetchRuntimeStatus: (name: string) => board.runtimeStatus({ name }),
+          fetchSession: (name: string) => board.session({ name }),
+          fetchCampaignProgress: () => board.campaignProgress(),
+          submitBrief: (briefJson: string, session: string) => board.submitBrief(briefJson, session),
+        }),
       }, EvolutionConsole),
       ctx.slots.register({
         name: 'conversation.view',

@@ -107,6 +107,30 @@ export type PhPanelsKey =
   | 'stage.dev'
   | 'stage.done'
   | 'stage.stopped'
+  // Run-RSI launcher + chain stepper (演化台 head)
+  | 'rsi.run'
+  | 'rsi.taskPick'
+  | 'rsi.sessionPick'
+  | 'rsi.noTasks'
+  | 'rsi.noSessions'
+  | 'rsi.stale'
+  | 'rsi.submit'
+  | 'rsi.submitting'
+  | 'rsi.submitted'
+  | 'rsi.followBelow'
+  | 'rsi.submitFailed'
+  | 'rsi.noChain'
+  | 'rsi.criteria'
+  | 'rsi.criteria.tip'
+  | 'rsi.honestNoGo'
+  | 'rsi.firstDeath'
+  | 'rsi.step.allocate'
+  | 'rsi.step.calibrate'
+  | 'rsi.step.gate'
+  | 'rsi.step.prereg'
+  | 'rsi.step.dev'
+  | 'rsi.step.heldout'
+  | 'rsi.step.install'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -211,6 +235,29 @@ export const zh: Record<PhPanelsKey, string> = {
   'stage.dev': 'dev 世代',
   'stage.done': '完成',
   'stage.stopped': '停在门禁',
+  'rsi.run': 'Run RSI',
+  'rsi.taskPick': '选择 task',
+  'rsi.sessionPick': '选择 evolution session',
+  'rsi.noTasks': '没有能力卡声明 task_bindings——先装一个带任务绑定的插件。',
+  'rsi.noSessions': '没有 evolution 模式的 runtime session——RSI brief 只有 evolution 态的 runtime 会认领。',
+  'rsi.stale': 'runtime 可能已失活 (stale)',
+  'rsi.submit': '提交 RSI brief',
+  'rsi.submitting': '提交中…',
+  'rsi.submitted': '已投递',
+  'rsi.followBelow': '在下方链条 stepper 跟进',
+  'rsi.submitFailed': '提交失败',
+  'rsi.noChain': '还没有 RSI 链心跳。提交一个 RSI brief 后，链条进度会出现在这里。',
+  'rsi.criteria': '门禁判据',
+  'rsi.criteria.tip': '六条预登记判据 (c1..c6)：全绿才 GO；红色是被测量触发的判据。NO-GO 是诚实结果，不是错误。',
+  'rsi.honestNoGo': '诚实 NO-GO（正常结果，不是错误）',
+  'rsi.firstDeath': '首死分布',
+  'rsi.step.allocate': '领块',
+  'rsi.step.calibrate': '标定',
+  'rsi.step.gate': '门禁',
+  'rsi.step.prereg': 'prereg',
+  'rsi.step.dev': 'dev',
+  'rsi.step.heldout': 'held-out',
+  'rsi.step.install': '装入',
 }
 
 /** English dictionary. */
@@ -309,4 +356,27 @@ export const en: Record<PhPanelsKey, string> = {
   'stage.dev': 'dev generations',
   'stage.done': 'done',
   'stage.stopped': 'stopped at gate',
+  'rsi.run': 'Run RSI',
+  'rsi.taskPick': 'pick a task',
+  'rsi.sessionPick': 'pick an evolution session',
+  'rsi.noTasks': 'No capability card declares task_bindings — install a plugin with a task binding first.',
+  'rsi.noSessions': 'No evolution-mode runtime session — only an evolution-mode runtime claims an RSI brief.',
+  'rsi.stale': 'runtime may be dead (stale)',
+  'rsi.submit': 'Submit RSI brief',
+  'rsi.submitting': 'Submitting…',
+  'rsi.submitted': 'Submitted',
+  'rsi.followBelow': 'follow it in the chain stepper below',
+  'rsi.submitFailed': 'Submit failed',
+  'rsi.noChain': 'No RSI chain heartbeat yet. Submit an RSI brief and the chain progress appears here.',
+  'rsi.criteria': 'gate criteria',
+  'rsi.criteria.tip': 'The six preregistered criteria (c1..c6): all green means GO; red is a criterion the measurement tripped. NO-GO is an honest result, not an error.',
+  'rsi.honestNoGo': 'honest NO-GO (a normal result, not an error)',
+  'rsi.firstDeath': 'first-death distribution',
+  'rsi.step.allocate': 'allocate',
+  'rsi.step.calibrate': 'calibrate',
+  'rsi.step.gate': 'gate',
+  'rsi.step.prereg': 'prereg',
+  'rsi.step.dev': 'dev',
+  'rsi.step.heldout': 'held-out',
+  'rsi.step.install': 'install',
 }
