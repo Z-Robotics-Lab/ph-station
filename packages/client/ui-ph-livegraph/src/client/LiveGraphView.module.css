@@ -451,6 +451,7 @@
 }
 
 .runPick,
+.viewportPick,
 .playBtn {
   font-size: 0.68rem;
   padding: 0.12rem 0.35rem;
@@ -648,9 +649,8 @@
   white-space: nowrap;
 }
 
-.viewportAge {
-  font-family: ui-monospace, monospace;
-  opacity: 0.55;
+.viewportPick {
+  max-width: 45%;
 }
 
 /* The frame stage: letterboxed dark ground so any cell shape frames the 4:3. */
@@ -670,8 +670,38 @@
   object-fit: contain;
 }
 
+/* Non-live frame: desaturate + dim so an old picture never reads as live. */
+.viewportImgStale {
+  filter: saturate(0.3) brightness(0.8);
+}
+
+/* Frame-age overlay, top-right of the stage: green while live, grey when stale. */
+.viewportAgeBadge {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.45rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.66rem;
+  padding: 0.06rem 0.4rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--ph-bg, Canvas) 78%, transparent);
+  pointer-events: none;
+}
+
+.viewportAgeLive {
+  color: #16a34a;
+}
+
+.viewportAgeStale {
+  color: inherit;
+  opacity: 0.65;
+}
+
 .viewportNone {
   opacity: 0.55;
+  max-width: 85%;
+  text-align: center;
+  line-height: 1.5;
 }
 
 .evidence {

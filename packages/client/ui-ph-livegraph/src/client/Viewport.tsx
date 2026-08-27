@@ -6,14 +6,21 @@
  * dockview splitters resize it; no bespoke drag code). Renders only: the
  * base64 JPEG is encoded harness-side; this decodes it into an `<img>`.
  *
- * Follows the shared run feed's selected session and LONG-POLLS with the
- * `afterTs` cursor + `waitMs`: the board blocks up to `WAIT_MS` until the frame
- * changes past the cursor, and the reply triggers the next request immediately,
- * so the to-hand frame rate tracks the writer's dump rate (the fixed cost per
- * frame is one storecli spawn, no idle poll period). A new frame swaps the
- * `<img>` src through a ref — no large-string prop rides a React re-render.
- * A 无画面 placeholder covers absent or stale frames (the runtime is idle or
- * pre-dates the frames overlay).
+ * Session choice: the header picker defaults to following the shared run
+ * feed's selection and can pin any discovered session (panel-local state; the
+ * shared selection is untouched). LONG-POLLS with the `afterTs` cursor +
+ * `waitMs`: the board blocks up to `WAIT_MS` until the frame changes past the
+ * cursor, and the reply triggers the next request immediately, so the to-hand
+ * frame rate tracks the writer's dump rate (the fixed cost per frame is one
+ * storecli spawn, no idle poll period). A new frame swaps the `<img>` src
+ * through a ref — no large-string prop rides a React re-render.
+ *
+ * A known frame always shows, however old: a top-right age badge reads green
+ * within `STALE_S` and grey beyond it (the image desaturates to mark
+ * non-live). The placeholder appears only before any frame is known and names
+ * the reason: the board's `no frame` error (this session never produced a
+ * frame — runtime booted without `--frames`, or nothing ran yet) vs still
+ * waiting for the first reply.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -30,8 +37,9 @@ const WAIT_MS = 900
  * client-side pacing left; a healthy long-poll loop re-issues immediately. */
 const IDLE_MS = 500
 
-/** A frame older than this (by the board's own `age_s`) reads as "no picture":
- * the runtime is idle between tasks or was booted without the frames overlay. */
+/** A frame older than this (by the board's own `age_s`) is non-live: the age
+ * badge greys and the image desaturates (the runtime is idle between tasks or
+ * stopped dumping). The frame stays visible either way. */
 const STALE_S = 20
 
 /** `runtime_frame` payload: a frame, an unchanged-cursor ack, or an error. */
@@ -43,18 +51,35 @@ interface FramePayload {
   error?: string
 }
 
+/**
+ * Compact frame age: seconds under a minute, then minutes, then hours.
+ * @param s - age in seconds.
+ * @returns e.g. `3s`, `12m`, `26h`.
+ */
+export function fmtAge(s: number): string {
+  if (s < 60) return `${Math.round(s)}s`
+  if (s < 3600) return `${Math.round(s / 60)}m`
+  return `${Math.round(s / 3600)}h`
+}
+
 /** The 取景窗 panel body (mounted under a RunFeedProvider). */
 export function Viewport({ t }: PropsLocale<'phlivegraph'>) {
-  const { sessionName, fetchRuntimeFrame } = useRunFeed()
+  const { sessionName, sessions, fetchRuntimeFrame } = useRunFeed()
   const imgRef = useRef<HTMLImageElement>(null)
   const cursor = useRef(0)
-  /** Newest known frame age (s), or null when absent — drives the placeholder. */
+  /** Panel-local pin: null follows the shared selection. */
+  const [pin, setPin] = useState<string | null>(null)
+  /** Newest known frame age (s); null until a frame has been shown. */
   const [age, setAge] = useState<number | null>(null)
+  /** True once the board answered `no frame` — names the placeholder reason. */
+  const [noFrame, setNoFrame] = useState(false)
+  const session = pin ?? sessionName
 
   useEffect(() => {
     cursor.current = 0
     setAge(null)
-    if (sessionName === null) return
+    setNoFrame(false)
+    if (session === null) return
     let alive = true
     let timer: ReturnType<typeof setTimeout> | undefined
     const tick = async () => {
@@ -69,7 +94,7 @@ export function Viewport({ t }: PropsLocale<'phlivegraph'>) {
       let delay = 0
       // A rejected board read folds to the placeholder, never breaks the loop.
       try {
-        const r = await fetchRuntimeFrame(sessionName, cursor.current, WAIT_MS)
+        const r = await fetchRuntimeFrame(session, cursor.current, WAIT_MS)
         if (!alive) return
         const p = r.ok ? (r.value as FramePayload) : null
         if (p?.jpeg_b64 !== undefined) {
@@ -78,13 +103,16 @@ export function Viewport({ t }: PropsLocale<'phlivegraph'>) {
           // ~15Hz frame stream re-renders nothing but the age badge.
           if (imgRef.current) imgRef.current.src = `data:image/jpeg;base64,${p.jpeg_b64}`
           setAge(p.age_s ?? 0)
+          setNoFrame(false)
         } else if (p?.unchanged === true) {
           setAge(p.age_s ?? null)
         } else {
-          setAge(null)
+          // `no frame` = the frame file has never existed for this session; any
+          // other miss (offline board, transport fault) keeps the last state.
+          setNoFrame(p?.error === 'no frame')
           delay = IDLE_MS
         }
-      } catch { setAge(null); delay = IDLE_MS }
+      } catch { delay = IDLE_MS }
       if (!alive) return
       timer = setTimeout(tick, delay)
     }
@@ -93,25 +121,51 @@ export function Viewport({ t }: PropsLocale<'phlivegraph'>) {
       alive = false
       if (timer !== undefined) clearTimeout(timer)
     }
-  }, [sessionName, fetchRuntimeFrame])
+  }, [session, fetchRuntimeFrame])
 
-  const live = age !== null && age <= STALE_S
+  const hasFrame = age !== null
+  const live = hasFrame && age <= STALE_S
   return (
     <div className={css.viewportPanel}>
       <div className={css.viewportHead}>
         <span className={css.viewportTitle}>{t('viewport')}</span>
-        {sessionName !== null ? <span className={css.viewportSession}>{sessionName}</span> : null}
-        {live ? <span className={css.viewportAge}>{age.toFixed(0)}s</span> : null}
+        <select
+          className={css.viewportPick}
+          value={pin ?? ''}
+          onChange={(e) => { setPin(e.target.value === '' ? null : e.target.value) }}
+          title={t('viewportPick')}
+        >
+          <option value="">{t('viewportFollow')}</option>
+          {sessions.map(s => (
+            <option key={s.name} value={s.name}>{s.runtime ? '● ' : '○ '}{s.name}</option>
+          ))}
+          {pin !== null && !sessions.some(s => s.name === pin)
+            ? <option value={pin}>{pin}</option>
+            : null}
+        </select>
+        {pin === null && sessionName !== null
+          ? <span className={css.viewportSession}>{sessionName}</span>
+          : null}
       </div>
       <div className={css.viewportStage}>
-        {/* Kept mounted so the ref survives placeholder flips; hidden when stale. */}
+        {/* Kept mounted so the ref survives placeholder flips. */}
         <img
           ref={imgRef}
-          className={css.viewportImg}
-          style={live ? undefined : { display: 'none' }}
+          className={live ? css.viewportImg : `${css.viewportImg} ${css.viewportImgStale}`}
+          style={hasFrame ? undefined : { display: 'none' }}
           alt={t('viewport')}
         />
-        {live ? null : <div className={css.viewportNone}>{t('viewportNone')}</div>}
+        {hasFrame
+          ? (
+            <span className={`${css.viewportAgeBadge} ${live ? css.viewportAgeLive : css.viewportAgeStale}`}>
+              {live ? fmtAge(age) : `${fmtAge(age)} ${t('viewportAgo')}`}
+            </span>
+          )
+          : (
+            <div className={css.viewportNone}>
+              {noFrame ? t('viewportNoFrame') : t('viewportWaiting')}
+            </div>
+          )}
       </div>
     </div>
   )
