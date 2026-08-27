@@ -92,6 +92,32 @@ export interface RuntimeStatus {
   mode?: string | null
 }
 
+/** One compute process holding VRAM on a card, as `nvidia-smi` names it. */
+export interface GpuProc {
+  pid?: number
+  name?: string
+  used_mib?: number
+}
+
+/** One GPU's VRAM, with the processes holding it already ranked biggest-first
+ * by the board (the rail names the top consumer; it sorts nothing). */
+export interface GpuVitals {
+  index?: number
+  name?: string
+  used_mib?: number
+  total_mib?: number
+  procs?: GpuProc[]
+}
+
+/** `hostVitals()`: the harness box's live resource headroom. `gpu` is empty on a
+ * host with no NVIDIA driver — a normal deployment, never an error. */
+export interface HostVitals {
+  gpu?: GpuVitals[]
+  ram?: { used_gb?: number; total_gb?: number }
+  disk?: { path?: string; free_gb?: number; total_gb?: number }
+  ts?: number
+}
+
 /** One line of the operational event feed (harness.opstream): its sequence and
  * kind are all the rail reads — `task_claimed` opens a run, `task_done` /
  * `task_failed` seal it (the board's terminal markers, read verbatim). */

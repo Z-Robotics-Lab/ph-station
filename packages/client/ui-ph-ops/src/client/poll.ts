@@ -17,14 +17,17 @@ import { useEffect } from 'react'
 export const POLL_MS = 15000
 
 /**
- * Run `load` on mount, then every POLL_MS while the document is visible.
+ * Run `load` on mount, then every `ms` while the document is visible.
  * @param load - fetch-and-set; called once on mount regardless of visibility,
  * then on each interval tick and every visible transition while the document is
  * visible. Must be stable (wrap in useCallback) — it is the effect's dependency.
  * Its return is ignored, so an async loader may be passed directly (the promise
  * is fire-and-forget).
+ * @param ms - refresh cadence; defaults to the evidence-layer POLL_MS. Host
+ * vitals pass a shorter one: VRAM moves on its own, without a board write to
+ * follow, so the evidence cadence would show a ceiling minutes after it hit.
  */
-export function usePolledLoad(load: () => unknown): void {
+export function usePolledLoad(load: () => unknown, ms: number = POLL_MS): void {
   useEffect(() => {
     const run = () => { if (!document.hidden) load() }
     // First load runs regardless of visibility: a surface that mounts while its
@@ -33,12 +36,12 @@ export function usePolledLoad(load: () => unknown): void {
     // persistently-hidden tab never receives. Only the refresh cadence pauses
     // while hidden, so a background console still burns no board calls after it.
     load()
-    const timer = setInterval(run, POLL_MS)
+    const timer = setInterval(run, ms)
     document.addEventListener('visibilitychange', run)
     return () => {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', run)
     }
-  }, [load])
+  }, [load, ms])
 }
 /* jscpd:ignore-end */

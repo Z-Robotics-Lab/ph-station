@@ -376,6 +376,14 @@
 .termMark { font-size: 0.7em; opacity: 0.6; margin-left: 1px; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
 .dim { color: var(--ph-dim); }
+/* host headroom — VRAM / RAM / disk meters under the runtime rows */
+.resMeter { display: flex; flex-direction: column; gap: 3px; }
+.resAlert { color: var(--ph-fail); }
+.resDetail {
+  font-size: 10px; color: var(--ph-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
 
 /* evolution — round feed item + campaign promotion line */
 .feedItem { display: flex; align-items: center; gap: 8px; min-width: 0; }

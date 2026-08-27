@@ -53,6 +53,11 @@ export type PhOpsKey =
   | 'skills'
   | 'mountPlan'
   | 'viewfinder'
+  | 'vram'
+  | 'ram'
+  | 'disk'
+  | 'diskFree'
+  | 'noGpu'
   | 'on'
   | 'off'
   | 'pid'
@@ -67,6 +72,7 @@ export type PhOpsKey =
   | 'privileged.tip'
   | 'mountPlan.tip'
   | 'viewfinder.tip'
+  | 'vram.tip'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -122,6 +128,11 @@ export const zh: Record<PhOpsKey, string> = {
   'skills': '技能',
   'mountPlan': '挂载计划',
   'viewfinder': '取景窗',
+  'vram': '显存',
+  'ram': '内存',
+  'disk': '磁盘',
+  'diskFree': '可用',
+  'noGpu': '无 GPU',
   'on': '开',
   'off': '关',
   'pid': 'pid',
@@ -135,6 +146,7 @@ export const zh: Record<PhOpsKey, string> = {
   'privileged.tip': '特权能力：能执行高风险/越权操作（如直接驱动硬件）的能力，需额外授权。',
   'mountPlan.tip': '挂载计划：本次启动装载的插件/技能组合的指纹（sha），用来确认跑的是哪一套配置。',
   'viewfinder.tip': '取景窗：机器人相机的实时画面渲染开关；开＝正在出图，关＝未渲染。',
+  'vram.tip': '显存：GPU 上已占用/总量，下方是占得最多的进程。打满会直接打爆常驻 runtime，所以超过 90% 会变红。',
 }
 
 /** English dictionary. */
@@ -184,6 +196,11 @@ export const en: Record<PhOpsKey, string> = {
   'skills': 'skills',
   'mountPlan': 'mount plan',
   'viewfinder': 'Viewfinder',
+  'vram': 'VRAM',
+  'ram': 'RAM',
+  'disk': 'Disk',
+  'diskFree': 'free',
+  'noGpu': 'no GPU',
   'on': 'on',
   'off': 'off',
   'pid': 'pid',
@@ -197,4 +214,5 @@ export const en: Record<PhOpsKey, string> = {
   'privileged.tip': 'Privileged capability: one that can perform high-risk or elevated actions (e.g. drive hardware directly); needs extra authorization.',
   'mountPlan.tip': 'Mount plan: fingerprint (sha) of the plugin/skill set loaded at boot — confirms which configuration is running.',
   'viewfinder.tip': "Viewfinder: the robot camera's live render toggle; on = rendering frames, off = not.",
+  'vram.tip': 'VRAM: used/total on the GPU, with the biggest consumer below. A full card kills the resident runtime, so above 90% turns red.',
 }

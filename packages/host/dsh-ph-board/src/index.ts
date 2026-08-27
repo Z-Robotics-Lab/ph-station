@@ -208,6 +208,20 @@ export class BoardBridge extends TypertRemoteService {
   }
 
   /**
+   * The harness box's LIVE resource headroom: every GPU's VRAM with the compute
+   * processes holding it (biggest first), physical RAM, and free space on the
+   * filesystem holding `runs/` — `{gpu, ram, disk, ts}`. Host-addressed rather
+   * than session-addressed, so it takes no argument. Live state, never chain
+   * evidence, and the harness face never raises: a box with no NVIDIA driver
+   * reports an empty `gpu` list instead of an error.
+   * @returns board.store.host_vitals(runsDir) verbatim.
+   */
+  @Remote('hostVitals')
+  hostVitals(): Promise<JsonValue> {
+    return this.run('host_vitals')
+  }
+
+  /**
    * One runtime session's LIVE viewport frame (`runs/<session>/frame.jpg`,
    * dumped offscreen by the harness frames overlay while a task runs):
    * `{jpeg_b64, ts, age_s}`, or `{error: 'no frame'}` when none exists. The

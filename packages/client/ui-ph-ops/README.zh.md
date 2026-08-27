@@ -7,7 +7,7 @@ physical-harness 指挥员侧栏 + 任务驾驶舱。两个浏览器面，通过
 - **任务驾驶舱** —— 一个 `conversation.view` 标签页（任务图）。运行中任务的 graph-first 视图：目标 → 任务节点 → 阶段流水线，加上 capability 接线扇形，一张可交互的 React Flow DAG（平移/缩放、minimap、点击选中）。运行历史条在已封存的任务尝试之间切换；点击节点在图旁打开其证据（阶段、故障、provider `ref`）。状态色沿用既定三色（绿过 / 红败 / 中性待定），与战报/演进/账本读作同一套系统。
 - **指挥员侧栏** —— 一个 `sidebar.section` 占位：常驻的扫视卡片栈（任务小地图、进度、运行时体征、演进 ticker），不用点击就回答「任务到哪了 / 有没有在推进 / 机器健康吗 / 有没有变好」。侧栏收成图标条时折叠为状态点。
 
-每个数字都来自 `board.store`——Python 的 `session_progress` 折叠与会话链——经 board Host Remote（`sessionProgress`、`session`、`sessions`、`runtimeStatus`、`runtimeEvents`、`stores`、`rounds`）。这里不计算任何统计（宪章审定的硬规则：fork 渲染，Python 聚合）。侧栏读取 `runtimeEvents` 仅用于区分"运行中"与"已收场"——直接读 board 自己的 `task_claimed` / `task_done` / `task_failed` 标记，绝不在此计算判定。
+每个数字都来自 `board.store`——Python 的 `session_progress` 折叠与会话链——经 board Host Remote（`sessionProgress`、`session`、`sessions`、`runtimeStatus`、`runtimeEvents`、`hostVitals`、`stores`、`rounds`）。这里不计算任何统计（宪章审定的硬规则：fork 渲染，Python 聚合）。体征卡还从 `hostVitals` 读主机本身的余量——每张 GPU 的显存及占用它的进程、内存、磁盘可用——走自己的 5s 轮询，因为这些量自己会动、没有 board 写入可跟随，而显存打满会直接打爆常驻 runtime；超过 90% 时进度条变红。阈值只决定颜色，绝不产生数字。侧栏读取 `runtimeEvents` 仅用于区分"运行中"与"已收场"——直接读 board 自己的 `task_claimed` / `task_done` / `task_failed` 标记，绝不在此计算判定。
 
 ## 依赖
 

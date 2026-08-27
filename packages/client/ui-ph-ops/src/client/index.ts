@@ -42,6 +42,7 @@ export function apply(ctx: Context): void {
       fetchRuntimeEvents: (name: string) => board.runtimeEvents({ name }),
       fetchStores: () => board.stores(),
       fetchRounds: () => board.rounds(),
+      fetchHostVitals: () => board.hostVitals(),
     }),
   }, OperatorRail))
 }

@@ -20,8 +20,8 @@ import { agoSeconds, finite, formatAgo, pct } from './format.ts'
 import { Term } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
 import type {
-  BootRow, PlanComplete, RuntimeEvent, RuntimeEventsPayload, RuntimeStatus,
-  SessionDetail, SessionProgress, SessionSummary,
+  BootRow, GpuVitals, HostVitals, PlanComplete, RuntimeEvent, RuntimeEventsPayload,
+  RuntimeStatus, SessionDetail, SessionProgress, SessionSummary,
 } from './types.ts'
 import css from './ops.module.css'
 
@@ -34,6 +34,7 @@ export interface RailInjected {
   fetchRuntimeEvents: (name: string) => Promise<RemoteResult<unknown>>
   fetchStores: () => Promise<RemoteResult<unknown>>
   fetchRounds: () => Promise<RemoteResult<unknown>>
+  fetchHostVitals: () => Promise<RemoteResult<unknown>>
 }
 
 interface StoreSummary { name?: string; task?: string | null; generations?: number; promoted?: number }
@@ -71,9 +72,15 @@ function feedRunOpen(events: RuntimeEvent[]): boolean {
   return open
 }
 
+/** Host-vitals refresh cadence. VRAM/RAM/disk move on their own — no board
+ * write follows them — so the 15s evidence cadence would show a ceiling long
+ * after it was hit. Still far slower than the event stream: these are slow
+ * variables, and one nvidia-smi pair per tick is the whole cost. */
+const VITALS_POLL_MS = 5000
+
 export function OperatorRail({
   wide, fetchSessions, fetchSession, fetchSessionProgress, fetchRuntimeStatus, fetchRuntimeEvents,
-  fetchStores, fetchRounds, t,
+  fetchStores, fetchRounds, fetchHostVitals, t,
 }: SidebarSectionProps & InjectFace<RailInjected> & PropsLocale<'phops'>) {
   const [latest, setLatest] = useState<SessionSummary | null>(null)
   const [detail, setDetail] = useState<SessionDetail | null>(null)
@@ -83,6 +90,7 @@ export function OperatorRail({
   const [stores, setStores] = useState<StoreSummary[]>([])
   const [rounds, setRounds] = useState<Round[]>([])
   const [online, setOnline] = useState<boolean | null>(null)
+  const [host, setHost] = useState<HostVitals | null>(null)
   const [now, setNow] = useState(() => Date.now())
 
   /* jscpd:ignore-start */
@@ -115,7 +123,20 @@ export function OperatorRail({
     }
   }, [fetchSessions, fetchSession, fetchSessionProgress, fetchRuntimeStatus, fetchRuntimeEvents, fetchStores, fetchRounds])
 
+  // Host vitals ride their own faster cadence and their own failure: a board
+  // that cannot answer them still leaves the mission cards live, so a failed
+  // read clears only this row set rather than flipping the rail offline.
+  const loadHost = useCallback(async () => {
+    try {
+      const v = await fetchHostVitals()
+      setHost(v.ok ? (v.value as HostVitals) : null)
+    } catch {
+      setHost(null)
+    }
+  }, [fetchHostVitals])
+
   usePolledLoad(load)
+  usePolledLoad(loadHost, VITALS_POLL_MS)
   // Local clock so the heartbeat age counts up between polls (no network).
   useEffect(() => {
     const tick = setInterval(() => { setNow(Date.now()) }, 1000)
@@ -135,7 +156,7 @@ export function OperatorRail({
       <div className={css.railTitle}>{t('rail.title')}</div>
       <MissionCard runs={runs} progress={progress} running={running} t={t} />
       <ProgressCard progress={progress} t={t} />
-      <VitalsCard boot={boot} rtStatus={rtStatus} secs={secs} online={online} t={t} />
+      <VitalsCard boot={boot} rtStatus={rtStatus} host={host} secs={secs} online={online} t={t} />
       <EvolutionCard stores={stores} rounds={rounds} t={t} />
     </div>
   )
@@ -336,12 +357,80 @@ function ProgressCard({ progress, t }: { progress: SessionProgress | null } & { 
   )
 }
 
+/** How full a resource may run before the meter warns. The operator's whole
+ * reason for this row set is seeing a ceiling BEFORE it kills a resident
+ * runtime, so amber leaves room to act and red means act now. Presentation
+ * only — the numbers are the board's; TS picks a colour, never a value.
+ * ponytail: fixed cutoffs, expose as config if a deployment wants its own. */
+const RES_AMBER = 0.75
+const RES_RED = 0.9
+const resCss = (frac: number | null): string =>
+  (frac === null ? css.meterNone ?? ''
+    : frac >= RES_RED ? css.meterFail ?? ''
+      : frac >= RES_AMBER ? css.meterAmber ?? '' : css.meterPass ?? '')
+
+/** One resource meter: label + used-of-total on the left/right of a filled
+ * track, with an optional detail line under it (the process holding the VRAM).
+ * `used`/`total` arrive from the board already in their display unit. */
+function ResourceMeter({
+  label, used, total, unit, value, detail,
+}: {
+  label: ReactNode
+  used: number | null
+  total: number | null
+  unit: string
+  value?: string | undefined
+  detail?: string | null | undefined
+}) {
+  const frac = used === null || total === null || total <= 0 ? null : Math.min(used / total, 1)
+  return (
+    <div className={css.resMeter}>
+      <div className={css.meterLabel}>
+        <span>{label}</span>
+        <b className={frac !== null && frac >= RES_RED ? css.resAlert : undefined}>
+          {frac === null ? '—' : (value ?? `${used} / ${total} ${unit}`)}
+          {frac === null ? '' : ` · ${Math.round(frac * 100)}%`}
+        </b>
+      </div>
+      <div className={css.meterTrack}>
+        <span className={`${css.meterFill} ${resCss(frac)}`} style={{ width: `${(frac ?? 0) * 100}%` }} />
+      </div>
+      {detail ? <div className={css.resDetail} title={detail}>{detail}</div> : null}
+    </div>
+  )
+}
+
+/** One GPU's VRAM meter, labelled with its index only when the box has more
+ * than one card. The top consumer is `procs[0]` — the board ranks them. */
+function GpuMeter({ gpu, multi, t }: { gpu: GpuVitals; multi: boolean } & { t: T }) {
+  const top = gpu.procs?.[0]
+  return (
+    <ResourceMeter
+      label={<Term label={multi ? `${t('vram')} ${gpu.index ?? '?'}` : t('vram')} tip={t('vram.tip')} />}
+      used={finite(gpu.used_mib)}
+      total={finite(gpu.total_mib)}
+      unit="MiB"
+      detail={top?.name === undefined ? null : `${top.name} · ${top.used_mib ?? 0} MiB`}
+    />
+  )
+}
+
 /** Runtime vitals: MODE badge, heartbeat age with a freshness dot, skills,
- * mount sha, viewfinder — each row led by its own glyph. */
+ * mount sha, viewfinder — each row led by its own glyph — then the host's own
+ * headroom (VRAM per card, RAM, free disk) as warning-coloured meters. */
 function VitalsCard({
-  boot, rtStatus, secs, online, t,
-}: { boot?: BootRow | undefined; rtStatus: RuntimeStatus | null; secs: number | null; online: boolean | null } & { t: T }) {
+  boot, rtStatus, host, secs, online, t,
+}: {
+  boot?: BootRow | undefined
+  rtStatus: RuntimeStatus | null
+  host: HostVitals | null
+  secs: number | null
+  online: boolean | null
+} & { t: T }) {
   const sha = boot?.mount_plan_sha
+  const gpus = host?.gpu ?? []
+  const diskFree = finite(host?.disk?.free_gb)
+  const diskTotal = finite(host?.disk?.total_gb)
   return (
     <section className={css.card}>
       <CardHead icon={<IconBroadcast size={14} />}>{t('card.vitals')}</CardHead>
@@ -372,6 +461,27 @@ function VitalsCard({
             </span>
           )}
       </VitalRow>
+      {host === null
+        ? null
+        : (
+          <>
+            {gpus.length === 0
+              ? <div className={css.cardEmpty}>{t('noGpu')}</div>
+              : gpus.map((g, i) => <GpuMeter key={g.index ?? i} gpu={g} multi={gpus.length > 1} t={t} />)}
+            <ResourceMeter
+              label={t('ram')} unit="GB"
+              used={finite(host.ram?.used_gb)} total={finite(host.ram?.total_gb)}
+            />
+            {/* Disk fills bottom-up, so the meter tracks USED while the number
+                the operator acts on is the free space left. */}
+            <ResourceMeter
+              label={t('disk')} unit="GB"
+              used={diskFree === null || diskTotal === null ? null : diskTotal - diskFree}
+              total={diskTotal}
+              value={diskFree === null ? undefined : `${diskFree} GB ${t('diskFree')}`}
+            />
+          </>
+        )}
     </section>
   )
 }
