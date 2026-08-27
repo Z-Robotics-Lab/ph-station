@@ -46,6 +46,8 @@ export function apply(ctx: Context): void {
     fetchSession: (name: string) => board.session({ name }),
     fetchRuntimeEvents: (name: string, afterSeq: number) => board.runtimeEvents({ name, afterSeq }),
     fetchRuntimeFrame: (name: string, afterTs: number, waitMs: number) => board.runtimeFrame({ name, afterTs, waitMs }),
+    fetchKeyframes: (name: string) => board.runtimeKeyframes(name),
+    fetchKeyframe: (name: string, seq: number) => board.runtimeKeyframe(name, seq),
   })
 
   // 图谱·过程流: the same-screen cockpit pane — the execution graph and the 过程流

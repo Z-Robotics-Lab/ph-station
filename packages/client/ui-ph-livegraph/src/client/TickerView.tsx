@@ -6,19 +6,38 @@
  * passed/failed → result); the running node's row is accented and tagged 当前,
  * matching the graph's live highlight. A header line names which experiment this
  * is. Renders only — every line is a board event copied verbatim.
+ *
+ * Keyframes: harness.opstream drops `runs/<session>/keyframes/<seq:06d>-<kind>.jpg`
+ * per captured event, so the event `seq` already on every row IS the join key —
+ * no correlation logic. The panel polls the cheap INDEX (`runtimeKeyframes`:
+ * seq/kind/ts, no bytes) and fetches a row's JPEG (`runtimeKeyframe`) only when
+ * its thumbnail enters the viewport or is clicked; clicking opens a lightbox
+ * that walks the run's other keyframed rows. A session with no keyframes at all
+ * renders byte-identically to the pre-keyframe panel.
  */
 
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { IconTimeline } from '@deepseek-ai/dsh-client-ui-ph-icons'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { OpEvent } from './graph.ts'
 import { runWindow, useRunFeed } from './RunFeed.tsx'
+import { mergeIndex } from './useLiveFeed.ts'
 import css from './LiveGraphView.module.css'
 
 type T = PropsLocale<'phlivegraph'>['t']
 type Tone = 'ok' | 'fail' | 'run' | 'warn' | 'muted'
 
 interface Row { seq: number; icon: string; text: string; sub?: string; tone: Tone; time?: string }
+
+/** Keyframe index refresh: the board read is a directory listing with no image
+ * bytes, so one storecli spawn per this period covers the whole panel. */
+const INDEX_MS = 3000
+
+/** `runtime_keyframes` payload: the index only (seq/kind/ts, no bytes). */
+interface KeyframeIndex { frames?: Array<{ seq: number; kind: string; ts: number }>; count?: number; error?: string }
+
+/** `runtime_keyframe` payload: one frame's image, or `{error: 'no keyframe'}`. */
+interface KeyframePayload { jpeg_b64?: string; seq?: number; kind?: string; error?: string }
 
 const TONE_CLASS: Record<Tone, string> = {
   ok: css.tkOk ?? '', fail: css.tkFail ?? '', run: css.tkRun ?? '',
@@ -76,8 +95,97 @@ function activeSeq(feed: readonly OpEvent[]): number | null {
   return open?.seq ?? null
 }
 
+/** Fetch one keyframe's JPEG as a data URL; null when the board has none. */
+type LoadFrame = (seq: number) => Promise<string | null>
+
+/** A row's keyframe thumbnail. The image is pulled on the row's first
+ * intersection with the scroll viewport (native IntersectionObserver — no
+ * scroll listener, no library), so a 200-row ticker costs one board read per
+ * row the operator actually scrolled to. */
+function Thumb({ seq, load, onOpen, t }: { seq: number; load: LoadFrame; onOpen: (seq: number) => void; t: T }) {
+  const [src, setSrc] = useState<string | null>(null)
+  const ref = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    setSrc(null)
+    const el = ref.current
+    if (el === null) return
+    let alive = true
+    const io = new IntersectionObserver((entries) => {
+      if (!entries.some(e => e.isIntersecting)) return
+      io.disconnect()
+      void load(seq).then((v) => { if (alive) setSrc(v) })
+    })
+    io.observe(el)
+    return () => { alive = false; io.disconnect() }
+  }, [seq, load])
+
+  return (
+    <button ref={ref} type="button" className={css.kfThumb} title={t('kf.open')}
+      onClick={() => { onOpen(seq) }}
+    >
+      {src === null
+        ? <span className={css.kfThumbWait} />
+        : <img className={css.kfThumbImg} src={src} alt={`${t('kf.frame')} #${seq}`} />}
+    </button>
+  )
+}
+
+/** The full-size keyframe overlay: ←/→ walk the run's other keyframed rows,
+ * Esc closes. The key listener is capture-phase so the graph's own ←/→ scrubber
+ * keys do not also step the playhead while the lightbox is up. */
+function Lightbox(
+  { seq, seqs, kind, load, onPick, onClose, t }:
+  { seq: number; seqs: number[]; kind: string; load: LoadFrame; onPick: (seq: number) => void; onClose: () => void; t: T },
+) {
+  const [src, setSrc] = useState<string | null>(null)
+  const at = seqs.indexOf(seq)
+  const prev = at > 0 ? seqs[at - 1] : undefined
+  const next = at >= 0 ? seqs[at + 1] : undefined
+
+  useEffect(() => {
+    let alive = true
+    setSrc(null)
+    void load(seq).then((v) => { if (alive) setSrc(v) })
+    return () => { alive = false }
+  }, [seq, load])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      else if (e.key === 'ArrowLeft' && prev !== undefined) onPick(prev)
+      else if (e.key === 'ArrowRight' && next !== undefined) onPick(next)
+      else return
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => { window.removeEventListener('keydown', onKey, true) }
+  }, [prev, next, onPick, onClose])
+
+  return (
+    <div className={css.kfBox} role="dialog" aria-modal="true" onClick={onClose}>
+      <div className={css.kfStage} onClick={(e) => { e.stopPropagation() }}>
+        {src === null
+          ? <div className={css.kfWait}>{t('loading')}</div>
+          : <img className={css.kfImg} src={src} alt={`${t('kf.frame')} ${kind} #${seq}`} />}
+        <div className={css.kfCap}>
+          <button type="button" className={css.kfNav} title={t('kf.prev')} disabled={prev === undefined}
+            onClick={() => { if (prev !== undefined) onPick(prev) }}
+          >‹</button>
+          <span className={css.kfCapText}>{kind} · #{seq}</span>
+          <button type="button" className={css.kfNav} title={t('kf.next')} disabled={next === undefined}
+            onClick={() => { if (next !== undefined) onPick(next) }}
+          >›</button>
+          <button type="button" className={css.kfNav} title={t('kf.close')} onClick={onClose}>✕</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function TickerView({ t }: PropsLocale<'phlivegraph'>) {
-  const { online, feed, version, run, runIndex, headSeq, live } = useRunFeed()
+  const { online, feed, version, run, runIndex, headSeq, live, sessionName, fetchKeyframes, fetchKeyframe } = useRunFeed()
 
   const events = useMemo(
     () => runWindow(feed.current, run, headSeq),
@@ -97,6 +205,78 @@ export function TickerView({ t }: PropsLocale<'phlivegraph'>) {
     }
     return out.reverse()
   }, [events, t])
+
+  /** seq → kind for every keyframe the session has on disk. */
+  const [index, setIndex] = useState<Map<number, string>>(new Map())
+  const indexRef = useRef<Map<number, string>>(index)
+  /** seq → in-flight-or-settled data URL, so the thumbnail and the lightbox
+   * share one board read per frame. A miss deletes its entry, leaving a retry. */
+  const cache = useRef(new Map<number, Promise<string | null>>())
+  const [open, setOpen] = useState<number | null>(null)
+
+  const load = useCallback<LoadFrame>((seq) => {
+    const hit = cache.current.get(seq)
+    if (hit !== undefined) return hit
+    const pull = (async () => {
+      if (sessionName === null) return null
+      const r = await fetchKeyframe(sessionName, seq)
+      const p = r.ok ? (r.value as KeyframePayload) : null
+      return p?.jpeg_b64 === undefined ? null : `data:image/jpeg;base64,${p.jpeg_b64}`
+    })().catch(() => null).then((v) => {
+      if (v === null) cache.current.delete(seq)
+      return v
+    })
+    cache.current.set(seq, pull)
+    return pull
+  }, [sessionName, fetchKeyframe])
+
+  useEffect(() => {
+    indexRef.current = new Map()
+    cache.current = new Map()
+    setIndex(indexRef.current)
+    setOpen(null)
+    if (sessionName === null) return
+    let alive = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const tick = async () => {
+      if (!alive) return
+      if (!document.hidden) {
+        // A rejected board read (or a board with no keyframe face yet) leaves the
+        // index untouched: the panel simply renders no thumbnails.
+        try {
+          const r = await fetchKeyframes(sessionName)
+          if (!alive) return
+          const payload = r.ok ? (r.value as KeyframeIndex) : null
+          const next = new Map((payload?.frames ?? []).map(f => [f.seq, f.kind] as const))
+          const merged = mergeIndex(indexRef.current, next)
+          if (merged !== indexRef.current) {
+            // opstream.arm() empties keyframes/ with the same truncation that
+            // resets the feed, so a shrunk index means these seqs now name a new
+            // boot's images — the cached JPEGs are stale.
+            if (merged.size < indexRef.current.size) cache.current = new Map()
+            indexRef.current = merged
+            setIndex(merged)
+          }
+        } catch { /* board unreachable this tick; the next one re-reads */ }
+      }
+      if (!alive) return
+      timer = setTimeout(tick, INDEX_MS)
+    }
+    void tick()
+    return () => {
+      alive = false
+      if (timer !== undefined) clearTimeout(timer)
+    }
+  }, [sessionName, fetchKeyframes])
+
+  // The lightbox walks the keyframed rows of the run on screen, oldest first
+  // (rows render newest-first), so ←/→ read as backwards/forwards in time.
+  const shots = useMemo(
+    () => rows.filter(r => index.has(r.seq)).map(r => r.seq).reverse(),
+    [rows, index],
+  )
+  // A seq that vanished (session switch, re-armed runtime) closes the overlay.
+  const openSeq = open !== null && index.has(open) ? open : null
 
   const label = run
     ? `${t('experiment')} ${runIndex + 1} · ${run.task ?? '?'} #${run.seed ?? '?'} · ${live ? t('live') : t('replay')}`
@@ -119,10 +299,19 @@ export function TickerView({ t }: PropsLocale<'phlivegraph'>) {
                 <span className={css.tkText}>{r.text}{r.sub ? <span className={css.tkSub}> {r.sub}</span> : null}</span>
                 {r.seq === active ? <span className={css.tkCurrent}>{t('tk.current')}</span> : null}
                 {r.time ? <span className={css.tkTime}>{r.time}</span> : null}
+                {index.has(r.seq) ? <Thumb seq={r.seq} load={load} onOpen={setOpen} t={t} /> : null}
               </li>
             ))}
           </ol>
         )}
+      {openSeq !== null
+        ? (
+          <Lightbox
+            seq={openSeq} seqs={shots} kind={index.get(openSeq) ?? ''} load={load}
+            onPick={setOpen} onClose={() => { setOpen(null) }} t={t}
+          />
+        )
+        : null}
     </div>
   )
 }

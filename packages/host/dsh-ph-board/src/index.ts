@@ -291,6 +291,33 @@ export class BoardBridge extends TypertRemoteService {
   }
 
   /**
+   * One runtime session's keyframe INDEX (`runs/<session>/keyframes/`, one
+   * `<seq:06d>-<kind>.jpg` written by harness.opstream per captured event, the
+   * directory cleared at `opstream.arm()` alongside the feed truncation): the
+   * seq/kind/ts triples only, no image bytes, so the 过程流 poller stays cheap.
+   * The `seq` is the opstream event seq, which is also the ticker's row key.
+   * @param name - runtime session directory name (guarded by storecli's safe_child).
+   * @returns board.store.runtime_keyframes(...) verbatim ({frames, count}), or an {error} dict.
+   */
+  @Remote('runtimeKeyframes')
+  runtimeKeyframes(name: string): Promise<JsonValue> {
+    return this.run('runtime_keyframes', name)
+  }
+
+  /**
+   * One keyframe's image by seq, fetched only when a ticker row's thumbnail is
+   * actually wanted (viewport entry or click) -- never in bulk.
+   * @param name - runtime session directory name (guarded by storecli's safe_child).
+   * @param seq - the opstream event seq naming the frame file.
+   * @returns board.store.runtime_keyframe(...) verbatim ({jpeg_b64, seq, kind}),
+   * or `{error: 'no keyframe'}` when that seq has none.
+   */
+  @Remote('runtimeKeyframe')
+  runtimeKeyframe(name: string, seq: number): Promise<JsonValue> {
+    return this.run('runtime_keyframe', name, ['--seq', String(Math.trunc(seq))])
+  }
+
+  /**
    * Drop one brief into a runtime session's inbox (`storecli submit_brief`,
    * which shares board/brief_drop's atomic write with mcp_server.submit_brief).
    * The one write on this Remote, and deliberately zero-validation on both

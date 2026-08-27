@@ -8,7 +8,7 @@
 - **任务计划** —— 来自实时 feed 的 `plan_built` 完整节点图，feed 缺席时退回最新封存的 `task.plan_complete`；
 - **实时状态** —— 由 board Remote 的 `runtimeEvents` 增量 feed（`runs/<session>/runtime_events.jsonl`，由 `harness.opstream` 写入；每次 boot 截断，`last_seq < cursor` 表示重启 → 重置并重读）驱动的节点/阶段生命周期动画。
 
-纯消费者：每个状态都从 board 载荷原样拷贝；折叠层（`src/client/graph.ts`）只组装渲染状态，不做任何计算（宪章：TS 只渲染）。轮询节奏在任务进行中约 1.5s、空闲约 8s，文档隐藏时暂停。取景窗面板则对 board 的 `runtimeFrame` 面做长轮询（`afterTs` 游标 + 约 0.9s 的 `waitMs` 服务端阻塞），回复一到立刻重发，到手帧率因此跟上 harness 的转储帧率。
+纯消费者：每个状态都从 board 载荷原样拷贝；折叠层（`src/client/graph.ts`）只组装渲染状态，不做任何计算（宪章：TS 只渲染）。轮询节奏在任务进行中约 1.5s、空闲约 8s，文档隐藏时暂停。取景窗面板则对 board 的 `runtimeFrame` 面做长轮询（`afterTs` 游标 + 约 0.9s 的 `waitMs` 服务端阻塞），回复一到立刻重发，到手帧率因此跟上 harness 的转储帧率。过程流面板会给磁盘上有对应图片的行挂一张关键帧缩略图（`runs/<session>/keyframes/<seq:06d>-<kind>.jpg`，由 `harness.opstream` 写入，并在 `opstream.arm()` 时与 feed 一起清空）：它轮询不含字节的索引（`runtimeKeyframes`，约 3s），只有当某行缩略图首次进入滚动视口或被点击时才去取该行的 JPEG（`runtimeKeyframe`），绝不批量拉取。点击后弹出灯箱，←/→ 在本次运行的其他关键帧行之间切换（捕获阶段监听，不惊动 scrubber 快捷键），Esc 关闭。行上本来就有的事件 `seq` 就是全部关联键——没有关键帧的会话渲染结果与从前完全一致。
 
 图渲染采用 `@xyflow/react`（React Flow v12，MIT）加 `@dagrejs/dagre`（MIT）分层布局——`physical-harness/docs/ph-ui-redesign.md` §5 认可的组件组合，与任务驾驶舱重设计共用，两个面共讲同一套图语言。React Flow 的结构样式表 vendor 在 `src/client/xyflow-base.css`（MIT，取自 `@xyflow/react/dist/style.css`），经 `?inline` 通道注入并伴随插件整个生命周期，因为客户端打包器的 CSS 管线是包内局部的。
 

@@ -15,13 +15,18 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { OpEvent } from './graph.ts'
 
 /** The board reads the feed needs (same face the graph view injects).
- * `fetchRuntimeFrame` is not polled here — the 取景窗 viewport owns its own
- * cadence — but rides the same injected face so panels receive one object. */
+ * `fetchRuntimeFrame` and the two keyframe reads are not polled here — the 取景窗
+ * viewport and the 过程流 ticker own their own cadence — but ride the same
+ * injected face so panels receive one object. */
 export interface FeedInjected {
   fetchSessions: () => Promise<RemoteResult<unknown>>
   fetchSession: (name: string) => Promise<RemoteResult<unknown>>
   fetchRuntimeEvents: (name: string, afterSeq: number) => Promise<RemoteResult<unknown>>
   fetchRuntimeFrame: (name: string, afterTs: number, waitMs: number) => Promise<RemoteResult<unknown>>
+  /** Keyframe index for one session: seq/kind/ts triples, no image bytes. */
+  fetchKeyframes: (name: string) => Promise<RemoteResult<unknown>>
+  /** One keyframe's JPEG by event seq (lazy: viewport entry or click only). */
+  fetchKeyframe: (name: string, seq: number) => Promise<RemoteResult<unknown>>
 }
 
 /** One discovered session for the header picker: its name and whether it carries
@@ -62,6 +67,21 @@ interface SessionSummary { name?: string; kinds?: Record<string, number> }
  */
 export function pickRuntimeSession(list: SessionSummary[]): string | null {
   return (list.find(s => s.kinds?.['runtime.boot'] !== undefined) ?? list[0])?.name ?? null
+}
+
+/**
+ * Keep the previous keyframe index object when the poll returned the same seq
+ * set, so an unchanged `keyframes/` listing costs zero re-renders of the (long)
+ * 过程流 ticker list. A shrunk result means `opstream.arm()` cleared the
+ * directory and these seqs now name a new boot's images.
+ * @param prev - the seq→kind index in hand.
+ * @param next - the seq→kind index just polled.
+ * @returns `prev` when both hold the same seqs, else `next`.
+ */
+export function mergeIndex(prev: Map<number, string>, next: Map<number, string>): Map<number, string> {
+  if (prev.size !== next.size) return next
+  for (const seq of next.keys()) if (!prev.has(seq)) return next
+  return prev
 }
 
 /**

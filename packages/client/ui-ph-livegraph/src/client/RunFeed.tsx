@@ -28,6 +28,9 @@ export interface RunFeed extends LiveFeed {
   /** The 取景窗 frame read, passed through so the viewport polls the same
    * injected face without a second provider. */
   fetchRuntimeFrame: FeedInjected['fetchRuntimeFrame']
+  /** The 过程流 keyframe reads, passed through for the same reason. */
+  fetchKeyframes: FeedInjected['fetchKeyframes']
+  fetchKeyframe: FeedInjected['fetchKeyframe']
   runs: RunInfo[]
   /** Effective selected run index (last run while live). */
   runIndex: number
@@ -95,6 +98,8 @@ function RootRunFeed({ inject, children }: { inject: FeedInjected; children: Rea
   const value: RunFeed = {
     online, sessionName, sessions, selectSession, feed, sessionRows, version,
     fetchRuntimeFrame: inject.fetchRuntimeFrame,
+    fetchKeyframes: inject.fetchKeyframes,
+    fetchKeyframe: inject.fetchKeyframe,
     runs, runIndex: effIndex, run, headSeq, live, playing,
     pick: (i) => { setRunIndex(i); setPlayhead(runs[i] ? runs[i].lastSeq : null); setPlaying(false) },
     seek: (seq) => { setPlayhead(seq); setRunIndex(effIndex) },
