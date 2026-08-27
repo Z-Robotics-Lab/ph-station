@@ -43,6 +43,7 @@ export function apply(ctx: Context): void {
       fetchStores: () => board.stores(),
       fetchRounds: () => board.rounds(),
       fetchHostVitals: () => board.hostVitals(),
+      modelServer: (action: string) => board.modelServer(action),
     }),
   }, OperatorRail))
 }

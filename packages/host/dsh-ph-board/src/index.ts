@@ -11,9 +11,11 @@
  * dispatch and the same dicts, just without the per-frame interpreter spawn.)
  * `execFile`/`spawn` (not a shell) plus the fixed fn per method (never user
  * input) plus storecli's own `safe_child` guard on the name argument leave no
- * injection surface. `submitBrief` is the one write: the same storecli face's
+ * injection surface. Two methods write: `submitBrief`, the same storecli face's
  * atomic brief drop, forwarded with zero client-side validation because the
- * resident runtime is the only authority over what a brief means.
+ * resident runtime is the only authority over what a brief means; and
+ * `modelServer`, which starts or stops the box's local model server through
+ * board.store's own action whitelist and constant launcher path.
  *
  * @module @deepseek-ai/dsh-ph-board
  */
@@ -59,9 +61,10 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /**
- * Remote over board.store via the storecli subprocess: read methods plus the
- * one write (`submitBrief`, storecli's atomic brief drop). The gateway
- * auto-serves each @Remote method at POST /api/board/<name>.
+ * Remote over board.store via the storecli subprocess: read methods plus two
+ * writes (`submitBrief`, storecli's atomic brief drop, and `modelServer`, the
+ * local model server's start/stop). The gateway auto-serves each @Remote method
+ * at POST /api/board/<name>.
  */
 export class BoardBridge extends TypertRemoteService {
   /** Loader validation for the three deployment-varying paths. */
@@ -219,6 +222,30 @@ export class BoardBridge extends TypertRemoteService {
   @Remote('hostVitals')
   hostVitals(): Promise<JsonValue> {
     return this.run('host_vitals')
+  }
+
+  /**
+   * Read or switch the harness box's LOCAL model server (llama.cpp on
+   * 127.0.0.1:30001) — `{running, pid, port, healthy, model, vram_mib}`, plus an
+   * `error` key when an action could not be carried out. `running` true with
+   * `healthy` false is the server's 1-2 minute load window.
+   *
+   * Switches the SERVICE PROCESS only; which model a request routes to stays the
+   * console's route selection. Stopping the server returns its VRAM to the
+   * simulator, which is why an operator who never opens a terminal needs it.
+   *
+   * The second write on this Remote, and the narrowest one available: `action`
+   * is storecli's single positional argument, board.store accepts only
+   * `status`/`start`/`stop`, and the launcher script board.store may run is a
+   * constant there. No path, command line, or pid from this process reaches the
+   * harness.
+   * @param action - `status`, `start`, or `stop`. board.store rejects any other
+   * word with an error beside a truthful status and executes nothing.
+   * @returns board.store.model_server(action, runsDir) verbatim.
+   */
+  @Remote('modelServer')
+  modelServer(action: string): Promise<JsonValue> {
+    return this.run('model_server', action)
   }
 
   /**

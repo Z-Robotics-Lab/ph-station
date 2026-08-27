@@ -118,6 +118,21 @@ export interface HostVitals {
   ts?: number
 }
 
+/** `modelServer(action)`: the box's local model server process. `running` with
+ * `healthy` false is the 1-2 minute load window — the server holds its port long
+ * before it answers. `error` reports a refused or failed action beside a status
+ * that stays truthful. `vram_mib` is this server's own row out of
+ * {@link HostVitals}, so it matches the VRAM meter directly above it. */
+export interface ModelServerState {
+  running?: boolean
+  pid?: number | null
+  port?: number
+  healthy?: boolean
+  model?: string | null
+  vram_mib?: number | null
+  error?: string
+}
+
 /** One line of the operational event feed (harness.opstream): its sequence and
  * kind are all the rail reads — `task_claimed` opens a run, `task_done` /
  * `task_failed` seal it (the board's terminal markers, read verbatim). */

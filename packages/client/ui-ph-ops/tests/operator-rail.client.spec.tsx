@@ -20,8 +20,11 @@ const ok = (value: unknown): RemoteResult<unknown> => ({ ok: true, value })
 const fail = (message: string): RemoteResult<unknown> =>
   ({ ok: false, error: { message } } as unknown as RemoteResult<unknown>)
 
-/** Render OperatorRail with every board read mocked to one result. */
-function renderRail(wide: boolean, result: RemoteResult<unknown>) {
+/**
+ * Render OperatorRail with every board read mocked to one result, `over`
+ * replacing individual faces.
+ */
+function renderRail(wide: boolean, result: RemoteResult<unknown>, over: object = {}) {
   const props = {
     wide,
     fetchSessions: vi.fn(() => Promise.resolve(result)),
@@ -31,10 +34,12 @@ function renderRail(wide: boolean, result: RemoteResult<unknown>) {
     fetchStores: vi.fn(() => Promise.resolve(result)),
     fetchRounds: vi.fn(() => Promise.resolve(result)),
     fetchHostVitals: vi.fn(() => Promise.resolve(result)),
+    modelServer: vi.fn(() => Promise.resolve(result)),
     t: (key: keyof typeof en) => en[key],
+    ...over,
   }
-  render(<OperatorRail {...(props as unknown as Parameters<typeof OperatorRail>[0])} />)
-  return props
+  const view = render(<OperatorRail {...(props as unknown as Parameters<typeof OperatorRail>[0])} />)
+  return { props, view }
 }
 
 describe('OperatorRail smoke', () => {
@@ -53,7 +58,7 @@ describe('OperatorRail smoke', () => {
   })
 
   it('renders without throwing when the board read fails (offline)', async () => {
-    const props = renderRail(true, fail('board bridge not mounted'))
+    const { props } = renderRail(true, fail('board bridge not mounted'))
     // A rejected/failed read folds to offline but never blanks the rail.
     expect(screen.getByText(en['rail.title'])).toBeTruthy()
     expect(screen.getByText(en['graph.empty'])).toBeTruthy()
@@ -61,30 +66,16 @@ describe('OperatorRail smoke', () => {
   })
 
   it('renders without throwing when the read throws (assembly fault)', () => {
-    const props = {
-      wide: true,
+    renderRail(true, ok([]), {
       fetchSessions: vi.fn(() => Promise.reject(new Error('codec'))),
-      fetchSession: vi.fn(() => Promise.resolve(ok(null))),
-      fetchSessionProgress: vi.fn(() => Promise.resolve(ok(null))),
-      fetchRuntimeStatus: vi.fn(() => Promise.resolve(ok(null))),
-      fetchStores: vi.fn(() => Promise.resolve(ok([]))),
-      fetchRounds: vi.fn(() => Promise.resolve(ok([]))),
       fetchHostVitals: vi.fn(() => Promise.reject(new Error('codec'))),
-      t: (key: keyof typeof en) => en[key],
-    }
-    render(<OperatorRail {...(props as unknown as Parameters<typeof OperatorRail>[0])} />)
+      modelServer: vi.fn(() => Promise.reject(new Error('codec'))),
+    })
     expect(screen.getByText(en['rail.title'])).toBeTruthy()
   })
 
   it('warns in red on a nearly-full GPU and names the process holding it', async () => {
-    const props = {
-      wide: true,
-      fetchSessions: vi.fn(() => Promise.resolve(ok([]))),
-      fetchSession: vi.fn(() => Promise.resolve(ok(null))),
-      fetchSessionProgress: vi.fn(() => Promise.resolve(ok(null))),
-      fetchRuntimeStatus: vi.fn(() => Promise.resolve(ok(null))),
-      fetchStores: vi.fn(() => Promise.resolve(ok([]))),
-      fetchRounds: vi.fn(() => Promise.resolve(ok([]))),
+    const { view: { container } } = renderRail(true, ok([]), {
       fetchHostVitals: vi.fn(() => Promise.resolve(ok({
         gpu: [{
           index: 0, name: 'NVIDIA GeForce RTX 4090 D', used_mib: 23000, total_mib: 24564,
@@ -94,10 +85,7 @@ describe('OperatorRail smoke', () => {
         disk: { path: '/runs', free_gb: 71.3, total_gb: 592.9 },
         ts: 1787864763,
       }))),
-      t: (key: keyof typeof en) => en[key],
-    }
-    const { container } = render(
-      <OperatorRail {...(props as unknown as Parameters<typeof OperatorRail>[0])} />)
+    })
 
     // 23000/24564 = 94%: the meter paints the fail hue, which is the whole
     // reason this row exists — a full card kills the resident runtime.
@@ -108,6 +96,66 @@ describe('OperatorRail smoke', () => {
     expect(screen.getByText(/30%/)).toBeTruthy()
     expect(screen.getByText(/71.3 GB free/)).toBeTruthy()
     expect(container.querySelectorAll(`.${css.meterFail}`)).toHaveLength(1)
+  })
+
+  it('badges the local model server stopped / loading / running', async () => {
+    // Loading is the state that matters: the server holds its port for 1-2
+    // minutes before it answers, and without a middle badge that whole window
+    // reads as "stopped" and invites a second start.
+    const cases = [
+      [{ running: false, healthy: false }, en['model.off'], en.modelStart],
+      [{ running: true, healthy: false, pid: 4242 }, en['model.loading'], en.modelStop],
+      [{ running: true, healthy: true, pid: 4242, vram_mib: 19980 }, en['model.on'], en.modelStop],
+    ] as const
+    for (const [state, badge, button] of cases) {
+      renderRail(true, ok([]), { modelServer: vi.fn(() => Promise.resolve(ok(state))) })
+      await waitFor(() => { expect(screen.getByText(badge)).toBeTruthy() })
+      expect(screen.getByRole('button', { name: button })).toBeTruthy()
+      cleanup()
+    }
+  })
+
+  it('holds the button down on click until a poll confirms the switch', async () => {
+    // The board keeps reporting the process after the SIGTERM — a server takes
+    // its time going down, and that is exactly the window under test.
+    const modelServer = vi.fn(() => Promise.resolve(ok({ running: true, healthy: true })))
+    renderRail(true, ok([]), { modelServer })
+    await waitFor(() => { expect(screen.getByText(en['model.on'])).toBeTruthy() })
+
+    screen.getByRole('button', { name: en.modelStop }).click()
+
+    // SIGTERM is not death: the board still reports the process, so the button
+    // stays disabled rather than letting a second click land on a live pid.
+    await waitFor(() => { expect(modelServer).toHaveBeenCalledWith('stop') })
+    await waitFor(() => { expect(screen.getByText(en['model.stopping'])).toBeTruthy() })
+    expect(screen.getByRole('button', { name: en.modelStop }).hasAttribute('disabled')).toBe(true)
+  })
+
+  it('hands the button back when the action reports an error', async () => {
+    const modelServer = vi.fn((action: string) => Promise.resolve(ok(
+      action === 'start'
+        ? { running: false, healthy: false, error: 'launcher not found' }
+        : { running: false, healthy: false })))
+    renderRail(true, ok([]), { modelServer })
+    await waitFor(() => { expect(screen.getByText(en['model.off'])).toBeTruthy() })
+
+    screen.getByRole('button', { name: en.modelStart }).click()
+
+    // A launcher that cannot run must not leave the only control disabled.
+    await waitFor(() => { expect(screen.getByText('launcher not found')).toBeTruthy() })
+    expect(screen.getByRole('button', { name: en.modelStart }).hasAttribute('disabled')).toBe(false)
+  })
+
+  it('keeps the model switch when host vitals are unreachable', async () => {
+    // The two rides fold their own failure: the switch is the operator's only
+    // way to free the card, so a dead hostVitals must not take it away.
+    renderRail(true, ok([]), {
+      fetchHostVitals: vi.fn(() => Promise.reject(new Error('codec'))),
+      modelServer: vi.fn(() => Promise.resolve(ok({ running: true, healthy: true }))),
+    })
+    await waitFor(() => { expect(screen.getByText(en['model.on'])).toBeTruthy() })
+    expect(screen.getByText(en['modelServer.note'])).toBeTruthy()
+    expect(screen.queryByText(en.noGpu)).toBeNull()
   })
 
   it('renders the collapsed 56px rail when the column is an icon rail', () => {

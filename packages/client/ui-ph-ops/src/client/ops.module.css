@@ -385,6 +385,24 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* local model server — phase badge (hue from the shared .st* setters) over the
+   switch that frees the VRAM meter above it */
+.modelBadge {
+  font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 5px;
+  color: var(--st); background: color-mix(in srgb, var(--st) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--st) 45%, transparent);
+}
+.modelLine { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.modelBtn {
+  appearance: none; font: inherit; font-size: 11px; cursor: pointer;
+  padding: 3px 10px; border-radius: 6px;
+  color: var(--ph-ink); background: var(--ph-surface-2); border: 1px solid var(--ph-line);
+  transition: border-color 160ms ease;
+}
+.modelBtn:hover:not(:disabled) { border-color: color-mix(in srgb, currentColor 40%, transparent); }
+.modelBtn:disabled { cursor: default; opacity: 0.55; }
+.modelNote { font-size: 10px; color: var(--ph-dim); line-height: 1.35; }
+
 /* evolution — round feed item + campaign promotion line */
 .feedItem { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .roundChip {

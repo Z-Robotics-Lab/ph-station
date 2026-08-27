@@ -20,8 +20,8 @@ import { agoSeconds, finite, formatAgo, pct } from './format.ts'
 import { Term } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
 import type {
-  BootRow, GpuVitals, HostVitals, PlanComplete, RuntimeEvent, RuntimeEventsPayload,
-  RuntimeStatus, SessionDetail, SessionProgress, SessionSummary,
+  BootRow, GpuVitals, HostVitals, ModelServerState, PlanComplete, RuntimeEvent,
+  RuntimeEventsPayload, RuntimeStatus, SessionDetail, SessionProgress, SessionSummary,
 } from './types.ts'
 import css from './ops.module.css'
 
@@ -35,6 +35,10 @@ export interface RailInjected {
   fetchStores: () => Promise<RemoteResult<unknown>>
   fetchRounds: () => Promise<RemoteResult<unknown>>
   fetchHostVitals: () => Promise<RemoteResult<unknown>>
+  /** Read or switch the box's local model server. The action word is the only
+   * argument the board takes, and the board whitelists it — the rail passes a
+   * literal, never anything assembled here. */
+  modelServer: (action: string) => Promise<RemoteResult<unknown>>
 }
 
 interface StoreSummary { name?: string; task?: string | null; generations?: number; promoted?: number }
@@ -78,9 +82,21 @@ function feedRunOpen(events: RuntimeEvent[]): boolean {
  * variables, and one nvidia-smi pair per tick is the whole cost. */
 const VITALS_POLL_MS = 5000
 
+/** A model-server click's optimistic window: the action is in flight and the
+ * button is held down until a poll confirms the process actually changed. */
+type PendingAction = 'start' | 'stop'
+
+/** Whether an observed status ends {@link PendingAction}'s window. An `error`
+ * ends it too — a launcher that could not run must hand the button back rather
+ * than leave it disabled forever. */
+function settled(pending: PendingAction, state: ModelServerState): boolean {
+  if (state.error !== undefined) return true
+  return pending === 'start' ? state.running === true : state.running !== true
+}
+
 export function OperatorRail({
   wide, fetchSessions, fetchSession, fetchSessionProgress, fetchRuntimeStatus, fetchRuntimeEvents,
-  fetchStores, fetchRounds, fetchHostVitals, t,
+  fetchStores, fetchRounds, fetchHostVitals, modelServer, t,
 }: SidebarSectionProps & InjectFace<RailInjected> & PropsLocale<'phops'>) {
   const [latest, setLatest] = useState<SessionSummary | null>(null)
   const [detail, setDetail] = useState<SessionDetail | null>(null)
@@ -91,6 +107,8 @@ export function OperatorRail({
   const [rounds, setRounds] = useState<Round[]>([])
   const [online, setOnline] = useState<boolean | null>(null)
   const [host, setHost] = useState<HostVitals | null>(null)
+  const [model, setModel] = useState<ModelServerState | null>(null)
+  const [pending, setPending] = useState<PendingAction | null>(null)
   const [now, setNow] = useState(() => Date.now())
 
   /* jscpd:ignore-start */
@@ -135,8 +153,46 @@ export function OperatorRail({
     }
   }, [fetchHostVitals])
 
+  // The model server rides the vitals cadence for the same reason — the process
+  // starts, loads for a minute or two, and dies with no board write to follow —
+  // and folds its own failure the same way.
+  const loadModel = useCallback(async () => {
+    try {
+      const r = await modelServer('status')
+      const next = r.ok ? (r.value as ModelServerState) : null
+      setModel(next)
+      setPending(p => (p !== null && next !== null && settled(p, next) ? null : p))
+    } catch {
+      setModel(null)
+    }
+  }, [modelServer])
+
+  const runModelAction = useCallback(async (action: PendingAction) => {
+    try {
+      const r = await modelServer(action)
+      const next = r.ok ? (r.value as ModelServerState) : null
+      if (next === null) return                 // keep the button held; the poll settles it
+      setModel(next)
+      if (settled(action, next)) setPending(null)
+    } catch {
+      setPending(null)                          // assembly fault: hand the button back
+    }
+  }, [modelServer])
+
+  // Switching the SERVICE PROCESS: the direction comes from the last observed
+  // status and the action word is a literal. The board owns the whitelist, the
+  // launcher path, and the kill guard; nothing here assembles a command. The
+  // pending flag is set before the call so the button is out of reach for the
+  // whole round trip, not just after the reply.
+  const toggleModel = useCallback((): void => {
+    const action: PendingAction = model?.running === true ? 'stop' : 'start'
+    setPending(action)
+    void runModelAction(action)
+  }, [model, runModelAction])
+
   usePolledLoad(load)
   usePolledLoad(loadHost, VITALS_POLL_MS)
+  usePolledLoad(loadModel, VITALS_POLL_MS)
   // Local clock so the heartbeat age counts up between polls (no network).
   useEffect(() => {
     const tick = setInterval(() => { setNow(Date.now()) }, 1000)
@@ -156,7 +212,10 @@ export function OperatorRail({
       <div className={css.railTitle}>{t('rail.title')}</div>
       <MissionCard runs={runs} progress={progress} running={running} t={t} />
       <ProgressCard progress={progress} t={t} />
-      <VitalsCard boot={boot} rtStatus={rtStatus} host={host} secs={secs} online={online} t={t} />
+      <VitalsCard
+        boot={boot} rtStatus={rtStatus} host={host} secs={secs} online={online}
+        model={model} pending={pending} onToggleModel={toggleModel} t={t}
+      />
       <EvolutionCard stores={stores} rounds={rounds} t={t} />
     </div>
   )
@@ -415,17 +474,79 @@ function GpuMeter({ gpu, multi, t }: { gpu: GpuVitals; multi: boolean } & { t: T
   )
 }
 
+/** The badge a model-server status paints, and the hue each phase reads.
+ * `loading` covers both halves of the wait the operator actually sees: the
+ * board reporting a process that holds its port without answering yet, and the
+ * in-flight click before any poll has come back. */
+const MODEL_PHASE = {
+  off: { key: 'model.off', css: css.stPend },
+  loading: { key: 'model.loading', css: css.stAmber },
+  stopping: { key: 'model.stopping', css: css.stAmber },
+  on: { key: 'model.on', css: css.stPass },
+} as const
+
+/** The local model server: a state badge and the one button that switches it.
+ * Presentation only — the phase is read off the board's `running`/`healthy`,
+ * and the click hands back a fixed action word.
+ * @param state - the board's last `modelServer` status, null while unreachable.
+ * @param pending - an action in flight; holds the button and the badge.
+ * @param onToggle - runs the action the current state implies.
+ */
+function ModelServerRow({
+  state, pending, onToggle, t,
+}: {
+  state: ModelServerState | null
+  pending: PendingAction | null
+  onToggle: () => void
+} & { t: T }) {
+  const running = state?.running === true
+  const phase = pending === 'stop' ? 'stopping'
+    : pending === 'start' || (running && state.healthy !== true) ? 'loading'
+      : running ? 'on' : 'off'
+  const badge = MODEL_PHASE[phase]
+  return (
+    <div className={css.resMeter}>
+      <div className={css.meterLabel}>
+        <span><Term label={t('modelServer')} tip={t('modelServer.tip')} /></span>
+        <span className={`${css.modelBadge} ${badge.css ?? ''}`}>{t(badge.key)}</span>
+      </div>
+      <div className={css.modelLine}>
+        <button
+          type="button" className={css.modelBtn} onClick={onToggle}
+          disabled={pending !== null || state === null}
+          title={state?.model ?? undefined}
+        >
+          {running ? t('modelStop') : t('modelStart')}
+        </button>
+        {state?.vram_mib == null ? null : <span className={css.resDetail}>{state.vram_mib} MiB</span>}
+      </div>
+      {/* The control is a process switch, not a route switch, and an operator
+          who reads it the other way stops the server expecting a model swap. */}
+      <div className={css.modelNote}>{t('modelServer.note')}</div>
+      {state?.error === undefined
+        ? null
+        : <div className={css.resDetail} title={state.error}>{state.error}</div>}
+    </div>
+  )
+}
+
 /** Runtime vitals: MODE badge, heartbeat age with a freshness dot, skills,
  * mount sha, viewfinder — each row led by its own glyph — then the host's own
- * headroom (VRAM per card, RAM, free disk) as warning-coloured meters. */
+ * headroom (VRAM per card, RAM, free disk) as warning-coloured meters, with the
+ * local model server's switch under the VRAM meter that explains why it is
+ * there. The switch keeps its own row set: a hostVitals outage must not take
+ * away the operator's only way to free the card. */
 function VitalsCard({
-  boot, rtStatus, host, secs, online, t,
+  boot, rtStatus, host, secs, online, model, pending, onToggleModel, t,
 }: {
   boot?: BootRow | undefined
   rtStatus: RuntimeStatus | null
   host: HostVitals | null
   secs: number | null
   online: boolean | null
+  model: ModelServerState | null
+  pending: PendingAction | null
+  onToggleModel: () => void
 } & { t: T }) {
   const sha = boot?.mount_plan_sha
   const gpus = host?.gpu ?? []
@@ -463,11 +584,14 @@ function VitalsCard({
       </VitalRow>
       {host === null
         ? null
+        : gpus.length === 0
+          ? <div className={css.cardEmpty}>{t('noGpu')}</div>
+          : gpus.map((g, i) => <GpuMeter key={g.index ?? i} gpu={g} multi={gpus.length > 1} t={t} />)}
+      <ModelServerRow state={model} pending={pending} onToggle={onToggleModel} t={t} />
+      {host === null
+        ? null
         : (
           <>
-            {gpus.length === 0
-              ? <div className={css.cardEmpty}>{t('noGpu')}</div>
-              : gpus.map((g, i) => <GpuMeter key={g.index ?? i} gpu={g} multi={gpus.length > 1} t={t} />)}
             <ResourceMeter
               label={t('ram')} unit="GB"
               used={finite(host.ram?.used_gb)} total={finite(host.ram?.total_gb)}
