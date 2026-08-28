@@ -81,6 +81,15 @@ const SLOW_MS = 4000
  * showing instead of re-blanking. A runtime reboot truncates the feed and
  * resets the floor to 0, because everything in the new file is new.
  *
+ * The map is shared by every panel on screen: the 实验台 dashboard docks 执行图谱,
+ * 过程流 and 取景窗 as separate slot entries, each with its own poller, so a
+ * conversation's floor is adopted once and read by all of them. A poller
+ * therefore decides whether it still OWES a floor before its read goes out
+ * (`needFloor` below), never by re-testing this map after the await — between
+ * those two moments a sibling panel has already written the entry, and the
+ * loser used to fall through to the append branch and swallow the whole
+ * backlog (previous conversation's run in 过程流, empty 执行图谱).
+ *
  * Page lifetime only: a reload starts every conversation blank again.
  */
 const baseline = new Map<string, number>()
@@ -156,6 +165,15 @@ export function useLiveFeed(inj: FeedScope, fast: MutableRefObject<boolean>): Li
   const feed = useRef<OpEvent[]>([])
   const sessionRows = useRef<unknown>(null)
   const knownSession = useRef<string | null>(null)
+  // The conversation the accumulated feed belongs to. The runtime session is
+  // global, so a conversation switch alone leaves `chosen` unchanged; the
+  // strict-session slot remounts this hook per conversation, so this guard
+  // only covers a props-only switch (a non-remounting mount point).
+  const knownConversation = useRef<string | null>(null)
+  // This poller still owes `baseline` a floor for the conversation × session
+  // it just adopted. Decided BEFORE the events read goes out, because a
+  // sibling panel writes the same entry while the read is in flight.
+  const needFloor = useRef(false)
   const override = useRef<string | null>(null)
   const tickNo = useRef(0)
 
@@ -163,7 +181,7 @@ export function useLiveFeed(inj: FeedScope, fast: MutableRefObject<boolean>): Li
     // One Python storecli spawn per tick on the fast lane (the events cursor);
     // session discovery + routing rows refresh on a slower stride.
     tickNo.current += 1
-    if (knownSession.current === null || tickNo.current % 4 === 1) {
+    if (knownSession.current === null || sessionId !== knownConversation.current || tickNo.current % 4 === 1) {
       const s = await fetchSessions()
       if (!s.ok) { setOnline(false); return }
       setOnline(true)
@@ -173,14 +191,21 @@ export function useLiveFeed(inj: FeedScope, fast: MutableRefObject<boolean>): Li
       // current-runtime session (never the mtime-newest completed campaign).
       const ovr = override.current
       const chosen = (ovr !== null && list.some(x => x.name === ovr)) ? ovr : pickRuntimeSession(list)
-      if (chosen !== knownSession.current) {
+      if (chosen !== knownSession.current || sessionId !== knownConversation.current) {
         // The chosen session changed (override, first probe, or a new runtime
-        // session appeared) — drop the old feed so the graph/ticker do not blend
-        // two sessions' events.
+        // session appeared), or the panel moved to another conversation — either
+        // way the accumulated feed belongs to something else, so drop it and the
+        // graph/ticker never blend two sessions' (or two conversations') events.
         knownSession.current = chosen
-        const floor = chosen !== null && chosen !== override.current
-          ? (baseline.get(baseKey(sessionId, chosen)) ?? 0)
+        knownConversation.current = sessionId
+        // A stored floor means this conversation has looked at this session
+        // before (a view-tab switch, a sibling panel): restore its window.
+        // Absent, this poller owes the floor — see `needFloor`.
+        const stored = chosen !== null && chosen !== override.current
+          ? baseline.get(baseKey(sessionId, chosen))
           : 0
+        needFloor.current = stored === undefined
+        const floor = stored ?? 0
         cursor.current = floor
         setScoped(floor > 0)
         feed.current = []
@@ -197,11 +222,11 @@ export function useLiveFeed(inj: FeedScope, fast: MutableRefObject<boolean>): Li
       const payload = ev.value as EventsPayload
       const lastSeq = payload.last_seq ?? 0
       const key = baseKey(sessionId, name)
-      if (name !== override.current && !baseline.has(key)) {
+      if (name !== override.current && needFloor.current) {
         // This conversation's first look at the auto-followed session: floor the
         // cursor at the current tail and drop the backlog that came with this
         // read, so the panels open blank and fill only with what happens from
-        // now on. `feed` is empty here — the only path with no baseline is the
+        // now on. `feed` is empty here — the only path that owes a floor is the
         // reset above. A session the operator picked by hand is never floored:
         // asking for it IS asking for its history.
         // ...except a run still IN FLIGHT, which is the present, not the last
@@ -209,7 +234,12 @@ export function useLiveFeed(inj: FeedScope, fast: MutableRefObject<boolean>): Li
         // `task_claimed`, so a floor landing inside a running task leaves 执行图谱
         // permanently empty ("no task running") while 过程流 fills from the same
         // feed — the split the operator saw as "the graph vanished mid-run".
-        const floorSeq = runningSince(payload.events ?? [], lastSeq)
+        // A sibling panel of this conversation may have adopted the floor while
+        // this read was in flight; its value wins, so every panel opens on the
+        // same window. Dropping this payload costs one tick, never a row: the
+        // cursor stays AT the floor, so the next read returns them again.
+        needFloor.current = false
+        const floorSeq = baseline.get(key) ?? runningSince(payload.events ?? [], lastSeq)
         baseline.set(key, floorSeq)
         cursor.current = floorSeq
         setScoped(floorSeq > 0)

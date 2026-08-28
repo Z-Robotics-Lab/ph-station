@@ -42,6 +42,18 @@ function board(log: OpEvent[]) {
 const scope = (sessionId: string, log: OpEvent[]): FeedScope => ({ sessionId, ...board(log) })
 const fast = { current: true }
 
+/** One board object per conversation over a shared log, so a re-render (or a
+ * second panel of the same conversation) reuses the read identities the
+ * poller's effect depends on instead of re-arming its timer. */
+function scopes(log: OpEvent[]): (sessionId: string) => FeedScope {
+  const made = new Map<string, FeedScope>()
+  return (sessionId) => {
+    let s = made.get(sessionId)
+    if (s === undefined) { s = scope(sessionId, log); made.set(sessionId, s) }
+    return s
+  }
+}
+
 /** One poll tick is ~1.2s on the fast lane — over waitFor's 1s default. */
 const TICK = { timeout: 6000 }
 
@@ -76,6 +88,54 @@ describe('useLiveFeed conversation scoping', () => {
     const b = renderHook(() => useLiveFeed(scope('conv-blank-b', log), fast))
     await waitFor(() => { expect(b.result.current.sessionName).toBe('session-main') }, TICK)
     expect(b.result.current.feed.current).toEqual([])
+  })
+
+  it('adopts one floor across the sibling panels of a conversation', async () => {
+    // 实验台 docks 执行图谱, 过程流 and 取景窗 as separate slot entries: several
+    // pollers, one `baseline` entry. Mounted in one synchronous block, the
+    // second read is still in flight while the first writes the floor — the
+    // loser must still floor itself, not append the backlog it was handed.
+    const log = [ev(1), ev(2), ev(3)]
+    const at = scopes(log)
+    const graph = renderHook(() => useLiveFeed(at('conv-dock'), fast))
+    const ticker = renderHook(() => useLiveFeed(at('conv-dock'), fast))
+    await waitFor(() => {
+      expect(graph.result.current.scoped).toBe(true)
+      expect(ticker.result.current.scoped).toBe(true)
+    }, TICK)
+    expect(graph.result.current.feed.current).toEqual([])
+    expect(ticker.result.current.feed.current).toEqual([])
+
+    // Same floor, so both panels open on the same window.
+    log.push(ev(4))
+    await waitFor(() => {
+      expect(graph.result.current.feed.current).toEqual([ev(4)])
+      expect(ticker.result.current.feed.current).toEqual([ev(4)])
+    }, TICK)
+  })
+
+  it('re-floors on a props-only conversation switch and restores the old window on return', async () => {
+    const log = [ev(1), ev(2)]
+    const at = scopes(log)
+    const h = renderHook(
+      ({ id }: { id: string }) => useLiveFeed(at(id), fast),
+      { initialProps: { id: 'conv-x' } },
+    )
+    await waitFor(() => { expect(h.result.current.sessionName).toBe('session-main') }, TICK)
+    log.push(ev(3))
+    await waitFor(() => { expect(h.result.current.feed.current).toEqual([ev(3)]) }, TICK)
+
+    // A mount point that survives the switch (props change, no remount) must
+    // still drop conv-x's window instead of accumulating across conversations.
+    h.rerender({ id: 'conv-y' })
+    await waitFor(() => { expect(h.result.current.feed.current).toEqual([]) }, TICK)
+    log.push(ev(4))
+    await waitFor(() => { expect(h.result.current.feed.current).toEqual([ev(4)]) }, TICK)
+
+    // Back to conv-x: its own floor is restored, so it shows everything since
+    // it first looked — not conv-y's narrower window.
+    h.rerender({ id: 'conv-x' })
+    await waitFor(() => { expect(h.result.current.feed.current).toEqual([ev(3), ev(4)]) }, TICK)
   })
 
   it('replays an operator-picked session in full', async () => {

@@ -892,6 +892,32 @@ describe('inject: execution point, parameter derivation, cache granularity', () 
     expect(inject).toHaveBeenCalledTimes(2)
   })
 
+  it('remounts a strict session entry on a session switch: injected sessionId and hook refs both follow', () => {
+    const h = makeHost()
+    h.declare('k.session', SINGLE_SESSION)
+    h.addSession('s1')
+    h.addSession('s2')
+    let mounts = 0
+    h.add('k.session', {
+      component: ({ sessionId }: { sessionId?: string }) => {
+        // Local mount marker: the initializer runs once per incarnation, so a
+        // bumped number is a remount — the guarantee views built on component
+        // refs (a per-conversation poll cursor) rely on.
+        const [mount] = useState(() => ++mounts)
+        return <b>{`${sessionId}#${mount}`}</b>
+      },
+    })
+    const { view } = mountRoot(h, { 'k.session': SINGLE_SESSION }, renderSlot => (
+      <SessionProvider>{() => renderSlot('k.session', {})}</SessionProvider>
+    ))
+    act(() => { h.current.set('s1') })
+    expect(view.container.textContent).toBe('s1#1')
+    act(() => { h.current.set('s2') })
+    expect(view.container.textContent).toBe('s2#2')
+    act(() => { h.current.set('s1') })
+    expect(view.container.textContent).toBe('s1#3')
+  })
+
   it('store-declaring entries get baked actions appended to the inject parameters', () => {
     const h = makeHost()
     h.declare('k.single', SINGLE_ROOT)
