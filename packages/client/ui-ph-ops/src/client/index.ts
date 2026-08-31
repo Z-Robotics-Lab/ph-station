@@ -15,9 +15,10 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { en, NS, zh } from './locales.ts'
 import { OperatorRail, type RailInjected } from './OperatorRail.tsx'
+import { BrainConsole, type BrainInjected } from './BrainConsole.tsx'
 
-/** Required services: the sidebar slot, the board Remote, the copy. */
-export const inject = ['slots', 'remote', 'remote.board', 'locale']
+/** Required services: the sidebar slot, the board + brain Remotes, the copy. */
+export const inject = ['slots', 'remote', 'remote.board', 'remote.brain', 'locale']
 
 /**
  * Client plugin body: register the operator rail. The registration rides the
@@ -27,6 +28,7 @@ export const inject = ['slots', 'remote', 'remote.board', 'locale']
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-ph-ops: dictionaries')
   const board = ctx.remote.board
+  const brain = ctx.remote.brain
 
   // Operator rail: the persistent sidebar section of at-a-glance panels.
   ctx.slots.inject('sidebar.section', () => ctx.slots.register({
@@ -46,4 +48,18 @@ export function apply(ctx: Context): void {
       modelServer: (action: string) => board.modelServer(action),
     }),
   }, OperatorRail))
+
+  // Brain console: the mission planner that dispatches the plan through the
+  // board (submit_brief → brief_status) with bounded replan-on-failure.
+  ctx.slots.inject('sidebar.section', () => ctx.slots.register({
+    name: 'sidebar.section',
+    id: 'brain-console',
+    order: 15,
+    locale: NS,
+    inject: (): BrainInjected => ({
+      plan: (mission, session, priorFailuresJson) => brain.plan(mission, session, priorFailuresJson),
+      submitBrief: (briefJson, session) => board.submitBrief(briefJson, session),
+      briefStatus: (briefId, session, waitMs) => board.briefStatus({ briefId, session, waitMs }),
+    }),
+  }, BrainConsole))
 }

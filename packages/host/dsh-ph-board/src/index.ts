@@ -32,7 +32,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 // The Typert-generated ./typert and ./remote artifacts import Zod at runtime.
 import type {} from 'zod'
 import type {
-  BoardRuntimeEventsRequest, BoardRuntimeFrameRequest, BoardRuntimeKeyframeRequest,
+  BoardBriefStatusRequest, BoardRuntimeEventsRequest, BoardRuntimeFrameRequest, BoardRuntimeKeyframeRequest,
   BoardSessionRequest, BoardStoreRequest, BoardVaultNeighborsRequest, BoardVaultNodeRequest,
 } from './types.ts'
 
@@ -376,6 +376,24 @@ export class BoardBridge extends TypertRemoteService {
   @Remote('submitBrief')
   submitBrief(briefJson: string, session: string): Promise<JsonValue> {
     return this.run('submit_brief', undefined, ['--brief', briefJson, '--session', session])
+  }
+
+  /**
+   * Where one brief is and what it did (`storecli brief_status`): the same
+   * `{state, brief_id, session, task, events, outcome?, ...}` dict the MCP face
+   * returns, read off which of the runtime's intake directories holds the brief.
+   * The brain panel polls this after `submitBrief` to watch a dispatch and to
+   * decide when to replan; it is a live read, never sealed evidence. `waitMs`
+   * long-polls for the state to change (capped board-side); waiting it out is
+   * not an error — the reply just still reads `running`.
+   * @param request - the brief id, its runtime session, and an optional poll budget.
+   * @returns board.store.brief_status(...) verbatim, or an {error} dict.
+   */
+  @Remote('briefStatus')
+  briefStatus(request: BoardBriefStatusRequest): Promise<JsonValue> {
+    const wait = Math.trunc(request.waitMs ?? 0)
+    return this.run('brief_status', request.briefId,
+      ['--session', request.session, '--wait-ms', String(Number.isFinite(wait) && wait > 0 ? wait : 0)])
   }
 
   /**

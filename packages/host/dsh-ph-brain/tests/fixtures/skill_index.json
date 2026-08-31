@@ -1,0 +1,53 @@
+{
+  "_fixture": "Labeled test fixture, shaped like harness.skill_record.skill_index() output (physical-harness). Digests are placeholders. Measured tallies mirror the current graph: navigate 10/10, grasp 6/10, carry 3/10, place unreliable on both executors (scripted 0/10, pi0.5 0/10).",
+  "skills": {
+    "navigate": [
+      {
+        "digest": "navdigest01",
+        "binding": { "provider": "navigate.scripted" },
+        "preconditions": [],
+        "effects": ["at_target"],
+        "measured": { "successes": 10, "n": 10 }
+      }
+    ],
+    "grasp": [
+      {
+        "digest": "graspdigest1",
+        "binding": { "provider": "grasp.scripted" },
+        "preconditions": ["at_target"],
+        "effects": ["holding_object"],
+        "measured": { "successes": 6, "n": 10 }
+      }
+    ],
+    "carry": [
+      {
+        "digest": "carrydigest1",
+        "binding": { "provider": "carry.scripted" },
+        "preconditions": ["holding_object"],
+        "effects": ["object_at_dropzone"],
+        "measured": { "successes": 3, "n": 10 }
+      }
+    ],
+    "place": [
+      {
+        "digest": "placescripted",
+        "binding": { "provider": "place.scripted" },
+        "preconditions": ["object_at_dropzone"],
+        "effects": ["object_placed"],
+        "measured": { "successes": 0, "n": 10 }
+      },
+      {
+        "digest": "placepi05",
+        "binding": { "provider": "place.pi0.5" },
+        "preconditions": ["object_at_dropzone"],
+        "effects": ["object_placed"],
+        "measured": { "successes": 0, "n": 10 }
+      }
+    ]
+  },
+  "edges": [
+    { "from": "navigate", "to": "grasp", "via": ["at_target"] },
+    { "from": "grasp", "to": "carry", "via": ["holding_object"] },
+    { "from": "carry", "to": "place", "via": ["object_at_dropzone"] }
+  ]
+}

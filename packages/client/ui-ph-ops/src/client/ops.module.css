@@ -447,3 +447,42 @@
 .miniMode.modeExecution { background: var(--ph-pass); }
 .miniMode.modeEvolution { background: #7c3aed; }
 .miniMode.modeUnknown { background: var(--ph-neutral); }
+
+/* ── brain console (mission planner + dispatch) ──────────────────────────── */
+
+.brain { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
+.brainHead {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700; color: var(--ph-fg);
+}
+.brainField { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--ph-dim); }
+.brainField input, .brainField textarea {
+  font: inherit; font-size: 12px; color: var(--ph-fg);
+  background: var(--ph-surface-2); border: 1px solid var(--ph-line);
+  border-radius: 6px; padding: 5px 7px; resize: vertical;
+}
+.brainActions { display: flex; gap: 6px; }
+.brainActions button {
+  flex: 1; font: inherit; font-size: 12px; font-weight: 600;
+  padding: 5px 8px; border-radius: 6px; cursor: pointer;
+  background: var(--ph-surface-2); color: var(--ph-fg); border: 1px solid var(--ph-line);
+}
+.brainActions button:disabled { opacity: 0.5; cursor: default; }
+.brainNote { font-size: 11px; color: var(--ph-dim); }
+.brainError { font-size: 11px; color: var(--ph-fail); }
+.brainSteps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.brainStep {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px;
+  padding: 5px 7px; border-radius: 6px;
+  background: var(--ph-surface-2); border: 1px solid var(--ph-line);
+}
+.brainStep[data-phase="done"] { border-color: color-mix(in srgb, var(--ph-pass) 55%, transparent); }
+.brainStep[data-phase="failed"], .brainStep[data-phase="flagged"] { border-color: color-mix(in srgb, var(--ph-fail) 55%, transparent); }
+.brainTask { font-size: 12px; font-weight: 600; color: var(--ph-fg); }
+.brainExec { font-size: 10px; font-family: var(--ph-mono, monospace); color: var(--ph-dim); }
+.brainPhase { font-size: 10px; font-weight: 700; margin-left: auto; color: var(--ph-dim); text-transform: uppercase; }
+.brainWhy { flex-basis: 100%; font-size: 11px; color: var(--ph-dim); }
+.brainFlags { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.brainFlags li { font-size: 11px; color: var(--ph-fail); }
+.brainOutcome { font-size: 12px; font-weight: 600; color: var(--ph-fg); }
+.brainBound { font-size: 10px; color: var(--ph-dim); }

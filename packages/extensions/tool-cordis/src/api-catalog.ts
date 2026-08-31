@@ -503,8 +503,8 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   },
   {
     key: 'board',
-    summary: 'Read-only Remote over board.store via the storecli subprocess.',
-    description: 'Read-only Remote over board.store via the storecli subprocess. The gateway auto-serves each @Remote method at POST /api/board/<name>.',
+    summary: 'Remote over board.store via the storecli subprocess: read methods plus two writes (`submitBrief`, storecli\'s atomic brief drop, and `modelServer`, the local model server\'s start/stop).',
+    description: 'Remote over board.store via the storecli subprocess: read methods plus two writes (`submitBrief`, storecli\'s atomic brief drop, and `modelServer`, the local model server\'s start/stop). The gateway auto-serves each @Remote method at POST /api/board/<name>.',
     methods: [
       {
         signature: '@Remote(\'stores\') stores(): Promise<JsonValue>',
@@ -543,6 +543,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'board.store.parse_ledger(...) verbatim (账本 table).',
       },
       {
+        signature: '@Remote(\'campaignProgress\') campaignProgress(): Promise<JsonValue>',
+        description: 'Every live campaign heartbeat under runs/ (`runs/<store>/progress.json`, written per finished episode by script-path batteries): done/total/label, the python-folded rolling stats, and a `running` flag (fresh heartbeat, not yet at total). Live state, never sealed evidence -- the 演进 panel\'s in-progress card renders it verbatim.',
+        parameters: [],
+        returns: 'board.store.campaign_progress(runs) verbatim.',
+      },
+      {
         signature: '@Remote(\'sessions\') sessions(): Promise<JsonValue>',
         description: 'Every runtime session under runs/, newest first (summary cards, no rows).',
         parameters: [],
@@ -567,10 +573,52 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'board.store.read_runtime_status(...) verbatim, or null when absent.',
       },
       {
+        signature: '@Remote(\'hostVitals\') hostVitals(): Promise<JsonValue>',
+        description: 'The harness box\'s LIVE resource headroom: every GPU\'s VRAM with the compute processes holding it (biggest first), physical RAM, and free space on the filesystem holding `runs/` — `{gpu, ram, disk, ts}`. Host-addressed rather than session-addressed, so it takes no argument. Live state, never chain evidence, and the harness face never raises: a box with no NVIDIA driver reports an empty `gpu` list instead of an error.',
+        parameters: [],
+        returns: 'board.store.host_vitals(runsDir) verbatim.',
+      },
+      {
+        signature: '@Remote(\'modelServer\') modelServer(action: string): Promise<JsonValue>',
+        description: 'Read or switch the harness box\'s LOCAL model server (llama.cpp on 127.0.0.1:30001) — `{running, pid, port, healthy, model, vram_mib}`, plus an `error` key when an action could not be carried out. `running` true with `healthy` false is the server\'s 1-2 minute load window.\n\nSwitches the SERVICE PROCESS only; which model a request routes to stays the console\'s route selection. Stopping the server returns its VRAM to the simulator, which is why an operator who never opens a terminal needs it.\n\nThe second write on this Remote, and the narrowest one available: `action` is storecli\'s single positional argument, board.store accepts only `status`/`start`/`stop`, and the launcher script board.store may run is a constant there. No path, command line, or pid from this process reaches the harness.',
+        parameters: [{ name: 'action', description: '`status`, `start`, or `stop`. board.store rejects any other word with an error beside a truthful status and executes nothing.' }],
+        returns: 'board.store.model_server(action, runsDir) verbatim.',
+      },
+      {
+        signature: '@Remote(\'runtimeFrame\') runtimeFrame(request: BoardRuntimeFrameRequest): Promise<JsonValue>',
+        description: 'One runtime session\'s LIVE viewport frame (`runs/<session>/frame.jpg`, dumped offscreen by the harness frames overlay while a task runs): `{jpeg_b64, ts, age_s}`, or `{error: \'no frame\'}` when none exists. The base64 is encoded harness-side; this panel-facing face only forwards it. `afterTs` is the poller\'s cursor: an unchanged file returns the short `{unchanged, ts, age_s}` reply with no image bytes. `waitMs` long-polls: storecli blocks up to that long (capped board-side at 2s) for the frame to change past the cursor before answering, so the 取景窗 re-issues the call on reply and its to-hand fps tracks the writer\'s dump rate.',
+        parameters: [{ name: 'request', description: 'session name (guarded by storecli\'s safe_child) + cursors.' }],
+        returns: 'board.store.read_runtime_frame(...) verbatim, or an {error} dict.',
+      },
+      {
         signature: '@Remote(\'runtimeEvents\') runtimeEvents(request: BoardRuntimeEventsRequest): Promise<JsonValue>',
         description: 'One runtime session\'s OPERATIONAL event feed (runtime_events.jsonl, written by harness.opstream): events with seq > afterSeq plus last_seq. A last_seq below the caller\'s cursor means the runtime re-booted (feed truncated); the poller resets its cursor to 0 and re-reads. Live progress, never chain evidence.',
         parameters: [{ name: 'request', description: 'session name (guarded by storecli\'s safe_child) + cursor.' }],
         returns: 'board.store.read_runtime_events(...) verbatim, or an {error} dict.',
+      },
+      {
+        signature: '@Remote(\'runtimeKeyframes\') runtimeKeyframes(request: BoardSessionRequest): Promise<JsonValue>',
+        description: 'The INDEX of one runtime session\'s keyframe stills (`runs/<session>/keyframes/`, one JPEG the harness pins to an interesting `runtimeEvents` seq and clears on every boot): `{frames: [{seq, kind, ts}], count}`. Index only — no image bytes — so a panel polls it at event cadence and fetches a still through runtimeKeyframe on demand. An absent directory reads as an empty index, because a keyframe is live state and never sealed evidence.',
+        parameters: [{ name: 'request', description: 'the session name (guarded by storecli\'s safe_child).' }],
+        returns: 'board.store.read_runtime_keyframes(...) verbatim, or an {error} dict.',
+      },
+      {
+        signature: '@Remote(\'runtimeKeyframe\') runtimeKeyframe(request: BoardRuntimeKeyframeRequest): Promise<JsonValue>',
+        description: 'One keyframe still by the `runtimeEvents` seq it is pinned to: `{jpeg_b64, seq, kind}`, or `{error: \'no keyframe\'}` when that seq holds none (never captured, or cleared by a later boot). The base64 is encoded harness-side; this face only forwards it.',
+        parameters: [{ name: 'request', description: 'session name (guarded by storecli\'s safe_child) + the seq.' }],
+        returns: 'board.store.read_runtime_keyframe(...) verbatim, or an {error} dict.',
+      },
+      {
+        signature: '@Remote(\'submitBrief\') submitBrief(briefJson: string, session: string): Promise<JsonValue>',
+        description: 'Drop one brief into a runtime session\'s inbox (`storecli submit_brief`, which shares board/brief_drop\'s atomic write with mcp_server.submit_brief). The one write on this Remote, and deliberately zero-validation on both sides: the resident runtime is the sole authority over what a brief means, so a malformed brief is filed under the session\'s failed/ by the runtime rather than second-guessed here.',
+        parameters: [{ name: 'briefJson', description: 'the brief as a JSON string, forwarded verbatim as --brief.' }, { name: 'session', description: 'runtime session directory name, forwarded as --session.' }],
+        returns: 'storecli\'s stdout verbatim ({submitted, inbox}, the same JSON mcp_server.submit_brief returns), or an {error} dict.',
+      },
+      {
+        signature: '@Remote(\'briefStatus\') briefStatus(request: BoardBriefStatusRequest): Promise<JsonValue>',
+        description: 'Where one brief is and what it did (`storecli brief_status`): the same `{state, brief_id, session, task, events, outcome?, ...}` dict the MCP face returns, read off which of the runtime\'s intake directories holds the brief. The brain panel polls this after `submitBrief` to watch a dispatch and to decide when to replan; it is a live read, never sealed evidence. `waitMs` long-polls for the state to change (capped board-side); waiting it out is not an error — the reply just still reads `running`.',
+        parameters: [{ name: 'request', description: 'the brief id, its runtime session, and an optional poll budget.' }],
+        returns: 'board.store.brief_status(...) verbatim, or an {error} dict.',
       },
       {
         signature: '@Remote(\'vault\') vault(): Promise<JsonValue>',
@@ -589,6 +637,19 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Adjacency (both directions) for one vault node, optionally one relation.',
         parameters: [{ name: 'request', description: 'the node id plus an optional `rel` restriction.' }],
         returns: 'board.vault.neighbors(...) verbatim, or an {error: \'unknown node\'} dict.',
+      },
+    ],
+  },
+  {
+    key: 'brain',
+    summary: 'Remote planner over DeepSeek\'s chat-completions API.',
+    description: 'Remote planner over DeepSeek\'s chat-completions API. One method, `plan`; the gateway auto-serves it at POST /api/brain/plan.',
+    methods: [
+      {
+        signature: '@Remote(\'plan\') async plan(mission: string, session: string, priorFailuresJson: string): Promise<JsonValue>',
+        description: 'Decompose a mission into a plan of harness skills, choosing each executor by measured success. Reads `<runsDir>/<session>/skill_index.json` as context and calls the model once; on a replan the caller passes the prior failures.',
+        parameters: [{ name: 'mission', description: 'the operator\'s mission text.' }, { name: 'session', description: 'runtime session whose skill index to read (e.g. `session-main`).' }, { name: 'priorFailuresJson', description: 'JSON array of prior failed attempts, or `\'\'`/`\'[]\'` on the first turn; forwarded to the model verbatim as failure evidence.' }],
+        returns: 'a {@link BrainPlan} as JSON (`steps`/`flags`/`note`), or the same shape with an `error` key when the index is missing, the credential is unconfigured, or the model call fails.',
       },
     ],
   },
@@ -3105,8 +3166,20 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface BashEnvVariableInfo extends BashEnvVariable {\n    contributor: string;\n    key: DshEnvironmentKey;\n}',
   },
   {
+    name: 'BoardBriefStatusRequest',
+    declaration: 'export interface BoardBriefStatusRequest {\n    readonly briefId: string;\n    readonly session: string;\n    readonly waitMs?: number;\n}',
+  },
+  {
     name: 'BoardRuntimeEventsRequest',
     declaration: 'export interface BoardRuntimeEventsRequest {\n    readonly name: string;\n    readonly afterSeq?: number;\n}',
+  },
+  {
+    name: 'BoardRuntimeFrameRequest',
+    declaration: 'export interface BoardRuntimeFrameRequest {\n    readonly name: string;\n    readonly afterTs?: number;\n    readonly waitMs?: number;\n}',
+  },
+  {
+    name: 'BoardRuntimeKeyframeRequest',
+    declaration: 'export interface BoardRuntimeKeyframeRequest {\n    readonly name: string;\n    readonly seq: number;\n}',
   },
   {
     name: 'BoardSessionRequest',

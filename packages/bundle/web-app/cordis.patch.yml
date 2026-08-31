@@ -83,6 +83,20 @@
         repoRoot: !!js process.env.PH_BOARD_REPO
         runsDir: !!js process.env.PH_BOARD_RUNS
 
+    # physical-harness fork brain: the LLM planner Remote (POST /api/brain/plan)
+    # the 大脑 panel drives. It reads <PH_BOARD_RUNS>/<session>/skill_index.json
+    # as planning context and calls DeepSeek's chat-completions API; the key is
+    # resolved from the credentials seam (DEEPSEEK_API_KEY), never held here.
+    # Same fork-only channel as the board bridge: it shares PH_BOARD_RUNS and is
+    # disabled without it, so a plain `dsh web` still boots. The model defaults
+    # to the deployment's configured DeepSeek route; PH_BRAIN_MODEL overrides it.
+    - id: brain-bridge
+      name: '@deepseek-ai/dsh-ph-brain'
+      disabled: !!js process.env.PH_BOARD_RUNS === undefined
+      config:
+        runsDir: !!js process.env.PH_BOARD_RUNS
+        model: !!js process.env.PH_BRAIN_MODEL ?? 'deepseek-v4-flash-vision-exp'
+
     # Browser Session export: `/export` command plus the shared download dialog.
     - id: session-log-download
       name: '@deepseek-ai/dsh-session-log-export'

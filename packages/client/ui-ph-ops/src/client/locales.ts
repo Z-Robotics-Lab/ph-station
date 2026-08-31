@@ -82,6 +82,25 @@ export type PhOpsKey =
   | 'viewfinder.tip'
   | 'vram.tip'
   | 'modelServer.tip'
+  // brain console
+  | 'brain.title'
+  | 'brain.session'
+  | 'brain.mission'
+  | 'brain.missionHint'
+  | 'brain.plan'
+  | 'brain.planning'
+  | 'brain.dispatch'
+  | 'brain.dispatching'
+  | 'brain.noExecutor'
+  | 'brain.completed'
+  | 'brain.stopped'
+  | 'brain.transportFail'
+  | 'brain.bound'
+  | 'brain.phase.dispatching'
+  | 'brain.phase.watching'
+  | 'brain.phase.done'
+  | 'brain.phase.failed'
+  | 'brain.phase.flagged'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -165,6 +184,24 @@ export const zh: Record<PhOpsKey, string> = {
   'viewfinder.tip': '取景窗：机器人相机的实时画面渲染开关；开＝正在出图，关＝未渲染。',
   'vram.tip': '显存：GPU 上已占用/总量，下方是占得最多的进程。打满会直接打爆常驻 runtime，所以超过 90% 会变红。',
   'modelServer.tip': '本地模型：本机上跑的模型服务进程（llama.cpp，127.0.0.1:30001）。这个开关只启停这个进程，不决定请求发给谁——用云端还是本地，在模型选择器里选。停掉它能把上面那条显存还给仿真。加载要 1–2 分钟，期间显示“加载中”。',
+  'brain.title': '大脑',
+  'brain.session': '会话',
+  'brain.mission': '任务',
+  'brain.missionHint': '用一句话描述要机器人完成的任务',
+  'brain.plan': '规划',
+  'brain.planning': '规划中…',
+  'brain.dispatch': '派发',
+  'brain.dispatching': '派发中…',
+  'brain.noExecutor': '无可靠 executor',
+  'brain.completed': '全部完成',
+  'brain.stopped': '已停止',
+  'brain.transportFail': '调用失败',
+  'brain.bound': '失败自动重规划，上限 {n} 次',
+  'brain.phase.dispatching': '派发',
+  'brain.phase.watching': '执行中',
+  'brain.phase.done': '完成',
+  'brain.phase.failed': '失败',
+  'brain.phase.flagged': '需人工',
 }
 
 /** English dictionary. */
@@ -242,4 +279,22 @@ export const en: Record<PhOpsKey, string> = {
   'viewfinder.tip': "Viewfinder: the robot camera's live render toggle; on = rendering frames, off = not.",
   'vram.tip': 'VRAM: used/total on the GPU, with the biggest consumer below. A full card kills the resident runtime, so above 90% turns red.',
   'modelServer.tip': 'Local model: the model service process on this box (llama.cpp, 127.0.0.1:30001). This switch only starts and stops that process — whether a request goes to the cloud or to local is the model selector’s choice. Stopping it returns the VRAM above to the simulator. Loading takes 1-2 minutes, shown as "loading".',
+  'brain.title': 'Brain',
+  'brain.session': 'Session',
+  'brain.mission': 'Mission',
+  'brain.missionHint': 'Describe in one line what the robot should do',
+  'brain.plan': 'Plan',
+  'brain.planning': 'Planning…',
+  'brain.dispatch': 'Dispatch',
+  'brain.dispatching': 'Dispatching…',
+  'brain.noExecutor': 'no reliable executor',
+  'brain.completed': 'All steps completed',
+  'brain.stopped': 'Stopped',
+  'brain.transportFail': 'call failed',
+  'brain.bound': 'Auto-replans on failure, up to {n}',
+  'brain.phase.dispatching': 'dispatching',
+  'brain.phase.watching': 'running',
+  'brain.phase.done': 'done',
+  'brain.phase.failed': 'failed',
+  'brain.phase.flagged': 'needs operator',
 }

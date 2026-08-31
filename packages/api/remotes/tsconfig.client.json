@@ -46,6 +46,9 @@
       "path": "../../host/dsh-ph-board"
     },
     {
+      "path": "../../host/dsh-ph-brain"
+    },
+    {
       "path": "../../interaction/commands"
     },
     {

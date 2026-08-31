@@ -44,6 +44,20 @@ export interface BoardRuntimeKeyframeRequest {
   readonly seq: number
 }
 
+/** A brief-status read: the brief id in a runtime session, with an optional
+ * long-poll budget for the state to change. */
+export interface BoardBriefStatusRequest {
+  /** The brief id `submitBrief` returned (its `submitted` field). */
+  readonly briefId: string
+  /** Runtime session directory name; storecli rejects a traversal name. */
+  readonly session: string
+  /** Long-poll budget in ms: storecli blocks up to this long (capped
+   * board-side) for the brief's STATE to change before answering; waiting out
+   * the cap is not an error, the reply just still reads `running`. Omitted or 0
+   * answers immediately. */
+  readonly waitMs?: number
+}
+
 /** A vault node read: the content-addressed node id (skill digest, package dir, or capability seam). */
 export interface BoardVaultNodeRequest {
   /** Node id; an unknown id returns board.vault's {error: 'unknown node'} dict. */
