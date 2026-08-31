@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-31-vlm-brain-planner.md
-2026-08-31-vlm-brain-planner.md: 602146722961754d6448d2e8ebfc2c8602b44d0a
-2026-08-31-vlm-brain-planner.zh.md: 4fb22cb1c5a098a5d77f5b12c985984e7eb1c163
+2026-08-31-vlm-brain-planner.md: 9caec62e46d6fe64b6a903e2f050e66b17f9c2a8
+2026-08-31-vlm-brain-planner.zh.md: 3d1f83ef90eefc824a95c9596608add717fe7e03

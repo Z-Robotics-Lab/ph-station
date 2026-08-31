@@ -10,7 +10,7 @@ physical-harness 驾驶舱能读证据层（board Remote），聊天 agent 也�
 
 ## Decision
 
-一个新的 host Remote，`@deepseek-ai/dsh-ph-brain`（`ctx.brain`，挂在 `POST /api/brain/plan`），就是这个规划器。`plan(mission, session, priorFailuresJson)` 读 `<runsDir>/<session>/skill_index.json` 作上下文，调用一次 DeepSeek 的 OpenAI 兼容 `/chat/completions`，返回 `{steps, flags, note}`（失败时同结构带 `error`）。模型只能选 index 里存在的技能名，按实测成功率最高的记录为每个技能挑 executor，并从 scratch 种子窗口 `[420000, 439999]` 取 brief 种子，这样派发永远不会烧掉不可逆的种子账本。当某个必需技能的所有 executor 都是空记录或低成功率（place 在 `scripted` 和 `pi0.5` 上都是 `0/10`）时，规划器保留该步、把 `executor` 设为 `null` 并标记 operator，而不是绕过它——prompt 明说实测数据是诚实的、标记一个不可靠技能是正确行为而非失败。
+一个新的 host Remote，`@deepseek-ai/dsh-ph-brain`（`ctx.brain`，挂在 `POST /api/brain/plan`），就是这个规划器。`plan(mission, session, priorFailuresJson)` 读 `<runsDir>/<session>/skill_index.json` 作上下文，调用一次 DeepSeek 的 OpenAI 兼容 `/chat/completions`，返回 `{steps, flags, note}`（失败时同结构带 `error`）。模型只能选 index 里存在的技能名，按实测成功率最高的记录为每个技能挑 executor，并从 scratch 种子窗口 `[420000, 439999]` 取 brief 种子，这样派发永远不会烧掉不可逆的种子账本。当某个必需技能的所有 executor 都是空记录或低成功率（place 在 `scripted` 和 `pi0.5` 上都是 `0/10`）时，规划器保留该步、把 `executor` 设为 `null` 并标记 operator，而不是绕过它——prompt 明说实测数据是诚实的、标记一个不可靠技能是正确行为而非失败。prompt 同样是拒绝而非硬编：空 mission，或需要 index 里没有任何技能提供的动作（比如 washing、folding）的 mission，返回空 steps 并把缺口写进 flags，而不是拿 pick-and-place 链去硬凑。
 
 模型后端就是部署里已经配好的 DeepSeek 路由：API key 每次请求都经 credentials 面解析（`ctx.get('credentials')`，引用 `DEEPSEEK_API_KEY`，与 `llm-deepseek` 用的同一个引用），从不存在 config 上、不打日志；模型 id 默认用部署路由（`PH_BRAIN_MODEL` 覆盖）。插件挂在 web-app bundle 里、紧挨 board 桥接，共享 `PH_BOARD_RUNS`，缺它就自禁用，所以普通 `dsh web` 仍能启动。
 
@@ -28,4 +28,4 @@ GUI 是交付物：`大脑` 控制台是 `ui-ph-ops` 里的一个 `sidebar.secti
 
 ## Testing
 
-`packages/host/dsh-ph-brain/tests/planner.spec.ts` 覆盖对着真实 skill-index 形状的请求拼装与容错解析（带围栏的 JSON、预算钳制、保留 null executor、不可解析/畸形 → error plan）。`packages/client/ui-ph-ops/tests/planner-loop.client.spec.ts` 覆盖循环：done 前进、null executor 直接标记不派发、`MAX_REPLANS` 后停止、无恢复计划、submit 出错。对着已启动会话与真实 DeepSeek 调用的实时 GUI 路径，是 operator 的 UI 测试。
+`packages/host/dsh-ph-brain/tests/planner.spec.ts` 覆盖对着真实 skill-index 形状的请求拼装与容错解析（带围栏的 JSON、预算钳制、保留 null executor、不可解析/畸形 → error plan）。`packages/client/ui-ph-ops/tests/planner-loop.client.spec.ts` 覆盖循环：done 前进、null executor 直接标记不派发、`MAX_REPLANS` 后停止、无恢复计划、submit 出错。对着已启动会话与真实 DeepSeek 调用的实时 GUI 路径，是 operator 的 UI 测试。`packages/host/dsh-ph-brain/bench/` 是 plan 侧 benchmark：10 个 mission、五个类别（canonical/paraphrase/双语、partial、out-of-index、place trap、adversarial）× 5 trial，对着真实 DeepSeek 端点和已提交的 fixture，打分 schema 合法性、skill hallucination、executor 选择、不可靠技能处理、排序、拒绝率和 adversarial 抵抗，raw JSONL 与 summary 表都进 git。正是这个 benchmark 暴露并验证了上面的拒绝 hardening（空 mission 拒绝率 1/5 → 5/5）。
