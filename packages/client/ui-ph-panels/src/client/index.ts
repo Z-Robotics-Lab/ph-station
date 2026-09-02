@@ -1,9 +1,11 @@
 /**
- * Browser plugin for the 演进 / 机箱 / 账本 panels and the status bar. Each
- * view is one entry in a slot — three tabs in `conversation.view`, the status
- * bar in the frame-wide `shell.overlay` — reading the harness evidence layer
- * through the board Remote and rendering only. No service, no business logic:
- * every number comes from board.store / board.cards.
+ * Browser plugin for the 规划 / 技能库 / 演进 / 机箱 / 账本 panels and status bar.
+ * Each view is one entry in a slot — five tabs in `conversation.view`, the
+ * status bar in the frame-wide `shell.overlay` — reading the harness evidence
+ * and planning layers through the board Remote and rendering only. No service,
+ * no business logic: every number and every verdict comes from board.store /
+ * board.cards / board.planning; the 规划 tab's Execute is the board's own brief
+ * lifecycle, enabled only when the harness marked the plan executable.
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
@@ -23,12 +25,14 @@ import { CardsView, type CardsInjected } from './CardsView.tsx'
 import { LedgerView, type LedgerInjected } from './LedgerView.tsx'
 import { StatusBar, type StatusInjected } from './StatusBar.tsx'
 import { TaskChips } from './TaskChips.tsx'
+import { PlanView, type PlanInjected } from './PlanView.tsx'
+import { SkillLibraryView, type SkillLibraryInjected } from './SkillLibraryView.tsx'
 
 /** Required services: the conversation + shell slots, the board Remote, the copy. */
 export const inject = ['slots', 'remote', 'remote.board', 'locale']
 
 /**
- * Client plugin body: register the three view tabs and the status bar. Each
+ * Client plugin body: register the five view tabs and the status bar. Each
  * registration rides the slot service's effect wrapper, so plugin unload
  * removes them.
  * @param ctx - client root context.
@@ -40,6 +44,34 @@ export function apply(ctx: Context): void {
 
   ctx.slots.inject('conversation.view', () => {
     const disposers = [
+      // 规划: natural language -> skill chain. Plan is a read (board.planning);
+      // Execute is the board's own brief lifecycle, enabled only when the
+      // harness said executable.
+      ctx.slots.register({
+        name: 'conversation.view',
+        id: 'plan',
+        order: 20,
+        locale: NS,
+        label: () => t('view.plan'),
+        inject: (_sessionId: SessionId): PlanInjected => ({
+          planSkillTask: (instruction: string, session: string, seed: number) =>
+            board.planSkillTask({ instruction, session, seed }),
+          submitSkillPlan: (plan: string, session: string, seed: number) =>
+            board.submitSkillPlan({ plan, session, seed }),
+          briefStatus: (briefId: string, session: string) => board.briefStatus({ briefId, session }),
+          cancelBrief: (briefId: string, session: string) => board.cancelBrief({ briefId, session }),
+        }),
+      }, PlanView),
+      ctx.slots.register({
+        name: 'conversation.view',
+        id: 'skill-library',
+        order: 21,
+        locale: NS,
+        label: () => t('view.library'),
+        inject: (_sessionId: SessionId): SkillLibraryInjected => ({
+          fetchSkillLibrary: () => board.skillLibrary(),
+        }),
+      }, SkillLibraryView),
       // 演化台: the aggregate RSI panel (leftmost of the 演化 group). It renders
       // the 代际进化 / 战报 / 账本 panels by id through the owner's renderView, so
       // those three stay registered but drop out of the flat tab strip. Its own
@@ -63,7 +95,7 @@ export function apply(ctx: Context): void {
       ctx.slots.register({
         name: 'conversation.view',
         id: 'evolution',
-        order: 21,
+        order: 22,
         locale: NS,
         label: () => t('view.evolution'),
         inject: (_sessionId: SessionId): EvolutionInjected => ({
@@ -76,7 +108,7 @@ export function apply(ctx: Context): void {
       ctx.slots.register({
         name: 'conversation.view',
         id: 'cards',
-        order: 22,
+        order: 23,
         locale: NS,
         label: () => t('view.cards'),
         inject: (_sessionId: SessionId): CardsInjected => ({
@@ -86,7 +118,7 @@ export function apply(ctx: Context): void {
       ctx.slots.register({
         name: 'conversation.view',
         id: 'ledger',
-        order: 23,
+        order: 24,
         locale: NS,
         label: () => t('view.ledger'),
         inject: (_sessionId: SessionId): LedgerInjected => ({

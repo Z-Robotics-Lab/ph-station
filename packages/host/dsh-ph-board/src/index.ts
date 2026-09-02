@@ -1,7 +1,7 @@
 /**
- * Fork host bridge: the ph-station read panels reach the harness's evidence
- * layer (board/store.py) through its CLI face (board/storecli.py), same-origin
- * behind the gateway's trusted-host fence.
+ * Fork host bridge: the ph-station panels reach the harness's evidence layer
+ * (board/store.py) and its planning face (board/planning.py) through its CLI
+ * face (board/storecli.py), same-origin behind the gateway's trusted-host fence.
  *
  * The charter's "MCP 与 CLI 是同一函数的两个调用面": the MCP server serves the
  * chat LLM; this Remote serves the panels. Every method execFiles storecli and
@@ -32,8 +32,10 @@ import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 // The Typert-generated ./typert and ./remote artifacts import Zod at runtime.
 import type {} from 'zod'
 import type {
-  BoardRuntimeEventsRequest, BoardRuntimeFrameRequest, BoardRuntimeKeyframeRequest,
-  BoardSessionRequest, BoardStoreRequest, BoardVaultNeighborsRequest, BoardVaultNodeRequest,
+  BoardBriefRequest, BoardPlanSkillTaskRequest, BoardRuntimeEventsRequest,
+  BoardRuntimeFrameRequest, BoardRuntimeKeyframeRequest, BoardSessionRequest,
+  BoardStoreRequest, BoardSubmitSkillPlanRequest, BoardVaultNeighborsRequest,
+  BoardVaultNodeRequest,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -61,10 +63,12 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /**
- * Remote over board.store via the storecli subprocess: read methods plus two
- * writes (`submitBrief`, storecli's atomic brief drop, and `modelServer`, the
- * local model server's start/stop). The gateway auto-serves each @Remote method
- * at POST /api/board/<name>.
+ * Remote over board.store / board.planning via the storecli subprocess. The
+ * gateway auto-serves each @Remote method at POST /api/board/<name>. Reads
+ * dominate; the writes are the brief lifecycle the harness already owns
+ * (`submitBrief` and `submitSkillPlan` drop a brief through storecli's one
+ * atomic drop, `cancelBrief` leaves a stop marker) plus `modelServer`, the
+ * local model server's start/stop.
  */
 export class BoardBridge extends TypertRemoteService {
   /** Loader validation for the three deployment-varying paths. */
@@ -285,6 +289,18 @@ export class BoardBridge extends TypertRemoteService {
     })
   }
 
+  /**
+   * Latest completed rollout MP4 for one runtime session. The Python board
+   * returns the bytes as base64 so this Remote remains the same read-only JSON
+   * surface as every other panel-facing method.
+   * @param request - session name guarded by storecli's safe_child.
+   * @returns `{mp4_b64, ts, size}` or an `{error}` dict.
+   */
+  @Remote('runtimeRollout')
+  runtimeRollout(request: BoardSessionRequest): Promise<JsonValue> {
+    return this.run('runtime_rollout', request.name)
+  }
+
   /** The live worker, spawning it if none is up. */
   private frameWorkerUp(): ChildProcessByStdio<Writable, Readable, null> {
     if (this.frameWorker !== null) return this.frameWorker
@@ -407,6 +423,96 @@ export class BoardBridge extends TypertRemoteService {
   vaultNeighbors(request: BoardVaultNeighborsRequest): Promise<JsonValue> {
     const extra = request.relation === undefined ? [] : ['--relation', request.relation]
     return this.run('vault_neighbors', request.id, extra)
+  }
+
+  /**
+   * Complete RoboCasa annotation taxonomy unioned with installed runtime task
+   * catalogues. The harness owns the distinction between graph existence,
+   * direct bindings, and related canonical implementations; this method only
+   * forwards its bounded read-only projection.
+   * @returns board.planning.skill_library() verbatim.
+   */
+  @Remote('skillLibrary')
+  skillLibrary(): Promise<JsonValue> {
+    return this.run('skill_library')
+  }
+
+  /**
+   * Natural-language task -> validated skill chain, PLANNED ONLY (nothing
+   * executes, nothing is written). The harness retrieves the relevant subtree
+   * of the RoboCasa unified skill graph plus the instruction-driven task
+   * bindings, asks the planner card (DeepSeek, strict JSON), gates the reply
+   * with the runtime's own `validate_plan`, expands composites server-side, and
+   * checks every leaf for a real policy/driver binding. `status` is
+   * `executable` / `planning_only` / `rejected` / `no_match`; `composite_plan`
+   * is the record {@link submitSkillPlan} accepts.
+   * @param request - the instruction plus optional session/channel/expand/seed.
+   * @returns board.planning.plan_skill_task(...) verbatim, or an {error} dict.
+   */
+  @Remote('planSkillTask')
+  planSkillTask(request: BoardPlanSkillTaskRequest): Promise<JsonValue> {
+    // `--key=value` form: an instruction may begin with `-`, which argparse
+    // would otherwise read as an option.
+    const extra = [`--instruction=${request.instruction}`,
+      '--session', request.session ?? 'session-robocasa',
+      `--channel=${request.channel ?? 'auto'}`]
+    if (request.expand === false) extra.push('--no-expand')
+    const seed = request.seed
+    if (seed !== undefined && Number.isFinite(seed)) extra.push('--seed', String(Math.trunc(seed)))
+    return this.run('plan_skill_task', undefined, extra)
+  }
+
+  /**
+   * Execute a {@link planSkillTask} `composite_plan` record -- the ONE explicit
+   * execute. The harness re-verifies the record from scratch (installed task
+   * channel, `validate_plan`, every leaf bound) and refuses a planning-only or
+   * rejected record with `{error, status, submitted: false}`; an executable one
+   * becomes an ordinary task brief dropped through the same atomic path
+   * `submit_brief` uses, and the reply is that brief's `brief_status` handle
+   * (`brief_id`, `state` queued/running/stalled). Poll {@link briefStatus};
+   * stop with {@link cancelBrief}.
+   * @param request - the record JSON string plus session/seed/budgets.
+   * @returns board.planning.submit_skill_plan(...) verbatim.
+   */
+  @Remote('submitSkillPlan')
+  submitSkillPlan(request: BoardSubmitSkillPlanRequest): Promise<JsonValue> {
+    const extra = [`--plan=${request.plan}`, '--session', request.session ?? 'session-robocasa']
+    const seed = request.seed
+    if (seed !== undefined && Number.isFinite(seed)) extra.push('--seed', String(Math.trunc(seed)))
+    if (request.maxReplans !== undefined && Number.isFinite(request.maxReplans)) {
+      extra.push('--max-replans', String(Math.trunc(request.maxReplans)))
+    }
+    if (request.maxActuations !== undefined && Number.isFinite(request.maxActuations)) {
+      extra.push('--max-actuations', String(Math.trunc(request.maxActuations)))
+    }
+    return this.run('submit_skill_plan', undefined, extra)
+  }
+
+  /**
+   * Where one brief is and what it did: `{state, brief_id, task, events, ...}`
+   * with `state` queued/running/stalled/done/failed/cancelled/unknown, read off
+   * the runtime's intake directories. `waitMs` long-polls for a state change
+   * (capped board-side); waiting it out is not an error.
+   * @param request - session + brief id (+ optional long-poll budget).
+   * @returns board.store.brief_status(...) verbatim, or an {error} dict.
+   */
+  @Remote('briefStatus')
+  briefStatus(request: BoardBriefRequest): Promise<JsonValue> {
+    const wait = Math.trunc(request.waitMs ?? 0)
+    return this.run('brief_status', request.briefId, ['--session', request.session,
+      '--wait-ms', String(Number.isFinite(wait) && wait > 0 ? wait : 0)])
+  }
+
+  /**
+   * Stop one brief cooperatively: the harness drops a marker the resident
+   * runtime honours at a node boundary and seals `runtime.task_cancelled`; a
+   * brief already done/failed/cancelled is refused with an {error} dict.
+   * @param request - session + brief id.
+   * @returns board.store.cancel_brief(...) verbatim, or an {error} dict.
+   */
+  @Remote('cancelBrief')
+  cancelBrief(request: BoardBriefRequest): Promise<JsonValue> {
+    return this.run('cancel_brief', request.briefId, ['--session', request.session])
   }
 
   /** Spawn the harness CLI face and forward its stdout JSON verbatim. */

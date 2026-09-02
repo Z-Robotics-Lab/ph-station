@@ -26,6 +26,7 @@ export interface FeedInjected {
   fetchSession: (name: string) => Promise<RemoteResult<unknown>>
   fetchRuntimeEvents: (name: string, afterSeq: number) => Promise<RemoteResult<unknown>>
   fetchRuntimeFrame: (name: string, afterTs: number, waitMs: number) => Promise<RemoteResult<unknown>>
+  fetchRuntimeRollout: (name: string) => Promise<RemoteResult<unknown>>
   /** Keyframe index for one session: seq/kind/ts triples, no image bytes. */
   fetchKeyframes: (name: string) => Promise<RemoteResult<unknown>>
   /** One keyframe's JPEG by event seq (lazy: viewport entry or click only). */

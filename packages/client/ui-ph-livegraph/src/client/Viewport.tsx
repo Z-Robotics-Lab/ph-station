@@ -51,6 +51,24 @@ interface FramePayload {
   error?: string
 }
 
+interface RolloutPayload {
+  mp4_b64?: string
+  error?: string
+}
+
+/** Hand one base64 MP4 to the browser's native download manager. */
+export function downloadMp4(encoded: string, filename: string): void {
+  const raw = atob(encoded)
+  const bytes = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i)
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'video/mp4' }))
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
 /**
  * Compact frame age: seconds under a minute, then minutes, then hours.
  * @param s - age in seconds.
@@ -64,7 +82,7 @@ export function fmtAge(s: number): string {
 
 /** The 取景窗 panel body (mounted under a RunFeedProvider). */
 export function Viewport({ t }: PropsLocale<'phlivegraph'>) {
-  const { sessionName, sessions, fetchRuntimeFrame } = useRunFeed()
+  const { sessionName, sessions, fetchRuntimeFrame, fetchRuntimeRollout } = useRunFeed()
   const imgRef = useRef<HTMLImageElement>(null)
   const cursor = useRef(0)
   /** Panel-local pin: null follows the shared selection. */
@@ -74,6 +92,23 @@ export function Viewport({ t }: PropsLocale<'phlivegraph'>) {
   /** True once the board answered `no frame` — names the placeholder reason. */
   const [noFrame, setNoFrame] = useState(false)
   const session = pin ?? sessionName
+  const [downloading, setDownloading] = useState(false)
+
+  /** Download the rollout of the session this viewport is SHOWING (the pin when
+   * one is set, else the shared selection), so the file matches the picture. */
+  const download = async () => {
+    if (session === null || downloading) return
+    setDownloading(true)
+    try {
+      const result = await fetchRuntimeRollout(session)
+      const payload = result.ok ? result.value as RolloutPayload : null
+      if (payload?.mp4_b64 !== undefined) {
+        downloadMp4(payload.mp4_b64, `${session}-rollout.mp4`)
+      }
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   useEffect(() => {
     cursor.current = 0
@@ -144,6 +179,14 @@ export function Viewport({ t }: PropsLocale<'phlivegraph'>) {
         {pin === null && sessionName !== null
           ? <span className={css.viewportSession}>{sessionName}</span>
           : null}
+        <button
+          type="button"
+          className={css.viewportDownload}
+          disabled={session === null || downloading}
+          onClick={() => { void download() }}
+        >
+          {t(downloading ? 'rolloutDownloading' : 'rolloutDownload')}
+        </button>
       </div>
       <div className={css.viewportStage}>
         {/* Kept mounted so the ref survives placeholder flips. */}

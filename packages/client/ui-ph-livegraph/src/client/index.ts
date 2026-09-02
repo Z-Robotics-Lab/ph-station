@@ -46,6 +46,7 @@ export function apply(ctx: Context): void {
     fetchSession: (name: string) => board.session({ name }),
     fetchRuntimeEvents: (name: string, afterSeq: number) => board.runtimeEvents({ name, afterSeq }),
     fetchRuntimeFrame: (name: string, afterTs: number, waitMs: number) => board.runtimeFrame({ name, afterTs, waitMs }),
+    fetchRuntimeRollout: (name: string) => board.runtimeRollout({ name }),
     fetchKeyframes: (name: string) => board.runtimeKeyframes({ name }),
     fetchKeyframe: (name: string, seq: number) => board.runtimeKeyframe({ name, seq }),
   })

@@ -57,3 +57,42 @@ export interface BoardVaultNeighborsRequest {
   /** Restrict adjacency to one `rel` (DESCENDS_FROM, GOVERNS, REQUIRES, …); omitted returns all. */
   readonly relation?: string
 }
+
+/** A natural-language planning request. Read-only: the harness plans, validates,
+ * and expands the chain but executes nothing and writes nothing. */
+export interface BoardPlanSkillTaskRequest {
+  /** The task in natural language (bounded harness-side like a brief instruction). */
+  readonly instruction: string
+  /** Runtime session a later execute would route to; default `session-robocasa`. */
+  readonly session?: string
+  /** Pin one vocabulary (`robocasa_skill_graph` or a task name) instead of retrieval routing; default `auto`. */
+  readonly channel?: string
+  /** `false` skips the server-side leaf expansion; default expands. */
+  readonly expand?: boolean
+  /** Task seed; default the harness scratch seed (never burns the ledger). */
+  readonly seed?: number
+}
+
+/** Execute a `plan_skill_task` result: the `composite_plan` record, re-verified harness-side. */
+export interface BoardSubmitSkillPlanRequest {
+  /** The `composite_plan` object as a JSON string, forwarded verbatim; the harness re-validates it from scratch. */
+  readonly plan: string
+  /** Runtime session whose inbox receives the brief; default `session-robocasa`. */
+  readonly session?: string
+  /** Task seed; default the harness scratch seed. */
+  readonly seed?: number
+  /** Brief budget override. */
+  readonly maxReplans?: number
+  /** Brief budget override. */
+  readonly maxActuations?: number
+}
+
+/** A brief lifecycle call addressed by session and brief id. */
+export interface BoardBriefRequest {
+  /** Runtime session directory name; storecli rejects a traversal name. */
+  readonly session: string
+  /** The brief id a submit handed back (`brief-<hex>.json`). */
+  readonly briefId: string
+  /** `briefStatus` only: long-poll up to this many ms for the state to change (capped board-side). */
+  readonly waitMs?: number
+}
