@@ -190,6 +190,14 @@ export interface SkillRow {
   failure_modes?: string[]
 }
 
+/** One seed of the kept suite, as scripts/evolve.py's `per_seed` writes it. */
+export interface SeedRow {
+  seed?: number
+  success?: boolean | null
+  first_death?: string | null
+  failure_mode?: string | null
+}
+
 /** One round of an evolve campaign (`campaign.json` rounds[]). */
 export interface CampaignRound {
   round?: number
@@ -199,7 +207,12 @@ export interface CampaignRound {
   best?: number
   suite_sha?: string
   published?: boolean
+  per_seed?: SeedRow[] | null
+  /** What would unblock a round that tried nothing (non-empty only for kind none). */
+  needs?: string[] | null
   media?: string[]
+  /** `"<seed>/<node>": reason` of the segments that left no clip. */
+  media_dropped?: Record<string, string> | null
   ts?: number
 }
 

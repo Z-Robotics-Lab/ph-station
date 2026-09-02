@@ -10,9 +10,8 @@ export type PhPanelsKey =
   | 'view.evolution'
   | 'view.cards'
   | 'view.ledger'
-  // 演化台 (Evolution Console): the aggregate RSI panel + its sub-tab labels
-  | 'view.rsi'
-  | 'sub.rsi'
+  // 严格评测 (strict launcher) view + the sub-tab labels the RSI page embeds
+  | 'view.rsiStrict'
   | 'rsi.battle'
   // one-line panel subtitles (rendered in the panel head under the tab name)
   | 'sub.evolution'
@@ -107,7 +106,7 @@ export type PhPanelsKey =
   | 'stage.dev'
   | 'stage.done'
   | 'stage.stopped'
-  // Run-RSI launcher + chain stepper (演化台 head)
+  // Run-RSI launcher + chain stepper (严格评测 view)
   | 'rsi.run'
   | 'rsi.taskPick'
   | 'rsi.sessionPick'
@@ -144,8 +143,7 @@ export const zh: Record<PhPanelsKey, string> = {
   'view.evolution': '迭代记录',
   'view.cards': '能力卡',
   'view.ledger': '账本',
-  'view.rsi': 'RSI 总览',
-  'sub.rsi': 'RSI 全景：campaign 进度、held-out 门禁、每代 Δpp 与 seed 预算账本',
+  'view.rsiStrict': '严格评测',
   'rsi.battle': '战报',
   'sub.evolution': '每一代改动相对上一代的成绩变化，以及是否通过门禁（promoted）',
   'sub.cards': '已装的技能/能力：驱动方式、是否需仿真、任务绑定',
@@ -265,8 +263,7 @@ export const en: Record<PhPanelsKey, string> = {
   'view.evolution': 'Generations',
   'view.cards': 'Capability cards',
   'view.ledger': 'Ledger',
-  'view.rsi': 'Evolution',
-  'sub.rsi': 'The self-improvement side at a glance: campaign progress, battle gates, generation Δpp, and the budget ledger.',
+  'view.rsiStrict': 'Strict evaluation',
   'rsi.battle': 'Battle report',
   'sub.evolution': "Each generation's score change vs the previous, and whether it was promoted.",
   'sub.cards': 'Installed skills/capabilities: actuation, whether sim is needed, task bindings.',

@@ -1,7 +1,7 @@
 /**
- * Browser plugin for the 演进 / 机箱 / 账本 panels and the status bar. Each
- * view is one entry in a slot — three tabs in `conversation.view`, the status
- * bar in the frame-wide `shell.overlay` — reading the harness evidence layer
+ * Browser plugin for the 严格评测 / 迭代记录 / 机箱 / 账本 panels and the status
+ * bar. Each view is one entry in a slot — four `conversation.view` entries, the
+ * status bar in the frame-wide `shell.overlay` — reading the harness evidence layer
  * through the board Remote and rendering only. No service, no business logic:
  * every number comes from board.store / board.cards.
  */
@@ -16,8 +16,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: the generated ctx.remote merge, including the board namespace.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { en, NS, zh } from './locales.ts'
-import { EvolutionConsole } from './EvolutionConsole.tsx'
-import type { RsiConsoleInjected } from './RsiRun.tsx'
+import { RsiRun, type RsiConsoleInjected } from './RsiRun.tsx'
 import { EvolutionView, type EvolutionInjected } from './EvolutionView.tsx'
 import { CardsView, type CardsInjected } from './CardsView.tsx'
 import { LedgerView, type LedgerInjected } from './LedgerView.tsx'
@@ -28,7 +27,7 @@ import { TaskChips } from './TaskChips.tsx'
 export const inject = ['slots', 'remote', 'remote.board', 'locale']
 
 /**
- * Client plugin body: register the three view tabs and the status bar. Each
+ * Client plugin body: register the four view entries and the status bar. Each
  * registration rides the slot service's effect wrapper, so plugin unload
  * removes them.
  * @param ctx - client root context.
@@ -40,17 +39,16 @@ export function apply(ctx: Context): void {
 
   ctx.slots.inject('conversation.view', () => {
     const disposers = [
-      // 演化台: the aggregate RSI panel (leftmost of the 演化 group). It renders
-      // the 代际进化 / 战报 / 账本 panels by id through the owner's renderView, so
-      // those three stay registered but drop out of the flat tab strip. Its own
-      // inject face feeds the Run-RSI launcher + chain stepper at the head —
-      // including submitBrief, the board Remote's one write.
+      // 严格评测: the legacy heavy-chain launcher + stepper (`{"kind":"rsi"}`),
+      // kept out of the tab strip; the unified RSI page (ui-ph-ops, view id
+      // 'rsi') embeds it by id through renderView, beside 迭代记录 / 战报 / 账本.
+      // Its inject face includes submitBrief, the board Remote's one write.
       ctx.slots.register({
         name: 'conversation.view',
-        id: 'rsi',
+        id: 'rsi-strict',
         order: 20,
         locale: NS,
-        label: () => t('view.rsi'),
+        label: () => t('view.rsiStrict'),
         inject: (_sessionId: SessionId): RsiConsoleInjected => ({
           fetchCards: () => board.cards(),
           fetchSessions: () => board.sessions(),
@@ -59,7 +57,7 @@ export function apply(ctx: Context): void {
           fetchCampaignProgress: () => board.campaignProgress(),
           submitBrief: (briefJson: string, session: string) => board.submitBrief(briefJson, session),
         }),
-      }, EvolutionConsole),
+      }, RsiRun),
       ctx.slots.register({
         name: 'conversation.view',
         id: 'evolution',

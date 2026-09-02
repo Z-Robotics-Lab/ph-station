@@ -157,7 +157,7 @@ export function apply(ctx: Context): void {
       /* v8 ignore next -- unreachable: list registration validates id at load. */
       if (entry.options.id === undefined) continue
       // Redundant / aggregated panels stay registered (the 实验台 dashboard docks
-      // them, and 演化台 renders them by id) but drop out of the flat tab strip.
+      // them, and the RSI page renders them by id) but drop out of the flat tab strip.
       if (HIDDEN_STRIP_VIEW_IDS.has(entry.options.id)) continue
       tabs.push({ id: entry.options.id, label: resolveSlotLabel(entry.options.label) ?? entry.options.id })
     }

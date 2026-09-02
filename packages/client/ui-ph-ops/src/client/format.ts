@@ -2,6 +2,9 @@
  * Every number arrives already computed by board.store (Python); TS only shapes
  * it for display. */
 
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type { Campaign } from './types.ts'
+
 /* jscpd:ignore-start */
 /**
  * Narrow an unknown JSON value to a finite number, else null.
@@ -46,3 +49,11 @@ export function formatAgo(secs: number): string {
   return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`
 }
 /* jscpd:ignore-end */
+
+/** Seed count of an evolve campaign: `seeds` is the inclusive [lo, hi] pair. */
+export const seedCount = (c: Campaign): number =>
+  (c.seeds?.length === 2 ? c.seeds[1] - c.seeds[0] + 1 : 0)
+
+/** The one-line status every RSI surface shows: 第 r 轮 · best k/n · status. */
+export const statusLine = (c: Campaign, t: PropsLocale<'phops'>['t']): string =>
+  t('rsi.statusLine', { r: c.latest?.round ?? c.cursor ?? 0, k: c.best ?? 0, n: seedCount(c), status: c.status ?? '' })

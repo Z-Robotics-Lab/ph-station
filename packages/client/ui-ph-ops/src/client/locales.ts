@@ -1,5 +1,5 @@
-/** `phops` namespace dictionaries: the mission-cockpit tab + the operator-rail
- * card copy (mission graph, progress, runtime vitals, evolution ticker). */
+/** `phops` namespace dictionaries: the mission-cockpit / skills / RSI tabs + the
+ * operator-rail card copy (mission graph, progress, runtime vitals, RSI ticker). */
 
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'phops'
@@ -114,9 +114,9 @@ export type PhOpsKey =
   | 'brain.phase.done'
   | 'brain.phase.failed'
   | 'brain.phase.flagged'
-  // skills + evolve pages
+  // skills + RSI pages
   | 'view.skills'
-  | 'view.evolve'
+  | 'view.rsi'
   | 'skills.name'
   | 'skills.embodiments'
   | 'skills.executors'
@@ -130,7 +130,6 @@ export type PhOpsKey =
   | 'evolve.start'
   | 'evolve.starting'
   | 'evolve.stop'
-  | 'evolve.resume'
   | 'evolve.empty'
   | 'evolve.select'
   | 'evolve.round'
@@ -140,13 +139,38 @@ export type PhOpsKey =
   | 'evolve.best'
   | 'evolve.published'
   | 'evolve.status'
-  | 'evolve.seeds'
-  | 'evolve.arm'
+  | 'evolve.rounds'
   | 'evolve.chart'
   | 'evolve.log'
   | 'evolve.noLog'
   | 'evolve.media'
   | 'evolve.noMedia'
+  | 'yes'
+  | 'no'
+  | 'rsi.statusLine'
+  | 'rsi.roundN'
+  | 'rsi.sec.progress'
+  | 'rsi.sec.rounds'
+  | 'rsi.sec.frames'
+  | 'rsi.sec.log'
+  | 'rsi.saw'
+  | 'rsi.tried'
+  | 'rsi.result'
+  | 'rsi.published'
+  | 'rsi.needs'
+  | 'rsi.seed'
+  | 'rsi.firstDeath'
+  | 'rsi.noPerSeed'
+  | 'rsi.tried.executor'
+  | 'rsi.tried.tunables'
+  | 'rsi.tried.card'
+  | 'rsi.tried.none'
+  | 'rsi.dropped'
+  | 'rsi.strict'
+  | 'rsi.strictNote'
+  | 'rsi.tab.evolution'
+  | 'rsi.tab.battle'
+  | 'rsi.tab.ledger'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -262,7 +286,7 @@ export const zh: Record<PhOpsKey, string> = {
   'brain.phase.failed': '失败',
   'brain.phase.flagged': '需人工',
   'view.skills': '技能',
-  'view.evolve': '演化',
+  'view.rsi': 'RSI',
   'skills.name': '技能',
   'skills.embodiments': '具身绑定',
   'skills.executors': '执行器',
@@ -273,26 +297,50 @@ export const zh: Record<PhOpsKey, string> = {
   'skills.empty': '暂无技能记录',
   'evolve.task': '任务',
   'evolve.taskHint': '例如 kitchen_thaw',
-  'evolve.start': '启动演化',
+  'evolve.start': '开始 / 继续',
   'evolve.starting': '启动中…',
   'evolve.stop': '停止',
-  'evolve.resume': '续跑',
   'evolve.empty': '暂无演化 campaign',
   'evolve.select': '点击一个 campaign 查看详情',
   'evolve.round': '轮次',
-  'evolve.tried': '尝试',
+  'evolve.tried': '最近试了',
   'evolve.before': '前',
   'evolve.after': '后',
   'evolve.best': '最佳',
   'evolve.published': '已发布',
   'evolve.status': '状态',
-  'evolve.seeds': '种子',
-  'evolve.arm': 'arm',
+  'evolve.rounds': '轮数',
   'evolve.chart': '每轮成功计数（前 / 后 / 最佳）',
   'evolve.log': '运行日志',
   'evolve.noLog': '暂无该 brief 的日志',
   'evolve.media': '关键帧 / 视频',
   'evolve.noMedia': '该轮无保留媒体',
+  'yes': '是',
+  'no': '否',
+  'rsi.statusLine': '第 {r} 轮 · 最佳 {k}/{n} · {status}',
+  'rsi.roundN': '第 {r} 轮',
+  'rsi.sec.progress': '① 进度',
+  'rsi.sec.rounds': '② 每一轮：看 → 试 → 同种子再跑 → 变好才发布',
+  'rsi.sec.frames': '③ 关键片段',
+  'rsi.sec.log': '④ 日志',
+  'rsi.saw': '看到了什么',
+  'rsi.tried': '试了什么',
+  'rsi.result': '结果',
+  'rsi.published': '发布',
+  'rsi.needs': '还缺什么',
+  'rsi.seed': '种子',
+  'rsi.firstDeath': '首死节点',
+  'rsi.noPerSeed': '没有逐种子记录',
+  'rsi.tried.executor': '{node} 换用 {to} 执行器',
+  'rsi.tried.tunables': '把 {node} 的 {path} {from} → {to}',
+  'rsi.tried.card': '{node} 挂候选卡 {to}',
+  'rsi.tried.none': '没有可试的：{reason}',
+  'rsi.dropped': '未留下片段',
+  'rsi.strict': '严格评测（prereg / 盲双胞胎 / held-out）',
+  'rsi.strictNote': '可选的规则型纪律，只对 plugins/rsi 的 rule 型 RSI 有意义。',
+  'rsi.tab.evolution': '迭代记录',
+  'rsi.tab.battle': '战报',
+  'rsi.tab.ledger': '账本',
 }
 
 /** English dictionary. */
@@ -402,7 +450,7 @@ export const en: Record<PhOpsKey, string> = {
   'brain.phase.failed': 'failed',
   'brain.phase.flagged': 'needs operator',
   'view.skills': 'Skills',
-  'view.evolve': 'Evolve',
+  'view.rsi': 'RSI',
   'skills.name': 'Skill',
   'skills.embodiments': 'Embodiments',
   'skills.executors': 'Executors',
@@ -413,24 +461,48 @@ export const en: Record<PhOpsKey, string> = {
   'skills.empty': 'No skill records',
   'evolve.task': 'Task',
   'evolve.taskHint': 'e.g. kitchen_thaw',
-  'evolve.start': 'Start evolve',
+  'evolve.start': 'Start / resume',
   'evolve.starting': 'Starting…',
   'evolve.stop': 'Stop',
-  'evolve.resume': 'Resume',
   'evolve.empty': 'No evolve campaigns',
   'evolve.select': 'Pick a campaign to see its rounds',
   'evolve.round': 'Round',
-  'evolve.tried': 'Tried',
+  'evolve.tried': 'Last tried',
   'evolve.before': 'before',
   'evolve.after': 'after',
   'evolve.best': 'best',
   'evolve.published': 'published',
   'evolve.status': 'Status',
-  'evolve.seeds': 'Seeds',
-  'evolve.arm': 'arm',
+  'evolve.rounds': 'Rounds',
   'evolve.chart': 'Success count per round (before / after / best)',
   'evolve.log': 'Runtime log',
   'evolve.noLog': 'No log lines for this brief yet',
   'evolve.media': 'Keyframes / videos',
   'evolve.noMedia': 'No media kept for this round',
+  'yes': 'yes',
+  'no': 'no',
+  'rsi.statusLine': 'Round {r} · best {k}/{n} · {status}',
+  'rsi.roundN': 'Round {r}',
+  'rsi.sec.progress': '① Progress',
+  'rsi.sec.rounds': '② Each round: look → try → rerun the same seeds → publish only when better',
+  'rsi.sec.frames': '③ Key clips',
+  'rsi.sec.log': '④ Log',
+  'rsi.saw': 'What it saw',
+  'rsi.tried': 'What it tried',
+  'rsi.result': 'Result',
+  'rsi.published': 'Published',
+  'rsi.needs': 'What is missing',
+  'rsi.seed': 'Seed',
+  'rsi.firstDeath': 'First death',
+  'rsi.noPerSeed': 'No per-seed record',
+  'rsi.tried.executor': '{node}: switch executor to {to}',
+  'rsi.tried.tunables': '{node}: {path} {from} → {to}',
+  'rsi.tried.card': '{node}: mount candidate card {to}',
+  'rsi.tried.none': 'Nothing to try: {reason}',
+  'rsi.dropped': 'no clip kept',
+  'rsi.strict': 'Strict evaluation (prereg / blind twin / held-out)',
+  'rsi.strictNote': 'Optional rule-type discipline; only meaningful for the rule-type RSI under plugins/rsi.',
+  'rsi.tab.evolution': 'Generations',
+  'rsi.tab.battle': 'Battle report',
+  'rsi.tab.ledger': 'Ledger',
 }

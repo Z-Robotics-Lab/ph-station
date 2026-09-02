@@ -1,4 +1,4 @@
-/** Run-RSI launcher + chain stepper for the 演化台 head. One button replaces the
+/** Run-RSI launcher + chain stepper for the 严格评测 view. One button replaces the
  * hand-written `{"kind":"rsi","task":...}` brief: pick a task (from the 机箱
  * cards' task_bindings), pick an evolution-mode session (from sessions +
  * runtimeStatus), submit through the board Remote's one write. Renders only —
@@ -15,7 +15,7 @@ import { Term } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
 import css from './panels.module.css'
 
-/** The board reads + the one write the 演化台 head drives, injected by the slot
+/** The board reads + the one write the 严格评测 view drives, injected by the slot
  * registration (the sub-panels it aggregates keep their own inject faces). */
 export interface RsiConsoleInjected {
   fetchCards: () => Promise<RemoteResult<unknown>>

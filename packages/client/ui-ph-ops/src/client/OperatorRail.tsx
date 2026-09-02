@@ -16,11 +16,11 @@ import {
   IconActivity, IconBox, IconBroadcast, IconCpu, IconRoute, IconSitemap, IconTarget,
   IconTrendingUp, IconViewfinder,
 } from '@deepseek-ai/dsh-client-ui-ph-icons'
-import { agoSeconds, finite, formatAgo, pct } from './format.ts'
+import { agoSeconds, finite, formatAgo, pct, statusLine } from './format.ts'
 import { Term } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
 import type {
-  BootRow, GpuVitals, Health, HostVitals, ModelServerState, PlanComplete, PolicyServerState,
+  BootRow, Campaign, GpuVitals, Health, HostVitals, ModelServerState, PlanComplete, PolicyServerState,
   RuntimeEvent, RuntimeEventsPayload, RuntimeStatus, SessionDetail, SessionProgress, SessionSummary,
 } from './types.ts'
 import css from './ops.module.css'
@@ -33,7 +33,8 @@ export interface RailInjected {
   fetchRuntimeStatus: (name: string) => Promise<RemoteResult<unknown>>
   fetchRuntimeEvents: (name: string) => Promise<RemoteResult<unknown>>
   fetchStores: () => Promise<RemoteResult<unknown>>
-  fetchRounds: () => Promise<RemoteResult<unknown>>
+  /** POST /api/board/rsi_run: the newest evolve campaign's headline. */
+  fetchRsiRun: (session: string, task: string) => Promise<RemoteResult<unknown>>
   fetchHostVitals: () => Promise<RemoteResult<unknown>>
   /** Read or switch the box's local model server. The action word is the only
    * argument the board takes, and the board whitelists it — the rail passes a
@@ -49,7 +50,6 @@ export interface RailInjected {
 }
 
 interface StoreSummary { name?: string; task?: string | null; generations?: number; promoted?: number }
-interface Round { round?: number | null; title?: string | null }
 type T = PropsLocale<'phops'>['t']
 
 /* jscpd:ignore-start */
@@ -60,6 +60,29 @@ type T = PropsLocale<'phops'>['t']
  * (EXECUTION) from the status bar (未知). Replaces a hardcoded 'session-main'. */
 export function pickDefault(list: SessionSummary[]): string | null {
   return (list.find(s => s.kinds?.['runtime.boot'] !== undefined) ?? list[0])?.name ?? null
+}
+/** Evolve briefs are accepted only by evolution-mode runtimes: offer those (a live one
+ * first); fall back to every session only when no row carries a mode at all. */
+export function evolveSessions(list: SessionSummary[]): SessionSummary[] {
+  const evo = list.filter(s => s.mode === 'evolution')
+  return evo.length > 0 ? evo : list
+}
+export function pickEvolveDefault(list: SessionSummary[]): string | null {
+  const pool = evolveSessions(list)
+  return (pool.find(s => s.runtime_alive === true) ?? pool[0])?.name ?? pickDefault(pool)
+}
+/** The newest evolve campaign of the evolution-mode session: the last task the
+ * feed saw claimed that has a campaign.json (`rsiRun` per task, newest first,
+ * stopping at the first hit). */
+export async function newestCampaign(
+  events: RuntimeEvent[], session: string, fetchRsiRun: RailInjected['fetchRsiRun'],
+): Promise<Campaign | null> {
+  const tasks = [...new Set(events.flatMap(e => (e.kind === 'task_claimed' && typeof e.task === 'string' ? [e.task] : [])))].reverse()
+  for (const task of tasks) {
+    const r = await fetchRsiRun(session, task)
+    if (r.ok && typeof (r.value as Campaign | null)?.task === 'string') return r.value as Campaign
+  }
+  return null
 }
 function renderOn(value: unknown): boolean {
   if (typeof value === 'boolean') return value
@@ -157,7 +180,7 @@ const RESTART_POLL_MS = 2000
 
 export function OperatorRail({
   wide, fetchSessions, fetchSession, fetchSessionProgress, fetchRuntimeStatus, fetchRuntimeEvents,
-  fetchStores, fetchRounds, fetchHostVitals, modelServer, policyServer, restartServices, fetchHealth, t,
+  fetchStores, fetchRsiRun, fetchHostVitals, modelServer, policyServer, restartServices, fetchHealth, t,
 }: SidebarSectionProps & InjectFace<RailInjected> & PropsLocale<'phops'>) {
   const [latest, setLatest] = useState<SessionSummary | null>(null)
   const [detail, setDetail] = useState<SessionDetail | null>(null)
@@ -165,7 +188,7 @@ export function OperatorRail({
   const [rtStatus, setRtStatus] = useState<RuntimeStatus | null>(null)
   const [running, setRunning] = useState(false)
   const [stores, setStores] = useState<StoreSummary[]>([])
-  const [rounds, setRounds] = useState<Round[]>([])
+  const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [online, setOnline] = useState<boolean | null>(null)
   const [host, setHost] = useState<HostVitals | null>(null)
   const [now, setNow] = useState(() => Date.now())
@@ -186,16 +209,22 @@ export function OperatorRail({
       /* jscpd:ignore-end */
       setLatest(top)
       if (top?.name === undefined) { setDetail(null); setProgress(null); setRtStatus(null); return }
-      const [d, p, r, ev, st, rd] = await Promise.all([
+      const [d, p, r, ev, st] = await Promise.all([
         fetchSession(top.name), fetchSessionProgress(top.name), fetchRuntimeStatus(top.name),
-        fetchRuntimeEvents(top.name), fetchStores(), fetchRounds(),
+        fetchRuntimeEvents(top.name), fetchStores(),
       ])
       if (d.ok) setDetail(d.value as SessionDetail)
       if (p.ok) setProgress(p.value as SessionProgress)
       setRtStatus(r.ok ? ((r.value as RuntimeStatus | null) ?? null) : null)
-      if (ev.ok) setRunning(feedRunOpen((ev.value as RuntimeEventsPayload | null)?.events ?? []))
+      const feed = ev.ok ? ((ev.value as RuntimeEventsPayload | null)?.events ?? []) : []
+      if (ev.ok) setRunning(feedRunOpen(feed))
       if (st.ok) setStores(st.value as StoreSummary[])
-      if (rd.ok) setRounds(rd.value as Round[])
+      // The RSI card follows the evolution-mode session, which may not be the
+      // newest-booted one the mission cards follow.
+      const evo = pickEvolveDefault(list)
+      const evoFeed = evo === top.name ? feed : evo === null ? [] : await fetchRuntimeEvents(evo)
+        .then(x => (x.ok ? ((x.value as RuntimeEventsPayload | null)?.events ?? []) : []))
+      setCampaign(evo === null ? null : await newestCampaign(evoFeed, evo, fetchRsiRun))
     } catch {
       // A board read folds carrier failures into `ok: false`, but assembly
       // faults (arg/codec/Context) reject; a rejected poll must read as board
@@ -203,7 +232,7 @@ export function OperatorRail({
       // healthy poll sets online + detail again, so the cards return to live.
       setOnline(false)
     }
-  }, [fetchSessions, fetchSession, fetchSessionProgress, fetchRuntimeStatus, fetchRuntimeEvents, fetchStores, fetchRounds])
+  }, [fetchSessions, fetchSession, fetchSessionProgress, fetchRuntimeStatus, fetchRuntimeEvents, fetchStores, fetchRsiRun])
 
   // Host vitals ride their own faster cadence and their own failure: a board
   // that cannot answer them still leaves the mission cards live, so a failed
@@ -277,7 +306,7 @@ export function OperatorRail({
         policy={policy.state} policyPending={policy.pending} onPolicy={policy.act}
         restart={restart} build={build} onBuild={setBuild} onRestart={clickRestart} health={health} t={t}
       />
-      <EvolutionCard stores={stores} rounds={rounds} t={t} />
+      <EvolutionCard stores={stores} campaign={campaign} t={t} />
     </div>
   )
 }
@@ -761,23 +790,22 @@ function VitalsCard({
   )
 }
 
-/** Evolution ticker: the latest round as a feed item (round-number chip +
- * headline) over the newest campaign's promotion tally; each has a styled
- * empty state when the harness has none yet. */
-function EvolutionCard({ stores, rounds, t }: { stores: StoreSummary[]; rounds: Round[] } & { t: T }) {
-  const round = rounds[0]
+/** RSI ticker: the newest evolve campaign's headline (task · 第 r 轮 · best k/n ·
+ * status) first; the legacy heavy-chain promotion tally as a second, smaller
+ * line only when a legacy store exists. */
+function EvolutionCard({ stores, campaign, t }: { stores: StoreSummary[]; campaign: Campaign | null } & { t: T }) {
   const store = stores[0]
   return (
     <section className={css.card}>
       <CardHead icon={<IconTrendingUp size={14} />}>{t('card.evolution')}</CardHead>
-      {round
+      {campaign
         ? (
           <div className={css.feedItem}>
-            <span className={css.roundChip}>#{round.round}</span>
-            <span className={css.feedTitle} title={round.title ?? ''}>{round.title ?? ''}</span>
+            <span className={css.roundChip}>{campaign.task}</span>
+            <span className={css.feedTitle}>{statusLine(campaign, t)}</span>
           </div>
         )
-        : <div className={css.cardEmpty}>{t('noRounds')}</div>}
+        : <div className={css.cardEmpty}>{t('noCampaign')}</div>}
       {store
         ? (
           <div className={css.evoStore}>
@@ -785,7 +813,7 @@ function EvolutionCard({ stores, rounds, t }: { stores: StoreSummary[]; rounds: 
             <span className={css.promoteBadge}>{store.promoted ?? 0}/{store.generations ?? 0} <Term label={t('promoted')} tip={t('promoted.tip')} /></span>
           </div>
         )
-        : <div className={css.cardEmpty}>{t('noCampaign')}</div>}
+        : null}
     </section>
   )
 }

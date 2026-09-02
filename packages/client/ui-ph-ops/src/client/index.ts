@@ -1,7 +1,8 @@
 /**
- * Browser plugin for the operator rail. One registration: the operator rail as a
- * `sidebar.section` — the persistent "richer sidebar of panels". The graph-first
- * mission view moved to `ui-ph-livegraph` (the merged 执行图谱). Reads the harness
+ * Browser plugin for the operator rail, the brain console, and the 技能 / RSI
+ * pages. The operator rail is a `sidebar.section` — the persistent "richer
+ * sidebar of panels"; the graph-first mission view moved to `ui-ph-livegraph`
+ * (the merged 执行图谱). Reads the harness
  * evidence layer through the board Remote and renders only; no service, no
  * business logic, every number comes from board.store (the Python
  * `session_progress` fold + the session chain).
@@ -18,7 +19,7 @@ import { en, NS, zh } from './locales.ts'
 import { OperatorRail, type RailInjected } from './OperatorRail.tsx'
 import { BrainConsole, type BrainInjected } from './BrainConsole.tsx'
 import { SkillsView, type SkillsInjected } from './SkillsView.tsx'
-import { EvolveView, type EvolveInjected } from './EvolveView.tsx'
+import { RsiView, type RsiInjected } from './RsiView.tsx'
 
 /** Required services: the sidebar slot, the board + brain Remotes, the copy. */
 export const inject = ['slots', 'remote', 'remote.board', 'remote.brain', 'locale']
@@ -47,7 +48,7 @@ export function apply(ctx: Context): void {
       fetchRuntimeStatus: (name: string) => board.runtimeStatus({ name }),
       fetchRuntimeEvents: (name: string) => board.runtimeEvents({ name }),
       fetchStores: () => board.stores(),
-      fetchRounds: () => board.rounds(),
+      fetchRsiRun: (name: string, task: string) => board.rsiRun({ session: name, task }),
       fetchHostVitals: () => board.hostVitals(),
       modelServer: (action: string) => board.modelServer(action),
       policyServer: (action: string) => board.policyServer(action),
@@ -83,14 +84,17 @@ export function apply(ctx: Context): void {
     }),
   }, SkillsView))
 
-  // 演化 page: the lightweight evolve loop — list, start, watch, stop, resume.
+  // RSI page: the lightweight evolve loop as the one RSI surface — start / stop /
+  // resume a campaign and read it in loop order; the legacy heavy chain
+  // (ui-ph-panels' 'rsi-strict' + 迭代记录 / 战报 / 账本) is embedded by view id.
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
-    id: 'evolve',
-    order: 25,
+    id: 'rsi',
+    order: 20,
     locale: NS,
-    label: () => t('view.evolve'),
-    inject: (_sessionId: SessionId): EvolveInjected => ({
+    label: () => t('view.rsi'),
+    inject: (_sessionId: SessionId): RsiInjected => ({
+      fetchCards: () => board.cards(),
       fetchSessions: () => board.sessions(),
       fetchRuntimeEvents: (name: string) => board.runtimeEvents({ name }),
       fetchRsiRun: (name: string, task: string) => board.rsiRun({ session: name, task }),
@@ -99,5 +103,5 @@ export function apply(ctx: Context): void {
       submitBrief: (briefJson: string, session: string) => board.submitBrief(briefJson, session),
       cancelBrief: (briefId: string, session: string) => board.cancelBrief(briefId, session),
     }),
-  }, EvolveView))
+  }, RsiView))
 }

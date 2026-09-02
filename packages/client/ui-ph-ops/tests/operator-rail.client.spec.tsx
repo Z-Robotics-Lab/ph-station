@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Operator-rail smoke: the four cards (mission map, progress, runtime vitals,
- * evolution ticker) must render without throwing and fold to their honest empty
+ * RSI ticker) must render without throwing and fold to their honest empty
  * states when the board returns nothing, and the collapsed 56px rail must render
  * when the column is an icon rail. Board reads are mocked at the injected face;
  * this asserts the render contract, not the fold (poll.ts owns cadence).
@@ -31,14 +31,16 @@ function renderRail(wide: boolean, result: RemoteResult<unknown>, over: object =
     fetchSession: vi.fn(() => Promise.resolve(result)),
     fetchSessionProgress: vi.fn(() => Promise.resolve(result)),
     fetchRuntimeStatus: vi.fn(() => Promise.resolve(result)),
+    fetchRuntimeEvents: vi.fn(() => Promise.resolve(result)),
     fetchStores: vi.fn(() => Promise.resolve(result)),
-    fetchRounds: vi.fn(() => Promise.resolve(result)),
+    fetchRsiRun: vi.fn(() => Promise.resolve(result)),
     fetchHostVitals: vi.fn(() => Promise.resolve(result)),
     modelServer: vi.fn(() => Promise.resolve(result)),
     policyServer: vi.fn(() => Promise.resolve(result)),
     restartServices: vi.fn(() => Promise.resolve(result)),
     fetchHealth: vi.fn(() => Promise.resolve(result)),
-    t: (key: keyof typeof en) => en[key],
+    t: (key: keyof typeof en, params?: Record<string, unknown>) =>
+      en[key].replace(/\{(\w+)\}/g, (_, k: string) => String(params?.[k])),
     ...over,
   }
   const view = render(<OperatorRail {...(props as unknown as Parameters<typeof OperatorRail>[0])} />)
@@ -54,10 +56,38 @@ describe('OperatorRail smoke', () => {
     expect(screen.getByText(en['card.progress'])).toBeTruthy()
     expect(screen.getByText(en['card.vitals'])).toBeTruthy()
     expect(screen.getByText(en['card.evolution'])).toBeTruthy()
-    // Honest empties: no sealed run, no rounds, no campaign.
+    // Honest empties: no sealed run, no campaign.
     await waitFor(() => { expect(screen.getByText(en['graph.empty'])).toBeTruthy() })
-    expect(screen.getByText(en.noRounds)).toBeTruthy()
     expect(screen.getByText(en.noCampaign)).toBeTruthy()
+  })
+
+  it('headlines the newest evolve campaign of the evolution session, legacy tally beneath', async () => {
+    const list = [
+      { name: 'session-exec', mode: 'execution', runtime_alive: true, kinds: { 'runtime.boot': 1 } },
+      { name: 'session-evo', mode: 'evolution', runtime_alive: true, kinds: { 'runtime.boot': 1 } },
+    ]
+    const feeds: Record<string, unknown[]> = {
+      'session-exec': [],
+      'session-evo': [
+        { seq: 1, kind: 'task_claimed', brief: 'a', task: 'pack_lunch' },
+        { seq: 2, kind: 'task_claimed', brief: 'b', task: 'kitchen_thaw' },
+      ],
+    }
+    const { props } = renderRail(true, ok(null), {
+      fetchSessions: vi.fn(() => Promise.resolve(ok(list))),
+      fetchRuntimeEvents: vi.fn((name: string) => Promise.resolve(ok({ events: feeds[name], last_seq: 2 }))),
+      fetchRsiRun: vi.fn((_s: string, task: string) => Promise.resolve(ok(task === 'kitchen_thaw'
+        ? { task, seeds: [1, 4], best: 3, status: 'running', latest: { round: 5 } }
+        : null))),
+      fetchStores: vi.fn(() => Promise.resolve(ok([{ name: 'rsi-kitchen', generations: 4, promoted: 1 }]))),
+    })
+    await waitFor(() => { expect(screen.getByText('Round 5 · best 3/4 · running')).toBeTruthy() })
+    expect(screen.getByText('kitchen_thaw')).toBeTruthy()
+    // Newest claimed task first: one rsiRun hit ends the walk.
+    expect(props.fetchRsiRun).toHaveBeenCalledTimes(1)
+    expect(props.fetchRsiRun).toHaveBeenCalledWith('session-evo', 'kitchen_thaw')
+    expect(screen.getByText('rsi-kitchen')).toBeTruthy()
+    expect(screen.getByText(/1\/4/)).toBeTruthy()
   })
 
   it('renders without throwing when the board read fails (offline)', async () => {
