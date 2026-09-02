@@ -488,6 +488,27 @@ describe('ConversationRoot resident composer', () => {
     expect(b.view.getByRole('textbox')).toBeTruthy()
   })
 
+  it('mounts the composer only on 对话 and the 实验台 dash; other tabs hide the seat', () => {
+    const viewTabs: ViewTab[] = [
+      { id: 'dash', label: '实验台' },
+      { id: 'chat', label: 'Chat' },
+      { id: 'rsi', label: 'RSI' },
+      { id: 'vault', label: 'Vault' },
+    ]
+    const b = mount(conversationSnapshot(), undefined, undefined, { viewTabs })
+    const seat = () => b.view.container.querySelector('[data-composer-seat]')
+    for (const [id, shown] of [['chat', true], ['dash', true], ['rsi', false], ['vault', false], ['chat', true]] as const) {
+      act(() => { b.chat.actions.setView(id) })
+      expect(b.view.getByTestId(`view-${id}`)).toBeTruthy()
+      // getByRole honors the `hidden` attribute: a hidden seat exposes no textbox.
+      expect(b.view.queryByRole('textbox') !== null, id).toBe(shown)
+      expect(seat()?.hasAttribute('hidden'), id).toBe(!shown)
+    }
+    // The hidden seat stays mounted, so the draft survives a detour through RSI.
+    act(() => { b.chat.actions.setView('rsi') })
+    expect(seat()?.querySelector('textarea')).not.toBeNull()
+  })
+
   it('falls back to the leftmost view when the persisted id is unknown', () => {
     const viewTabs: ViewTab[] = [
       { id: 'chat', label: 'Chat' },

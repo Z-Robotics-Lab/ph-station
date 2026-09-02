@@ -1,6 +1,6 @@
 /** Strict per-session header/body content inserted into the resident conversation layout. */
 
-import { useEffect, useSyncExternalStore } from 'react'
+import { useContext, useEffect, useSyncExternalStore } from 'react'
 import clsx from 'clsx'
 import { IconNewChatOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
@@ -12,7 +12,8 @@ import type {
   ConversationSessionHeaderSlotProps, ConversationSessionSlotProps, ConvViewOwnerProps,
 } from '../contract/slots.ts'
 import type { ViewTab } from '../contract/views.ts'
-import { VIEW_GROUP, type ViewGroup } from './view-groups.ts'
+import { COMPOSER_VIEW_IDS, VIEW_GROUP, type ViewGroup } from './view-groups.ts'
+import { ComposerHostContext } from './ConversationRoot.tsx'
 import css from './ConversationRoot.module.css'
 
 /** Full props composed from the strict session body contract. */
@@ -250,6 +251,15 @@ export function ConversationSession({
   const storedDraft = useStore(s => s.draft)
   // `?? null`: persisted snapshots from before the inspect field rehydrate without it.
   const inspect = useStore(s => s.inspect ?? null)
+  const pendingCount = useSession(s => s.pending?.length ?? 0)
+  const reportComposerHost = useContext(ComposerHostContext)
+  // The composer belongs to 对话 and the 实验台 dash; a pending takeover keeps it
+  // reachable from any tab. No tabs at all keeps the seat (nothing to hide behind).
+  const hostsComposer = active === undefined || COMPOSER_VIEW_IDS.has(active.id) || pendingCount > 0
+  useEffect(() => {
+    reportComposerHost(hostsComposer)
+    return () => { reportComposerHost(true) }
+  }, [reportComposerHost, hostsComposer])
 
   useEffect(() => {
     if (inputState.draft === '' && storedDraft !== '') inputActions.setDraft(storedDraft)

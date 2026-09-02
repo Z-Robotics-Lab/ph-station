@@ -27,3 +27,10 @@ export const VIEW_GROUP: Readonly<Record<string, ViewGroup>> = {
   rsi: 'evo',
   vault: 'evo',
 }
+
+/** Visible tab ids that host the agent composer: 对话 itself and the 实验台
+ * dash, whose docked 对话 pane ports the one composer seat into its outlet.
+ * Every other view (RSI, 技能库, 轨迹, 取景窗, 图谱·过程流…) hides the seat; a
+ * pending takeover (approval/question) overrides so the blocked agent can
+ * still be answered from any tab. */
+export const COMPOSER_VIEW_IDS: ReadonlySet<string> = new Set(['chat', 'dash'])

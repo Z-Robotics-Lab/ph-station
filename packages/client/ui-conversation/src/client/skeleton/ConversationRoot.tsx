@@ -2,7 +2,7 @@
 // chain, AND the composer bar (session-maybe slot) stay mounted across
 // no-session/session transitions — the bar renders inert via owner props.
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import type { WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
@@ -12,6 +12,11 @@ import css from './ConversationRoot.module.css'
 
 /** Full props composed from the slot contract. */
 export type ConversationRootProps = ConversationSlotProps
+
+/** The session body reports whether its active view hosts the composer
+ * (COMPOSER_VIEW_IDS or a pending takeover); the root hides the seat otherwise.
+ * A context, not an owner prop: the body seat's contract carries no owner share. */
+export const ComposerHostContext = createContext<(hosted: boolean) => void>(() => {})
 
 export function ConversationRoot({
   sessionId, useSession, useSessions, useWorkspaces, useInput, useComposerBlock,
@@ -44,6 +49,7 @@ export function ConversationRoot({
   // hidden — is a DOM fact this skeleton can watch without a new contract.
   const rootRef = useRef<HTMLDivElement>(null)
   const [outlet, setOutlet] = useState<HTMLElement | null>(null)
+  const [viewHostsComposer, setViewHostsComposer] = useState(true)
   useEffect(() => {
     const root = rootRef.current
     if (root === null) return
@@ -210,8 +216,12 @@ export function ConversationRoot({
   // caps to --dsh-dock-reserve and bottom-aligns (justify-flex-end) so a
   // shrunk band clips the chip rows from the top while the input row — the
   // stack floor — stays visible.
+  // `hidden` (display:none), not unmount: the draft, image rail, and overlay
+  // chain keep their DOM; a hidden textarea cannot take focus, so InputBar's
+  // focus() calls become no-ops instead of yanking the operator off the tab.
+  const seatHidden = phase === 'active' && !viewHostsComposer
   const composerSeat = (
-    <div className={css.composerSeat} data-composer-seat="">
+    <div className={css.composerSeat} data-composer-seat="" hidden={seatHidden || undefined}>
       <div ref={seatResizeRef} className={css.composerSeatInner}>
         {composer}
       </div>
@@ -222,16 +232,18 @@ export function ConversationRoot({
   // it); only the active phase may port it into a view's outlet.
   const ported = phase === 'active' && outlet !== null
   return (
-    <div className={css.root} data-phase={phase} ref={rootRef}>
-      {renderSlot('conversation.session.header', {})}
-      <div
-        className={css.scrollBody}
-        data-conversation-scroll=""
-        {...(ported ? { 'data-composer-ported': '' } : {})}
-      >
-        {renderSlot('conversation.session', {})}
-        {ported ? createPortal(composerSeat, outlet) : composerSeat}
+    <ComposerHostContext.Provider value={setViewHostsComposer}>
+      <div className={css.root} data-phase={phase} ref={rootRef}>
+        {renderSlot('conversation.session.header', {})}
+        <div
+          className={css.scrollBody}
+          data-conversation-scroll=""
+          {...(ported ? { 'data-composer-ported': '' } : {})}
+        >
+          {renderSlot('conversation.session', {})}
+          {ported ? createPortal(composerSeat, outlet) : composerSeat}
+        </div>
       </div>
-    </div>
+    </ComposerHostContext.Provider>
   )
 }
