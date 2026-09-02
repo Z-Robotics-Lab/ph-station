@@ -43,7 +43,8 @@ const { fitView } = vi.hoisted(() => ({ fitView: vi.fn() }))
 vi.mock('@xyflow/react', async () => {
   const { useEffect } = await vi.importActual<typeof import('react')>('react')
   return {
-    Background: () => null, Controls: () => null, MiniMap: () => null, Handle: () => null,
+    Background: () => null, Controls: () => null, MiniMap: () => null, Handle: () => null, BaseEdge: () => null,
+    EdgeLabelRenderer: ({ children }: { children: React.ReactNode }) => children,
     Position: { Left: 'left', Right: 'right' },
     useStore: (sel: (s: { transform: number[] }) => unknown) => sel({ transform: [0, 0, 0.6] }),
     ReactFlow: ({ nodes, onInit }: {
@@ -66,12 +67,13 @@ const t = (key: keyof typeof en) => en[key]
 const GRAPH: VaultGraph = {
   schema_version: 2,
   nodes: [
-    { kind: 'benchmark', id: 'benchmark:kitchen', name: 'kitchen', embodiment: 'robocasa', tasks: ['kitchen_thaw'], card: 'plugins/robocasa' },
+    { kind: 'benchmark', id: 'benchmark:kitchen', name: 'kitchen', embodiment: 'robocasa', tasks: ['kitchen_thaw'], card: 'plugins/robocasa', missions: ['plugins/mission_kitchen_thaw'] },
     { kind: 'benchmark', id: 'benchmark:lab', name: 'lab', embodiment: 'so101', tasks: [] },
     { kind: 'capability', id: 'cap.sim', privileged: true },
     { kind: 'class', id: 'class:grasp', name: 'grasp', skills: 4 },
     { kind: 'class', id: 'class:nav', name: 'nav', skills: 1 },
     { kind: 'package', id: 'plugins/robocasa', name: 'robocasa', provides: ['cap.sim'], binds: { tasks: ['kitchen_thaw'], campaigns: [] }, bundles: ['sim'], actuation: 'sim', needs_sim: true, third_party: ['robocasa'], enabled: true },
+    { kind: 'package', id: 'plugins/mission_kitchen_thaw', name: 'mission_kitchen_thaw', tasks: ['kitchen_thaw'], skills: ['skill:nav_fridge', 'skill:grasp_can', 'skill:grasp_cup'], binds: { tasks: ['kitchen_thaw'], campaigns: [] } },
     { kind: 'skill', id: 'skill:grasp_can', status: 'library', name: 'grasp_can', skill_kind: 'segment', class: 'grasp',
       description: 'Grasp the can', args: { target: 'obj' }, requires: ['near(target)'], ensures: ['held(target)'], clobbers: ['gripper'],
       limits: { max_steps: 300 }, failure_modes: ['reach_stall'],
@@ -85,6 +87,10 @@ const GRAPH: VaultGraph = {
   ],
   edges: [
     { rel: 'BOUND_TO', src: 'skill:grasp_can', dst: 'plugins/robocasa', rule: 'bindings ref module -> card dir', via: 'r' },
+    { rel: 'COVERS', src: 'benchmark:kitchen', dst: 'plugins/mission_kitchen_thaw', rule: 'benchmark tasks ∩ mission tasks', via: 'r' },
+    { rel: 'USES', src: 'plugins/mission_kitchen_thaw', dst: 'skill:nav_fridge', rule: 'mission skills', via: 'r' },
+    { rel: 'USES', src: 'plugins/mission_kitchen_thaw', dst: 'skill:grasp_can', rule: 'mission skills', via: 'r' },
+    { rel: 'USES', src: 'plugins/mission_kitchen_thaw', dst: 'skill:grasp_cup', rule: 'mission skills', via: 'r' },
     { rel: 'DEPENDS_ON', src: 'skill:grasp_can', dst: 'skill:nav_fridge', rule: 'requires∩ensures', via: 'skill-library/records/grasp_can.json' },
     { rel: 'DEPENDS_ON', src: 'skill:grasp_can1', dst: 'skill:nav_fridge', rule: 'requires∩ensures', via: 'skill-library/records/grasp_can1.json' },
     { rel: 'EVIDENCED_ON', src: 'skill:grasp_can1', dst: 'benchmark:kitchen', rule: 'harness.protocol.skill_benchmarks', via: 'r', n: 2, k: 2 },
@@ -120,7 +126,7 @@ describe('graph index', () => {
     expect(tree.classes[0]!.roots.map(r => [r.node.name, r.instances.map(i => i.name)])).toEqual([
       ['grasp_can', ['grasp_can1', 'grasp_can2']], ['grasp_cup', []],
     ])
-    expect(tree.cards.map(n => n.id)).toEqual(['plugins/robocasa', 'cap.sim'])
+    expect(tree.cards.map(n => n.id)).toEqual(['plugins/robocasa', 'plugins/mission_kitchen_thaw', 'cap.sim'])
     expect(tree.legacy.map(n => n.id)).toEqual(['sha-legacy'])
   })
 
@@ -131,17 +137,30 @@ describe('graph index', () => {
     expect(byEmb.classes.map(c => [c.node.id, c.skills.map(s => s.name)])).toEqual([['class:grasp', ['grasp_cup']]])
   })
 
-  it('lays the fixture out in columns: capabilities, cards (benchmark under 任务/基准), collapsed class lanes with counted edges', () => {
+  it('lays the fixture out in columns: capabilities, cards (the benchmark heading its COVERS mission card), dependency-ordered lanes with counted edges and arcs', () => {
     const lay = layered(GRAPH, idx, { mode: 'all', on: defaultToggles(GRAPH), openClasses: new Set(), expanded: new Set(), added: new Set(), search: '' })
-    expect(lay.nodes.filter(n => n.type !== 'header').map(n => n.id)).toEqual(['cap.sim', 'plugins/robocasa', 'benchmark:kitchen', 'benchmark:lab', 'class:grasp', 'class:nav'])
+    expect(lay.nodes.filter(n => n.type !== 'header').map(n => n.id)).toEqual(['cap.sim', 'plugins/robocasa', 'benchmark:kitchen', 'plugins/mission_kitchen_thaw', 'benchmark:lab', 'class:nav', 'class:grasp'])
+    // The mission card nests under its benchmark (indented); the benchmark header counts it.
+    const bench = lay.nodes.find(n => n.id === 'benchmark:kitchen')!, mission = lay.nodes.find(n => n.id === 'plugins/mission_kitchen_thaw')!
+    expect(bench.data.count).toBe(1)
+    expect(mission.position.x).toBeGreaterThan(bench.position.x)
+    expect(mission.position.y).toBe(bench.position.y + bench.height + 14)
     expect(lay.edges.map(e => [e.rel, e.source, e.target, e.count])).toEqual([
       ['BOUND_TO', 'class:grasp', 'plugins/robocasa', 1],
-      ['DEPENDS_ON', 'class:grasp', 'class:nav', 2],
+      ['USES', 'plugins/mission_kitchen_thaw', 'class:nav', 1],
+      ['USES', 'plugins/mission_kitchen_thaw', 'class:grasp', 2],
       ['EVIDENCED_ON', 'class:grasp', 'benchmark:kitchen', 2],
       ['EVIDENCED_ON', 'class:nav', 'benchmark:kitchen', 1],
       ['PROVIDES', 'plugins/robocasa', 'cap.sim', 1],
+      ['DEPENDS_ON', 'class:grasp', 'class:nav', 2],
     ])
     expect(lay.edges.map(e => e.label)).toContain('DEPENDS_ON ×2')
+    expect(lay.edges.map(e => e.label)).toContain('USES ×2')
+    expect(lay.edges.find(e => e.rel === 'DEPENDS_ON')?.offset).toBe(28)
+    // COVERS never draws as an edge; the 使用 chip gates USES.
+    expect(lay.edges.some(e => e.rel === 'COVERS')).toBe(false)
+    const noUses = defaultToggles(GRAPH); noUses.delete('USES')
+    expect(layered(GRAPH, idx, { mode: 'all', on: noUses, openClasses: new Set(), expanded: new Set(), added: new Set(), search: '' }).edges.some(e => e.rel === 'USES')).toBe(false)
   })
 })
 
@@ -172,7 +191,7 @@ describe('VaultView', () => {
     expect(screen.queryByText('grasp_can')).toBeNull()
     // Nothing open: the canvas draws the three columns with every class lane collapsed (counted edges).
     const canvas = screen.getByTestId('canvas')
-    expect(canvas.getAttribute('data-nodes')).toBe('cap.sim plugins/robocasa benchmark:kitchen benchmark:lab class:grasp class:nav')
+    expect(canvas.getAttribute('data-nodes')).toBe('cap.sim plugins/robocasa benchmark:kitchen plugins/mission_kitchen_thaw benchmark:lab class:nav class:grasp')
     expect(canvas.getAttribute('data-edges')).toContain('DEPENDS_ON:class:grasp>class:nav=2')
     // The 历史 chip is off: the legacy record is neither in the tree nor on the canvas.
     expect(screen.queryByText(en['tree.history'])).toBeNull()
@@ -243,6 +262,13 @@ describe('VaultView', () => {
     fireEvent.click(screen.getByTestId('gn:class:nav'))
     expect(screen.getByRole('heading', { name: 'nav' })).toBeTruthy()
     expect(screen.getByText(en['class.benchmarks'])).toBeTruthy()
+    // The class page lists the classes depending on it (class · ×n); the link navigates.
+    expect(screen.getByText(en['class.dependedBy'])).toBeTruthy()
+    expect(screen.queryByText(en['class.dependsOn'])).toBeNull()
+    fireEvent.click(screen.getByText('×2'))
+    expect(screen.getByRole('heading', { name: 'grasp' })).toBeTruthy()
+    expect(screen.getByText(en['class.dependsOn'])).toBeTruthy()
+    fireEvent.click(screen.getByTestId('gn:class:nav'))
     // The lane chevron folds the class on the canvas and in the tree.
     fireEvent.click(screen.getByTestId('lane:class:grasp'))
     expect(screen.getByTestId('canvas').getAttribute('data-nodes')).not.toContain('skill:grasp_can')
@@ -331,6 +357,70 @@ describe('VaultView', () => {
     expect(screen.getByRole('heading', { name: 'kitchen' })).toBeTruthy()
     expect(screen.getByText(`${en['bench.embodiment']}: robocasa`)).toBeTruthy()
     expect(screen.getByText('3/3')).toBeTruthy()
+    // The benchmark lists its COVERS mission cards; the mission card lists the skills it USES.
+    expect(screen.getByText(en['bench.missions'])).toBeTruthy()
+    fireEvent.click(screen.getAllByRole('button', { name: 'mission_kitchen_thaw' }).at(-1)!) // the page link (the tree row is first)
+    expect(screen.getByRole('heading', { name: 'mission_kitchen_thaw' })).toBeTruthy()
+    expect(screen.getByText(en['pkg.uses'])).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'nav_fridge' }))
+    expect(screen.getByRole('heading', { name: 'nav_fridge' })).toBeTruthy()
+  })
+
+  it('Esc and 「← 返回」 pop the view-state history; Esc at depth 0 clears the selection', async () => {
+    mount()
+    await waitFor(() => { expect(screen.getByText('grasp')).toBeTruthy() })
+    const back = () => screen.getByRole('button', { name: `← ${en.back} · ${depth()}` })
+    let d = 0
+    const depth = () => d
+    expect(back()).toBeTruthy()
+    // Select grasp (opens its lane), then nav_fridge via the tree, then switch mode: three entries.
+    fireEvent.click(screen.getByText('grasp'))
+    d = 1
+    expect(back()).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: `nav: ${en['pane.expand']}` }))
+    d = 2
+    fireEvent.click(screen.getByText('nav_fridge'))
+    d = 3
+    fireEvent.click(screen.getByRole('button', { name: en['mode.skills'] }))
+    d = 4
+    expect(back()).toBeTruthy()
+    expect(screen.getByTestId('canvas').getAttribute('data-nodes')).not.toContain('cap.sim')
+    // Esc pops the mode change, then the selection (nav_fridge → grasp), then the nav lane, then grasp.
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    d = 3
+    expect(back()).toBeTruthy()
+    expect(screen.getByTestId('canvas').getAttribute('data-nodes')).toContain('cap.sim')
+    expect(screen.getByRole('heading', { name: 'nav_fridge' })).toBeTruthy()
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    d = 2
+    expect(screen.getByRole('heading', { name: 'grasp' })).toBeTruthy()
+    expect(screen.getByText('nav_fridge')).toBeTruthy() // the nav lane is still open
+    fireEvent.click(back())
+    d = 1
+    expect(screen.queryByText('nav_fridge')).toBeNull()
+    expect(screen.getByTestId('canvas').getAttribute('data-nodes')).toContain('skill:grasp_can')
+    // Esc inside the search box is the input's own.
+    fireEvent.keyDown(screen.getByPlaceholderText(en['search.placeholder']), { key: 'Escape' })
+    expect(back()).toBeTruthy()
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    d = 0
+    expect(back()).toBeTruthy()
+    expect(screen.getByText(en['detail.none'])).toBeTruthy()
+    expect(screen.getByTestId('canvas').getAttribute('data-nodes')).not.toContain('skill:grasp_can')
+    // Depth 0 with a selection: Esc clears it without pushing.
+    fireEvent.click(screen.getByText('grasp'))
+    d = 1
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    d = 0
+    fireEvent.click(screen.getByText('grasp'))
+    d = 1
+    expect(back()).toBeTruthy()
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    d = 0
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(screen.getByText(en['detail.none'])).toBeTruthy()
+    expect(back()).toBeTruthy()
+    expect((back() as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('folds a failed read to the offline state', async () => {

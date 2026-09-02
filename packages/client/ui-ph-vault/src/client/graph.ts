@@ -17,6 +17,7 @@ export type VaultRel =
   | 'DESCENDS_FROM' | 'GOVERNS' | 'REQUIRES' | 'PROVIDES' | 'BINDS'
   | 'EVIDENCED_BY' | 'CLAIMS' | 'SUPERSEDES' | 'MOUNTED_IN'
   | 'IN_CLASS' | 'DEPENDS_ON' | 'BOUND_TO' | 'EVIDENCED_ON' | 'INSTANCE_OF'
+  | 'COVERS' | 'USES'
 
 /** The five node kinds the fold emits (class / benchmark group the skill library). */
 export type VaultKind = 'skill' | 'class' | 'benchmark' | 'package' | 'capability'
@@ -92,6 +93,8 @@ export interface BenchmarkNode {
   readonly tasks?: string[]
   readonly arms?: string[]
   readonly card?: string
+  /** The mission cards it COVERS (package ids), verbatim from the fold. */
+  readonly missions?: string[]
   readonly annotations?: VaultAnnotation | null
 }
 
@@ -143,6 +146,9 @@ export interface PackageNode {
   readonly enabled?: boolean
   readonly claim?: Record<string, unknown> | null
   readonly claim_sealed?: { store?: string; skills?: string[]; heldout_judgement_established?: boolean } | null
+  /** Mission cards: the tasks they run and the skill ids they USES, verbatim from the fold. */
+  readonly tasks?: string[]
+  readonly skills?: string[]
   readonly annotations?: VaultAnnotation | null
 }
 
@@ -192,7 +198,7 @@ export interface VaultGraph {
 export const ALL_RELS: readonly VaultRel[] = [
   'DESCENDS_FROM', 'GOVERNS', 'REQUIRES', 'PROVIDES', 'BINDS',
   'EVIDENCED_BY', 'CLAIMS', 'SUPERSEDES', 'MOUNTED_IN',
-  'IN_CLASS', 'DEPENDS_ON', 'BOUND_TO', 'EVIDENCED_ON', 'INSTANCE_OF',
+  'IN_CLASS', 'DEPENDS_ON', 'BOUND_TO', 'EVIDENCED_ON', 'INSTANCE_OF', 'COVERS', 'USES',
 ]
 
 /** The kinds, in reading order. */
@@ -216,6 +222,8 @@ export const REL_COLOR: Record<VaultRel, string> = {
   BOUND_TO: 'var(--dsw-alias-state-success-primary, #2e9e5b)',
   EVIDENCED_ON: 'var(--dsw-alias-state-purple-primary, #8b5cf6)',
   INSTANCE_OF: 'var(--dsw-alias-label-tertiary, #9aa1ac)',
+  COVERS: 'var(--dsw-alias-state-purple-primary, #8b5cf6)',
+  USES: 'var(--dsw-alias-state-purple-primary, #8b5cf6)',
 }
 
 /** Primary hue per node kind, orthogonal to skill status: skill=blue,
@@ -369,6 +377,61 @@ export function embodiments(x: VaultIndex): string[] {
   return [...keys].sort()
 }
 
+/** Class-level DEPENDS_ON: `a → (b → count)` over the members' fold edges
+ * (each endpoint resolved by IN_CLASS), a ≠ b. One source for the lane order,
+ * the class page's 依赖的类 / 被依赖的类 lists, and the canvas arcs. */
+export function classDeps(x: VaultIndex): Map<string, Map<string, number>> {
+  const cls = (id: string): string | undefined => outOf(x, id, 'IN_CLASS')[0]?.dst
+  const out = new Map<string, Map<string, number>>()
+  for (const e of [...x.outs.values()].flat()) {
+    if (e.rel !== 'DEPENDS_ON') continue
+    const a = cls(e.src), b = cls(e.dst)
+    if (a === undefined || b === undefined || a === b) continue
+    const m = out.get(a) ?? new Map<string, number>()
+    m.set(b, (m.get(b) ?? 0) + 1)
+    out.set(a, m)
+  }
+  return out
+}
+
+/** Skill kinds whose contract only re-asserts state (a checker's requires =
+ * ensures), so their class depends on and is depended on by every motion
+ * class at once; their lanes sort after the motion lanes. */
+const CHECKER_KINDS = new Set(['verify', 'decide', 'perceive', 'plan'])
+
+/**
+ * The class lanes in dependency order: a class sits below every class it
+ * DEPENDS_ON (aggregated by {@link classDeps}), so the arcs point one way.
+ * Motion classes first (nav → grasp → carry → …), checker classes after them;
+ * within a group a mutual pair keeps its heavier direction (a tie constrains
+ * nothing), a longer cycle breaks at the class with the least unmet weight,
+ * and ties fall alphabetical.
+ * @param x - the index.
+ * @returns the class nodes, lane order.
+ */
+export function laneOrder(x: VaultIndex): ClassNode[] {
+  const classes = (x.byKind.get('class') ?? []) as ClassNode[]
+  const deps = classDeps(x)
+  const w = (a: string, b: string): number => deps.get(a)?.get(b) ?? 0
+  const checker = (c: ClassNode): boolean => {
+    const members = inTo(x, c.id, 'IN_CLASS').map(e => x.byId.get(e.src)).filter(isLibrary)
+    return members.length > 0 && members.every(m => CHECKER_KINDS.has(m.skill_kind ?? 'segment'))
+  }
+  const order: ClassNode[] = []
+  for (const group of [classes.filter(c => !checker(c)), classes.filter(checker)]) {
+    const left = new Set(group.map(c => c.id))
+    // Unmet weight: the kept (heavier-direction) dependencies still in `left`.
+    const unmet = (a: string): number => [...left].reduce((n, b) => n + (w(a, b) > w(b, a) ? w(a, b) : 0), 0)
+    while (left.size > 0) {
+      const ready = [...left].filter(a => unmet(a) === 0).sort()
+      const [pick] = ready.length > 0 ? ready : [...left].sort((p, q) => unmet(p) - unmet(q) || p.localeCompare(q))
+      left.delete(pick ?? '')
+      order.push(...group.filter(c => c.id === pick))
+    }
+  }
+  return order
+}
+
 
 // --- layered canvas: 能力 | 卡片 | 技能 ---------------------------------------
 
@@ -379,24 +442,25 @@ export type LayerMode = 'cards' | 'skills' | 'all'
 /** The relation chips over the canvas. Each maps to one fold relation except
  * CONTRACT (requires/ensures predicate nodes drawn from the records) and
  * HISTORY (the legacy sealed records and every legacy relation). */
-export type RelToggle = 'DEPENDS_ON' | 'CONTRACT' | 'INSTANCE_OF' | 'BOUND_TO' | 'PROVIDES' | 'MOUNTED_IN' | 'EVIDENCED_ON' | 'HISTORY'
+export type RelToggle = 'DEPENDS_ON' | 'CONTRACT' | 'INSTANCE_OF' | 'BOUND_TO' | 'USES' | 'PROVIDES' | 'MOUNTED_IN' | 'EVIDENCED_ON' | 'HISTORY'
 
 /** The chips, in reading order. */
-export const ALL_TOGGLES: readonly RelToggle[] = ['DEPENDS_ON', 'CONTRACT', 'INSTANCE_OF', 'BOUND_TO', 'PROVIDES', 'MOUNTED_IN', 'EVIDENCED_ON', 'HISTORY']
+export const ALL_TOGGLES: readonly RelToggle[] = ['DEPENDS_ON', 'CONTRACT', 'INSTANCE_OF', 'BOUND_TO', 'USES', 'PROVIDES', 'MOUNTED_IN', 'EVIDENCED_ON', 'HISTORY']
 
 /** The legacy relations (the runs history), all behind the 历史 chip. */
 export const HISTORY_RELS: readonly VaultRel[] = ['DESCENDS_FROM', 'GOVERNS', 'REQUIRES', 'CLAIMS', 'SUPERSEDES', 'EVIDENCED_BY', 'BINDS']
 
-/** The chip that admits a fold relation; IN_CLASS is drawn as lane membership, never as an edge. */
+/** The chip that admits a fold relation; IN_CLASS is drawn as lane membership
+ * and COVERS as a mission card nested under its benchmark, never as an edge. */
 export function toggleOf(rel: VaultRel): RelToggle | null {
-  if (rel === 'IN_CLASS') return null
+  if (rel === 'IN_CLASS' || rel === 'COVERS') return null
   return HISTORY_RELS.includes(rel) ? 'HISTORY' : rel as RelToggle
 }
 
-/** The chips on at load: 依赖 · 实例 · 绑定 · 提供 · 挂载, plus 证据 when the
- * fold carries at least one drawable EVIDENCED_ON edge; 前置/保证 and 历史 off. */
+/** The chips on at load: 依赖 · 实例 · 绑定 · 使用 · 提供 · 挂载, plus 证据 when
+ * the fold carries at least one drawable EVIDENCED_ON edge; 前置/保证 and 历史 off. */
 export function defaultToggles(graph: VaultGraph): Set<RelToggle> {
-  const on = new Set<RelToggle>(['DEPENDS_ON', 'INSTANCE_OF', 'BOUND_TO', 'PROVIDES', 'MOUNTED_IN'])
+  const on = new Set<RelToggle>(['DEPENDS_ON', 'INSTANCE_OF', 'BOUND_TO', 'USES', 'PROVIDES', 'MOUNTED_IN'])
   const ids = new Set(graph.nodes.map(n => n.id))
   if (graph.edges.some(e => e.rel === 'EVIDENCED_ON' && ids.has(e.src) && ids.has(e.dst))) on.add('EVIDENCED_ON')
   return on
@@ -442,7 +506,9 @@ export interface LaidOutNode {
 /** A painted edge; `requires` / `ensures` are the predicate edges. */
 export type EdgeRel = VaultRel | 'requires' | 'ensures'
 
-/** A React Flow edge with its relation label and fold-edge count. */
+/** A React Flow edge with its relation label and fold-edge count. A lane→lane
+ * DEPENDS_ON arc carries `offset`: how far right of the skills column it bows
+ * (longer spans bow further, every arc distinct). */
 export interface LaidOutEdge {
   id: string
   source: string
@@ -450,6 +516,7 @@ export interface LaidOutEdge {
   rel: EdgeRel
   label: string
   count: number
+  offset?: number
 }
 
 /** Everything the canvas draws. */
@@ -471,6 +538,8 @@ const LANE_HEAD = 40
 const INST_INDENT = 16
 const HEAD_H = 26
 const PRED_SIZE = { width: 200, height: 34 }
+const ARC_BASE = 28
+const ARC_STEP = 12
 
 /** The cards column sub-groups, in reading order. */
 export type CardGroup = 'embodiment' | 'provider' | 'mission' | 'other'
@@ -480,7 +549,7 @@ const CARD_GROUPS: readonly CardGroup[] = ['embodiment', 'provider', 'mission', 
  * other seam → 执行器/策略; a benchmark, a benchmark's card, or a `mission_*`
  * card → 任务/基准; the rest (build/skill/planner helpers) → 其他. */
 export function cardGroup(n: PackageNode | BenchmarkNode, x: VaultIndex): CardGroup {
-  if (n.kind === 'benchmark') return 'mission'
+  if (n.kind === 'benchmark' || inTo(x, n.id, 'COVERS').length > 0) return 'mission'
   const provides = n.provides ?? []
   if (provides.some(c => c.startsWith('embodiment.'))) return 'embodiment'
   if (provides.length > 0) return 'provider'
@@ -516,11 +585,11 @@ export function layered(graph: VaultGraph, x: VaultIndex, v: LayerView): VaultLa
     nodes.push({ id, type: 'header', position: { x: xPos, y }, width: LANE_W, height: HEAD_H, data: { key, count, dimmed: false } })
     return y + HEAD_H + GAP / 2
   }
-  const place = (n: VaultNode, xPos: number, y: number, parentId?: string): number => {
+  const place = (n: VaultNode, xPos: number, y: number, parentId?: string, count?: number): number => {
     const size = NODE_SIZE[n.kind]
     nodes.push({
       id: n.id, type: n.kind, position: { x: xPos, y }, ...size,
-      ...(parentId === undefined ? {} : { parentId }), data: { node: n, dimmed: dim(n) },
+      ...(parentId === undefined ? {} : { parentId }), data: { node: n, count, dimmed: dim(n) },
     })
     return y + size.height + GAP
   }
@@ -536,7 +605,15 @@ export function layered(graph: VaultGraph, x: VaultIndex, v: LayerView): VaultLa
       const members = cards.filter(c => cardGroup(c, x) === g)
       if (members.length === 0) continue
       y = header(`group:${g}`, `group.${g}`, COL_X.package, y, members.length)
-      for (const c of members) y = place(c, COL_X.package, y)
+      // 任务/基准: a benchmark heads the mission cards it COVERS, indented beneath it.
+      const covers = (b: VaultNode): PackageNode[] => outOf(x, b.id, 'COVERS').map(e => x.byId.get(e.dst)).filter((p): p is PackageNode => p?.kind === 'package')
+      const nested = new Set(members.flatMap(m => covers(m).map(p => p.id)))
+      for (const c of members) {
+        if (nested.has(c.id)) continue
+        const under = covers(c)
+        y = place(c, COL_X.package, y, undefined, c.kind === 'benchmark' ? under.length : undefined)
+        for (const p of under) y = place(p, COL_X.package + INST_INDENT, y)
+      }
     }
   }
 
@@ -550,7 +627,7 @@ export function layered(graph: VaultGraph, x: VaultIndex, v: LayerView): VaultLa
     if (members.length > 0) head.height = cy - GAP + LANE_PAD / 2
     return y + head.height + GAP
   }
-  const classes = (x.byKind.get('class') ?? []) as ClassNode[]
+  const classes = laneOrder(x)
   const memberOf = (c: ClassNode): LibrarySkillNode[] => inTo(x, c.id, 'IN_CLASS').map(e => x.byId.get(e.src)).filter(isLibrary)
   let y = header('col:skill', 'col.skill', COL_X.skill, 0, classes.reduce((n, c) => n + (c.skills ?? c.count ?? 0), 0))
   for (const c of classes) {
@@ -600,17 +677,31 @@ export function layered(graph: VaultGraph, x: VaultIndex, v: LayerView): VaultLa
     const c = outOf(x, id, 'IN_CLASS')[0]?.dst
     return c !== undefined && collapsedLanes.has(c) ? c : undefined
   }
+  const laneMid = new Map(nodes.filter(n => n.type === 'lane' && n.data.node?.kind === 'class').map(n => [n.id, n.position.y + n.height / 2]))
   const agg = new Map<string, LaidOutEdge>()
   for (const e of graph.edges) {
     const tg = toggleOf(e.rel)
     if (tg === null || !v.on.has(tg)) continue
     const a = anchor(e.src), b = anchor(e.dst)
     if (a === undefined || b === undefined || a === b) continue
+    // Lane→lane dependencies are the class-level arcs below, drawn whether or not a lane is open.
+    if (e.rel === 'DEPENDS_ON' && laneMid.has(a) && laneMid.has(b)) continue
     const id = `${e.rel}:${a}->${b}`
     const prev = agg.get(id)
     agg.set(id, prev === undefined ? { id, source: a, target: b, rel: e.rel, label: e.rel, count: 1 } : { ...prev, count: prev.count + 1 })
   }
   const edges = [...agg.values()].map(e => (e.count > 1 ? { ...e, label: `${e.rel} ×${e.count}` } : e))
+  // Class-level DEPENDS_ON arcs between drawn lanes: shorter spans bow less, so
+  // the arcs nest on the right of the column instead of merging into one line.
+  if (v.on.has('DEPENDS_ON')) {
+    const arcs = [...classDeps(x)].flatMap(([a, m]) => [...m].map(([b, count]) => ({ a, b, count })))
+      .filter(({ a, b }) => laneMid.has(a) && laneMid.has(b))
+      .map(arc => ({ ...arc, span: Math.abs((laneMid.get(arc.a) ?? 0) - (laneMid.get(arc.b) ?? 0)) }))
+      .sort((p, q) => p.span - q.span || p.a.localeCompare(q.a) || p.b.localeCompare(q.b))
+    arcs.forEach(({ a, b, count }, i) => {
+      edges.push({ id: `DEPENDS_ON:${a}->${b}`, source: a, target: b, rel: 'DEPENDS_ON', label: `DEPENDS_ON ×${count}`, count, offset: ARC_BASE + ARC_STEP * i })
+    })
+  }
   if (v.on.has('CONTRACT')) {
     for (const s of drawnSkills) {
       for (const p of s.requires ?? []) edges.push({ id: `requires:${p}->${s.id}`, source: `pred:${p}`, target: s.id, rel: 'requires', label: 'requires', count: 1 })

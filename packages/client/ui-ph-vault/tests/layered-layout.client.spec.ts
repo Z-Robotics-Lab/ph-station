@@ -8,7 +8,7 @@
 
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { absolutePosition, COL_X, defaultToggles, HISTORY_RELS, indexGraph, layered } from '../src/client/graph.ts'
+import { absolutePosition, classDeps, COL_X, defaultToggles, HISTORY_RELS, indexGraph, laneOrder, layered } from '../src/client/graph.ts'
 import type { LaidOutNode, LayerView, RelToggle, VaultGraph } from '../src/client/graph.ts'
 
 const GRAPH = JSON.parse(readFileSync(new URL('./fixtures/vault.real.json', import.meta.url), 'utf8')) as VaultGraph
@@ -43,7 +43,11 @@ describe('layered layout: three fixed columns', () => {
     expect(cards).toHaveLength(28)
     expect(lanes).toHaveLength(10)
     expect(caps.every(n => n.position.x === COL_X.capability)).toBe(true)
-    expect(cards.every(n => n.position.x === COL_X.package)).toBe(true)
+    // The four benchmark-COVERED mission cards nest indented under their benchmark; every other card sits at the column x.
+    const nested = cards.filter(n => n.position.x > COL_X.package)
+    expect(nested).toHaveLength(4)
+    expect(nested.every(n => n.type === 'package')).toBe(true)
+    expect(cards.filter(n => n.position.x === COL_X.package)).toHaveLength(24)
     expect(lanes.every(n => n.position.x === COL_X.skill)).toBe(true)
     expect(out.nodes.filter(n => n.type === 'skill')).toHaveLength(0)
     expect(ids(out.nodes)).toEqual(expect.arrayContaining(['col:capability', 'col:package', 'col:skill', 'group:embodiment', 'group:mission']))
@@ -58,11 +62,41 @@ describe('layered layout: three fixed columns', () => {
     expect(busy.nodes.filter(n => n.type === 'skill').length).toBeGreaterThan(2)
   })
 
-  it('folds collapsed lanes into counted class-level edges and draws only chip-admitted relations', () => {
-    const deps = out.edges.filter(e => e.rel === 'DEPENDS_ON')
-    expect(deps.length).toBeGreaterThan(0)
-    expect(deps.every(e => e.source.startsWith('class:') && e.target.startsWith('class:'))).toBe(true)
-    expect(deps.reduce((n, e) => n + e.count, 0)).toBe(151) // the cross-class DEPENDS_ON edges
+  it('orders the lanes by dependency: nav → grasp → carry → … with the checker classes (verify) last', () => {
+    const order = laneOrder(idx).map(c => c.id)
+    expect(order).toEqual([
+      'class:nav', 'class:grasp', 'class:carry', 'class:drop', 'class:pack', 'class:place', 'class:actuate',
+      'class:decide', 'class:perceive', 'class:verify',
+    ])
+    expect(ids(out.nodes.filter(n => n.type === 'lane'))).toEqual(order)
+    // Every kept (heavier-direction) motion dependency points at a lane above.
+    const deps = classDeps(idx)
+    const at = (c: string) => order.indexOf(c)
+    for (const [a, m] of deps) {
+      for (const [b, n] of m) if (n > (deps.get(b)?.get(a) ?? 0) && at(a) < 7 && at(b) < 7) expect(at(b)).toBeLessThan(at(a))
+    }
+    expect(deps.get('class:drop')?.get('class:carry')).toBe(16)
+  })
+
+  it('draws the class-level DEPENDS_ON as counted lane→lane arcs with distinct offsets growing with the span', () => {
+    const arcs = out.edges.filter(e => e.rel === 'DEPENDS_ON')
+    expect(arcs.length).toBeGreaterThan(0)
+    expect(arcs.every(e => e.source.startsWith('class:') && e.target.startsWith('class:') && e.offset !== undefined)).toBe(true)
+    expect(arcs.reduce((n, e) => n + e.count, 0)).toBe(151) // the cross-class DEPENDS_ON edges
+    expect(new Set(arcs.map(e => e.offset)).size).toBe(arcs.length)
+    const mid = new Map(out.nodes.filter(n => n.type === 'lane').map(n => [n.id, n.position.y + n.height / 2]))
+    const span = (e: typeof arcs[number]) => Math.abs(mid.get(e.source)! - mid.get(e.target)!)
+    arcs.slice(1).forEach((e, i) => {
+      expect(span(e)).toBeGreaterThanOrEqual(span(arcs[i]!))
+      expect(e.offset!).toBeGreaterThan(arcs[i]!.offset!)
+    })
+    // The arcs stay while a lane is open (its members' own edges join them).
+    const open = layered(GRAPH, idx, view({ openClasses: new Set(['class:carry']) }))
+    expect(open.edges.filter(e => e.offset !== undefined).map(e => e.id).sort()).toEqual(arcs.map(e => e.id).sort())
+    expect(open.edges.some(e => e.rel === 'DEPENDS_ON' && e.offset === undefined && e.source === 'skill:carry')).toBe(true)
+  })
+
+  it('draws only chip-admitted relations', () => {
     expect(out.edges.some(e => e.label.startsWith('DEPENDS_ON ×'))).toBe(true)
     expect(out.edges.filter(e => e.rel === 'PROVIDES')).toHaveLength(12)
     expect(out.edges.filter(e => e.rel === 'BOUND_TO')).toEqual([expect.objectContaining({ source: 'class:place', target: 'plugins/policy_vla_remote', count: 1 })])
@@ -138,7 +172,7 @@ describe('layered layout: three fixed columns', () => {
     expect(overlapping(hist.nodes)).toEqual([])
   })
 
-  it('seeds the chips with 依赖 · 实例 · 绑定 · 提供 · 挂载 and leaves 证据 off when the fold draws none', () => {
-    expect([...defaultToggles(GRAPH)].sort()).toEqual(['BOUND_TO', 'DEPENDS_ON', 'INSTANCE_OF', 'MOUNTED_IN', 'PROVIDES'])
+  it('seeds the chips with 依赖 · 实例 · 绑定 · 使用 · 提供 · 挂载, plus 证据 because the real fold draws EVIDENCED_ON', () => {
+    expect([...defaultToggles(GRAPH)].sort()).toEqual(['BOUND_TO', 'DEPENDS_ON', 'EVIDENCED_ON', 'INSTANCE_OF', 'MOUNTED_IN', 'PROVIDES', 'USES'])
   })
 })

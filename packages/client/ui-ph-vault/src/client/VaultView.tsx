@@ -18,7 +18,7 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  ALL_TOGGLES, classTree, defaultToggles, embodiments, evidenceSummary, genericOf, indexGraph,
+  ALL_TOGGLES, classDeps, classTree, defaultToggles, embodiments, evidenceSummary, genericOf, indexGraph,
   inTo, isLibrary, KIND_COLOR, layered, outOf, PRED_COLOR, REL_COLOR,
 } from './graph.ts'
 import type {
@@ -41,6 +41,16 @@ type Tr = PropsLocale<'phvault'>['t']
 
 /** Select-a-node callback shared by the tree, the canvas, and every link. */
 type Open = (id: string) => void
+
+/** One history entry: the view state a user change replaced (`ready`: the vault had loaded). */
+interface Snap {
+  selected: string | null
+  openClasses: ReadonlySet<string>
+  expanded: ReadonlySet<string>
+  mode: LayerMode
+  on: ReadonlySet<RelToggle>
+  ready: boolean
+}
 
 /** Show a board number exactly as it arrived (no rounding the fold did not do). */
 function fmt(v: number | undefined | null): string {
@@ -231,12 +241,23 @@ function SkillRow({ node, on, open, nested }: { node: LibrarySkillNode; on: bool
 function ClassPage({ node, idx, open, t }: { node: ClassNode; idx: VaultIndex; open: Open; t: Tr }) {
   const skills = inTo(idx, node.id, 'IN_CLASS').map(e => idx.byId.get(e.src)).filter(isLibrary)
   const benches = [...new Set(skills.flatMap(s => outOf(idx, s.id, 'EVIDENCED_ON').map(e => e.dst)))]
+  const deps = classDeps(idx)
+  const dependsOn = [...(deps.get(node.id) ?? [])]
+  const dependedBy = [...deps].flatMap(([a, m]) => [...m].filter(([b]) => b === node.id).map(([, n]) => [a, n] as const))
   return (
     <div className={css.page}>
       <div className={css.pageHead}>
         <h2 className={css.pageTitle}>{node.name ?? node.id}</h2>
         <div className={css.pageBadges}><span className={css.badge}>{t('kind.class')}</span><span className={css.badge}>{skills.length}</span></div>
       </div>
+      {dependsOn.length + dependedBy.length > 0 ? (
+        <Sect title={t('lib.deps')}>
+          {([['class.dependsOn', dependsOn], ['class.dependedBy', dependedBy]] as const).map(([key, rows]) => rows.length === 0 ? null : (
+            <div key={key} className={css.evRow}><span className={css.evLabel}>{t(key)}</span>
+              <span className={css.linkRow}>{rows.map(([id, n]) => <NodeLink key={id} id={id} idx={idx} open={open} sub={`×${n}`} />)}</span></div>
+          ))}
+        </Sect>
+      ) : null}
       <Sect title={t('class.skills')}>
         <div className={css.list}>{skills.map(s => <SkillRow key={s.id} node={s} on={false} open={open} />)}</div>
       </Sect>
@@ -251,6 +272,7 @@ function ClassPage({ node, idx, open, t }: { node: ClassNode; idx: VaultIndex; o
 
 function BenchmarkPage({ node, idx, open, t }: { node: BenchmarkNode; idx: VaultIndex; open: Open; t: Tr }) {
   const covered = inTo(idx, node.id, 'EVIDENCED_ON')
+  const missions = outOf(idx, node.id, 'COVERS')
   return (
     <div className={css.page}>
       <div className={css.pageHead}>
@@ -264,6 +286,11 @@ function BenchmarkPage({ node, idx, open, t }: { node: BenchmarkNode; idx: Vault
       {(node.tasks ?? []).length > 0 ? <Sect title={t('bench.tasks')}><Tags items={node.tasks} /></Sect> : null}
       {(node.arms ?? []).length > 0 ? <Sect title={t('bench.arms')}><Tags items={node.arms} alt /></Sect> : null}
       {node.card ? <Sect title={t('bench.card')}><NodeLink id={node.card} idx={idx} open={open} /></Sect> : null}
+      {missions.length > 0 ? (
+        <Sect title={t('bench.missions')}>
+          <div className={css.linkRow}>{missions.map(e => <NodeLink key={e.dst} id={e.dst} idx={idx} open={open} title={`${e.rule} · ${e.via}`} />)}</div>
+        </Sect>
+      ) : null}
       <Sect title={t('bench.skills')}>
         {covered.length === 0 ? <span className={css.none}>{t('ev.none')}</span> : (
           <div className={css.linkRow}>{covered.map(e => (
@@ -379,7 +406,8 @@ function SkillPage({ node, idx, open, t }: { node: LegacySkillNode; idx: VaultIn
 /** A card's manifest fields (what the former 能力卡 page showed) plus its typed links. */
 function PackagePage({ node, idx, open, t }: { node: PackageNode; idx: VaultIndex; open: Open; t: Tr }) {
   const bound = inTo(idx, node.id, 'BOUND_TO')
-  const links = [...outOf(idx, node.id), ...inTo(idx, node.id)].filter(e => e.rel !== 'PROVIDES' && e.rel !== 'BOUND_TO')
+  const uses = outOf(idx, node.id, 'USES')
+  const links = [...outOf(idx, node.id), ...inTo(idx, node.id)].filter(e => e.rel !== 'PROVIDES' && e.rel !== 'BOUND_TO' && e.rel !== 'USES')
   return (
     <div className={css.page}>
       <div className={css.pageHead}>
@@ -398,6 +426,12 @@ function PackagePage({ node, idx, open, t }: { node: PackageNode; idx: VaultInde
           <div className={css.linkRow}>{(node.provides ?? []).map(c => (
             <button key={c} type="button" className={`${css.capChip} ${css.mono}`} onClick={() => { open(c) }}>{c}</button>
           ))}</div>
+        </Sect>
+      ) : null}
+
+      {uses.length > 0 ? (
+        <Sect title={t('pkg.uses')}>
+          <div className={css.linkRow}>{uses.map(e => <NodeLink key={e.dst} id={e.dst} idx={idx} open={open} title={`${e.rule} · ${e.via}`} />)}</div>
         </Sect>
       ) : null}
 
@@ -568,6 +602,35 @@ export function VaultView({
   const [rightOpen, setRightOpen] = useState(true)
   const errRef = useRef<string | null>(null)
   const seededToggles = useRef(false)
+  // History: one snapshot of the view state per user change; Esc / 「← 返回」 pop one.
+  const [hist, setHist] = useState<Snap[]>([])
+  const prevSnap = useRef<Snap | null>(null)
+  const restoring = useRef(false)
+  const snap: Snap = { selected, openClasses, expanded, mode, on, ready: graph !== null }
+  useEffect(() => {
+    const prev = prevSnap.current
+    prevSnap.current = snap
+    if (restoring.current) { restoring.current = false; return }
+    // The first render and the toggle seeding at load are not user changes.
+    if (prev !== null && prev.ready) setHist(h => [...h, prev])
+  }, [selected, openClasses, expanded, mode, on])
+  const back = useCallback(() => {
+    restoring.current = true
+    const prev = hist.at(-1)
+    if (prev === undefined) { setSelected(null); return }
+    setHist(h => h.slice(0, -1))
+    setSelected(prev.selected); setOpenClasses(prev.openClasses); setExpanded(prev.expanded); setMode(prev.mode); setOn(prev.on)
+  }, [hist])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const el = e.target as HTMLElement | null
+      if (el && (/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName) || el.isContentEditable)) return
+      back()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('keydown', onKey) }
+  }, [back])
 
   const load = useCallback(async () => {
     try {
@@ -722,6 +785,9 @@ export function VaultView({
       </Side>
       <div className={css.center}>
         <div className={css.bar}>
+          <button type="button" className={css.barBtn} onClick={back} disabled={hist.length === 0 && selected === null} title={`Esc · ${t('back')}`}>
+            ← {t('back')} · {hist.length}
+          </button>
           <div className={css.seg} role="group">
             {modes.map(m => (
               <button key={m} type="button" className={`${css.segBtn} ${mode === m ? css.segOn : ''}`} aria-pressed={mode === m} onClick={() => { setMode(m) }}>

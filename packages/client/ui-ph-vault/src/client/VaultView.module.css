@@ -342,6 +342,18 @@
   opacity: 0.55;
 }
 
+/* The ×n count riding a class-level dependency arc (always visible). */
+.arcLabel {
+  position: absolute;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  font-family: ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
 .pred {
   display: flex;
   align-items: center;

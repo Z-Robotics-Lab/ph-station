@@ -52,6 +52,11 @@ export type PhVaultKey =
   | 'lib.cards'
   | 'class.skills'
   | 'class.benchmarks'
+  | 'class.dependsOn'
+  | 'class.dependedBy'
+  | 'bench.missions'
+  | 'pkg.uses'
+  | 'back'
   | 'bench.embodiment'
   | 'bench.tasks'
   | 'bench.arms'
@@ -99,6 +104,7 @@ export type PhVaultKey =
   | 'tog.CONTRACT'
   | 'tog.INSTANCE_OF'
   | 'tog.BOUND_TO'
+  | 'tog.USES'
   | 'tog.PROVIDES'
   | 'tog.MOUNTED_IN'
   | 'tog.EVIDENCED_ON'
@@ -175,6 +181,11 @@ export const zh: Record<PhVaultKey, string> = {
   'lib.cards': '所在卡片',
   'class.skills': '技能',
   'class.benchmarks': '覆盖的基准',
+  'class.dependsOn': '依赖的类',
+  'class.dependedBy': '被依赖的类',
+  'bench.missions': '覆盖的任务',
+  'pkg.uses': '使用的技能',
+  'back': '返回',
   'bench.embodiment': '具身',
   'bench.tasks': '任务',
   'bench.arms': '臂',
@@ -222,6 +233,7 @@ export const zh: Record<PhVaultKey, string> = {
   'tog.CONTRACT': '前置/保证',
   'tog.INSTANCE_OF': '实例',
   'tog.BOUND_TO': '绑定',
+  'tog.USES': '使用',
   'tog.PROVIDES': '提供',
   'tog.MOUNTED_IN': '挂载',
   'tog.EVIDENCED_ON': '证据',
@@ -292,6 +304,11 @@ export const en: Record<PhVaultKey, string> = {
   'lib.cards': 'Cards',
   'class.skills': 'Skills',
   'class.benchmarks': 'Benchmarks covered',
+  'class.dependsOn': 'Depends on classes',
+  'class.dependedBy': 'Depended on by classes',
+  'bench.missions': 'Missions covered',
+  'pkg.uses': 'Skills used',
+  'back': 'Back',
   'bench.embodiment': 'embodiment',
   'bench.tasks': 'Tasks',
   'bench.arms': 'Arms',
@@ -339,6 +356,7 @@ export const en: Record<PhVaultKey, string> = {
   'tog.CONTRACT': 'requires/ensures',
   'tog.INSTANCE_OF': 'instances',
   'tog.BOUND_TO': 'bound',
+  'tog.USES': 'uses',
   'tog.PROVIDES': 'provides',
   'tog.MOUNTED_IN': 'mounted',
   'tog.EVIDENCED_ON': 'evidence',

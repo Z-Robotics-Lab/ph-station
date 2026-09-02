@@ -11,7 +11,8 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Background, Controls, Handle, MiniMap, Position, ReactFlow, useStore } from '@xyflow/react'
+import { Background, BaseEdge, Controls, EdgeLabelRenderer, Handle, MiniMap, Position, ReactFlow, useStore } from '@xyflow/react'
+import type { EdgeProps } from '@xyflow/react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { absolutePosition, KIND_COLOR, NODE_SIZE, PRED_COLOR, REL_COLOR } from './graph.ts'
 import type {
@@ -203,10 +204,12 @@ function FarGlyph({ kind }: { kind: VaultKind }) {
   return <div className={css.gfar}><KindGlyph kind={kind} size={22} /></div>
 }
 
-/** Node data: the vault body plus the instance-collapse state and its toggle. */
+/** Node data: the vault body plus the instance-collapse state and its toggle
+ * (`count`: a benchmark's nested mission cards). */
 interface NodeData {
   node: VaultNode
   dimmed: boolean
+  count?: number | undefined
   expanded?: boolean
   onToggle?: ((id: string) => void) | undefined
   instancesTitle?: string
@@ -280,14 +283,14 @@ function PackageGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean }
   )
 }
 
-function BenchmarkGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
+function BenchmarkGraphNode({ data }: { data: NodeData }) {
   const n = data.node as BenchmarkNode
   const lod = useLod()
   return (
     <ShapeFrame kind="benchmark" dimmed={data.dimmed}>
       {lod === 'far' ? <FarGlyph kind="benchmark" /> : (
         <>
-          <div className={css.gtitle}><KindGlyph kind="benchmark" /><span>{n.name ?? n.id}</span></div>
+          <div className={css.gtitle}><KindGlyph kind="benchmark" /><span>{n.name ?? n.id}</span>{data.count ? <span className={css.laneCount}>· {data.count}</span> : null}</div>
           {n.embodiment ? <div className={css.gsub}>{n.embodiment}</div> : null}
         </>
       )}
@@ -378,6 +381,25 @@ function sides(a: { x: number; w: number }, b: { x: number; w: number }): { sour
   return { sourceHandle: 'rs', targetHandle: 'rt' }
 }
 
+/** A class-level DEPENDS_ON arc: leaves the source lane's right side, bows
+ * `data.offset` px to the right, and lands on the target lane's right side
+ * with an arrowhead; its `×n` count rides the bow (always visible). */
+function ArcEdge({ id, sourceX, sourceY, targetX, targetY, data, style, markerEnd, label }: EdgeProps) {
+  const off = (data as { offset: number }).offset
+  const path = `M ${sourceX} ${sourceY} C ${sourceX + off} ${sourceY}, ${targetX + off} ${targetY}, ${targetX} ${targetY}`
+  const mx = (sourceX + targetX) / 2 + off * 0.75, my = (sourceY + targetY) / 2
+  return (
+    <>
+      <BaseEdge id={id} path={path} {...(style === undefined ? {} : { style })} {...(markerEnd === undefined ? {} : { markerEnd })} />
+      {label ? (
+        <EdgeLabelRenderer>
+          <div className={css.arcLabel} style={{ transform: `translate(-50%, -50%) translate(${mx}px, ${my}px)`, color: style?.stroke, opacity: style?.opacity }}>{label}</div>
+        </EdgeLabelRenderer>
+      ) : null}
+    </>
+  )
+}
+
 // --- the canvas --------------------------------------------------------------
 
 /** Focus set: the edges incident to the focused node plus the nodes they touch
@@ -446,10 +468,11 @@ export function VaultGraphCanvas({
     setMiniPref(next)
     writeMiniPref('phvault', next)
   }
-  // The selected node is the focus (highlight its edges, dim the rest); a
-  // labeled edge appears only under the cursor or in the focus set, so the
-  // resting canvas carries no mid-arc text.
-  const focusId = selected
+  // The selected node — or the lane under the cursor — is the focus (highlight
+  // its edges and arcs, dim the rest); a labeled edge appears only under the
+  // cursor or in the focus set, so the resting canvas carries no mid-arc text.
+  const [hoverLane, setHoverLane] = useState<string | null>(null)
+  const focusId = hoverLane ?? selected
   const [hoverEdge, setHoverEdge] = useState<string | null>(null)
   const focus = useMemo<Focus | null>(() => {
     if (focusId === null) return null
@@ -465,6 +488,7 @@ export function VaultGraphCanvas({
     skill: SkillGraphNode, benchmark: BenchmarkGraphNode, package: PackageGraphNode,
     capability: CapabilityGraphNode, lane: LaneNode, header: HeaderNode, predicate: PredicateNode,
   }), [])
+  const edgeTypes = useMemo(() => ({ arc: ArcEdge }), [])
 
   const instancesTitle = t('graph.instances')
   const rfNodes = useMemo(() => flow.nodes.map((n) => {
@@ -476,7 +500,8 @@ export function VaultGraphCanvas({
         onToggle: n.type === 'lane' && n.data.node !== undefined ? onToggleClass : undefined,
       } satisfies LaneData
       : {
-        node: n.data.node as VaultNode, dimmed: n.data.dimmed, expanded: expanded?.has(n.id) ?? false, onToggle, instancesTitle,
+        node: n.data.node as VaultNode, dimmed: n.data.dimmed, count: n.data.count,
+        expanded: expanded?.has(n.id) ?? false, onToggle, instancesTitle,
       } satisfies NodeData
     return {
       id: n.id, type: n.type, position: n.position, data,
@@ -496,16 +521,20 @@ export function VaultGraphCanvas({
     return flow.edges.map((e) => {
       const incident = focus?.edges.has(e.id) ?? false
       const faded = focus !== null && !incident
+      const arc = e.offset !== undefined
       const showLabel = incident || hoverEdge === e.id
       const color = edgeColor(e.rel)
       const a = box.get(e.source), b = box.get(e.target)
       return {
         id: e.id, source: e.source, target: e.target,
-        ...(a !== undefined && b !== undefined ? sides(a, b) : {}),
-        type: 'smoothstep',
+        // An arc leaves and lands on the lanes' right sides; a plain edge faces its other endpoint.
+        ...(arc ? { sourceHandle: 'rs', targetHandle: 'rt', type: 'arc', data: { offset: e.offset } }
+          : { ...(a !== undefined && b !== undefined ? sides(a, b) : {}), type: 'smoothstep' }),
         zIndex: incident ? 6 : 5,
-        // Label only under the cursor or in the focus set — no resting mid-arc text.
-        ...(showLabel ? { label: e.label, labelShowBg: true } : { labelShowBg: false }),
+        // Label only under the cursor or in the focus set — no resting mid-arc
+        // text; an arc always shows its ×n.
+        ...(arc && !faded ? { label: `×${e.count}` }
+          : showLabel ? { label: e.label, labelShowBg: true } : { labelShowBg: false }),
         labelBgPadding: [4, 2] as [number, number],
         labelBgStyle: { fill: 'var(--dsw-alias-bg-layer-1, #fff)', fillOpacity: 0.9 },
         labelStyle: { fill: color, fontSize: 9, fontWeight: 600 },
@@ -521,7 +550,10 @@ export function VaultGraphCanvas({
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodeClick={(_e, node) => { if (node.type !== 'header' && node.type !== 'predicate') onSelect(node.id) }}
+        onNodeMouseEnter={(_e, node) => { if (node.type === 'lane') setHoverLane(node.id) }}
+        onNodeMouseLeave={() => { setHoverLane(null) }}
         onEdgeMouseEnter={(_e, edge) => { setHoverEdge(edge.id) }}
         onEdgeMouseLeave={() => { setHoverEdge(null) }}
         // A headless/backgrounded tab never fires React Flow's ResizeObserver,
