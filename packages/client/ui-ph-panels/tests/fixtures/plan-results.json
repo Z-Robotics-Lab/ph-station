@@ -1,0 +1,958 @@
+{
+ "coffee": {
+  "instruction": "Prepare a cup of coffee.",
+  "session": "session-robocasa",
+  "seed": 424242,
+  "channel": {
+   "id": "robocasa_skill_graph",
+   "kind": "graph",
+   "task": null,
+   "planner": "plugins.planner_vlm:provider",
+   "score": 3,
+   "matched": [
+    "coffee",
+    "cup",
+    "prepare"
+   ]
+  },
+  "retrieval": {
+   "pinned": false,
+   "graph_total_skills": 56
+  },
+  "graph_provenance": {
+   "source": "/home/all/zihan_workspace/physical_harnessing/sims/robocasa/skill_annotation_analysis/taxonomy/unified_skill_graph.json",
+   "sha256": "e84b579a08a7d7fece988289caa43314bed6c20bfdd0af73947a42e1031d8fc4",
+   "schema_version": "1.0",
+   "root": "concept:RobotSkill",
+   "nodes": 128,
+   "edges": 322,
+   "relations": {
+    "DECOMPOSES_TO": 6,
+    "HAS_STAGE": 61,
+    "IS_A": 65,
+    "OBSERVED_TRANSITION": 130,
+    "REALIZES": 60
+   },
+   "relation_semantics": {
+    "IS_A": "taxonomy child -> parent; used for retrieval and progressive disclosure",
+    "HAS_STAGE": "executable observed skill -> ordered annotation stage",
+    "REALIZES": "observed stage -> canonical skill interface it implements",
+    "DECOMPOSES_TO": "composite -> ordered canonical component; ontology-authored",
+    "OBSERVED_TRANSITION": "stage -> next stage; empirical adjacency, not causality"
+   },
+   "datasets_analyzed": 32,
+   "episodes_analyzed": 16181
+  },
+  "planner": {
+   "ref": "plugins.planner_vlm:provider"
+  },
+  "status": "planning_only",
+  "goal": "Prepare a cup of coffee",
+  "selected_catalogue": {
+   "channel": "robocasa_skill_graph",
+   "size": 9,
+   "graph_total_skills": 56,
+   "oracles": [
+    "annotation_complete"
+   ],
+   "catalogue_digest": "ee3681364e74a765e09135fc5f5619b3c6a3ca558aa58e6fc2e82fcc24c45af6",
+   "skills": [
+    {
+     "name": "CoffeeSetupMug",
+     "args": {},
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "StartCoffeeMachine",
+     "args": {},
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "NavigateKitchen",
+     "args": {},
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "PickPlaceCounterToDishwasher",
+     "args": {},
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "PickPlaceDrawerToCounter",
+     "args": {},
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "Pick",
+     "args": {
+      "object": "str"
+     },
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "Place",
+     "args": {
+      "object": "str",
+      "target": "str"
+     },
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "PressButton",
+     "args": {
+      "target": "str"
+     },
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "TransferObject",
+     "args": {
+      "object": "str",
+      "target": "str"
+     },
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    }
+   ]
+  },
+  "composite_plan": {
+   "plan_id": "931eb38533851750b66d5def4159ba9b995e964cd6fbee43b7040096f44ee9ce",
+   "channel": "robocasa_skill_graph",
+   "task": null,
+   "instruction": "Prepare a cup of coffee.",
+   "plan": {
+    "goal": "Prepare a cup of coffee",
+    "nodes": [
+     {
+      "after": [],
+      "args": {},
+      "id": "setup-mug",
+      "kind": "segment",
+      "skill": "CoffeeSetupMug"
+     },
+     {
+      "after": [
+       "setup-mug"
+      ],
+      "args": {},
+      "id": "start-machine",
+      "kind": "segment",
+      "skill": "StartCoffeeMachine"
+     }
+    ],
+    "verify": [
+     {
+      "after": "setup-mug",
+      "predicate": "annotation_complete"
+     },
+     {
+      "after": "start-machine",
+      "predicate": "annotation_complete"
+     }
+    ]
+   }
+  },
+  "expanded_plan": {
+   "nodes": [
+    {
+     "id": "setup-mug",
+     "skill": "CoffeeSetupMug",
+     "kind": "segment",
+     "args": {},
+     "after": [],
+     "taxonomy_path": [
+      "RobotSkill",
+      "CompositeSkill",
+      "TransferObject",
+      "CoffeeSetupMug"
+     ],
+     "stages": [
+      {
+       "stage": "pick",
+       "name": "CoffeeSetupMug.pick",
+       "id": "stage:CoffeeSetupMug:pick",
+       "realizes": "Pick"
+      },
+      {
+       "stage": "place",
+       "name": "CoffeeSetupMug.place",
+       "id": "stage:CoffeeSetupMug:place",
+       "realizes": "Place"
+      }
+     ],
+     "decomposition": [
+      {
+       "skill": "Pick",
+       "taxonomy_path": [
+        "RobotSkill",
+        "Manipulation",
+        "ObjectManipulation",
+        "Pick"
+       ],
+       "bound": false
+      },
+      {
+       "skill": "Place",
+       "taxonomy_path": [
+        "RobotSkill",
+        "Manipulation",
+        "ObjectManipulation",
+        "Place"
+       ],
+       "bound": false
+      }
+     ],
+     "leaves": [
+      "CoffeeSetupMug.pick",
+      "CoffeeSetupMug.place"
+     ],
+     "bound": false
+    },
+    {
+     "id": "start-machine",
+     "skill": "StartCoffeeMachine",
+     "kind": "segment",
+     "args": {},
+     "after": [
+      "setup-mug"
+     ],
+     "taxonomy_path": [
+      "RobotSkill",
+      "CompositeSkill",
+      "StartCoffeeMachine"
+     ],
+     "stages": [
+      {
+       "stage": "execute",
+       "name": "StartCoffeeMachine.execute",
+       "id": "stage:StartCoffeeMachine:execute",
+       "realizes": null
+      }
+     ],
+     "decomposition": [
+      {
+       "skill": "PressButton",
+       "taxonomy_path": [
+        "RobotSkill",
+        "Manipulation",
+        "DeviceInteraction",
+        "PressButton"
+       ],
+       "bound": false
+      }
+     ],
+     "leaves": [
+      "StartCoffeeMachine.execute"
+     ],
+     "bound": false
+    }
+   ],
+   "chain": [
+    {
+     "node": "setup-mug",
+     "label": "CoffeeSetupMug.pick",
+     "skill": "CoffeeSetupMug",
+     "stage": "pick",
+     "canonical": "Pick",
+     "via": "HAS_STAGE+REALIZES",
+     "taxonomy_path": [
+      "RobotSkill",
+      "CompositeSkill",
+      "TransferObject",
+      "CoffeeSetupMug"
+     ],
+     "args": {},
+     "bound": false,
+     "binding": null,
+     "reason": "no task binding declares skill 'CoffeeSetupMug' (canonical 'Pick'); it exists only as a RoboCasa annotation",
+     "after": []
+    },
+    {
+     "node": "setup-mug",
+     "label": "CoffeeSetupMug.place",
+     "skill": "CoffeeSetupMug",
+     "stage": "place",
+     "canonical": "Place",
+     "via": "HAS_STAGE+REALIZES",
+     "taxonomy_path": [
+      "RobotSkill",
+      "CompositeSkill",
+      "TransferObject",
+      "CoffeeSetupMug"
+     ],
+     "args": {},
+     "bound": false,
+     "binding": null,
+     "reason": "no task binding declares skill 'CoffeeSetupMug' (canonical 'Place'); it exists only as a RoboCasa annotation",
+     "after": [
+      "CoffeeSetupMug.pick"
+     ]
+    },
+    {
+     "node": "start-machine",
+     "label": "StartCoffeeMachine.execute",
+     "skill": "StartCoffeeMachine",
+     "stage": "execute",
+     "canonical": "PressButton",
+     "via": "HAS_STAGE+DECOMPOSES_TO[order]",
+     "taxonomy_path": [
+      "RobotSkill",
+      "CompositeSkill",
+      "StartCoffeeMachine"
+     ],
+     "args": {},
+     "bound": false,
+     "binding": null,
+     "reason": "no task binding declares skill 'StartCoffeeMachine' (canonical 'PressButton'); it exists only as a RoboCasa annotation",
+     "after": [
+      "CoffeeSetupMug.place"
+     ]
+    }
+   ],
+   "terminal": "done"
+  },
+  "executable": false,
+  "missing_bindings": [
+   {
+    "node": "setup-mug",
+    "label": "CoffeeSetupMug.pick",
+    "skill": "CoffeeSetupMug",
+    "stage": "pick",
+    "canonical": "Pick",
+    "reason": "no task binding declares skill 'CoffeeSetupMug' (canonical 'Pick'); it exists only as a RoboCasa annotation"
+   },
+   {
+    "node": "setup-mug",
+    "label": "CoffeeSetupMug.place",
+    "skill": "CoffeeSetupMug",
+    "stage": "place",
+    "canonical": "Place",
+    "reason": "no task binding declares skill 'CoffeeSetupMug' (canonical 'Place'); it exists only as a RoboCasa annotation"
+   },
+   {
+    "node": "start-machine",
+    "label": "StartCoffeeMachine.execute",
+    "skill": "StartCoffeeMachine",
+    "stage": "execute",
+    "canonical": "PressButton",
+    "reason": "no task binding declares skill 'StartCoffeeMachine' (canonical 'PressButton'); it exists only as a RoboCasa annotation"
+   }
+  ],
+  "unbound_oracles": [
+   "annotation_complete"
+  ],
+  "validation": {
+   "ok": true,
+   "message": "",
+   "validator": "plugins.task.validate.validate_plan",
+   "unparseable": false
+  }
+ },
+ "pack": {
+  "instruction": "Pack every food item into its assigned tupperware.",
+  "session": "session-robocasa",
+  "seed": 424242,
+  "channel": {
+   "id": "pack_all_robocasa",
+   "kind": "task",
+   "task": "pack_all_robocasa",
+   "planner": "plugins.planner_vlm:provider",
+   "score": 6,
+   "matched": [
+    "assigned",
+    "every",
+    "food",
+    "item",
+    "pack",
+    "tupperware"
+   ]
+  },
+  "retrieval": {
+   "pinned": false,
+   "graph_total_skills": 56
+  },
+  "graph_provenance": {
+   "source": "/home/all/zihan_workspace/physical_harnessing/sims/robocasa/skill_annotation_analysis/taxonomy/unified_skill_graph.json",
+   "sha256": "e84b579a08a7d7fece988289caa43314bed6c20bfdd0af73947a42e1031d8fc4",
+   "schema_version": "1.0",
+   "root": "concept:RobotSkill",
+   "nodes": 128,
+   "edges": 322,
+   "relations": {
+    "DECOMPOSES_TO": 6,
+    "HAS_STAGE": 61,
+    "IS_A": 65,
+    "OBSERVED_TRANSITION": 130,
+    "REALIZES": 60
+   },
+   "relation_semantics": {
+    "IS_A": "taxonomy child -> parent; used for retrieval and progressive disclosure",
+    "HAS_STAGE": "executable observed skill -> ordered annotation stage",
+    "REALIZES": "observed stage -> canonical skill interface it implements",
+    "DECOMPOSES_TO": "composite -> ordered canonical component; ontology-authored",
+    "OBSERVED_TRANSITION": "stage -> next stage; empirical adjacency, not causality"
+   },
+   "datasets_analyzed": 32,
+   "episodes_analyzed": 16181
+  },
+  "planner": {
+   "ref": "plugins.planner_vlm:provider"
+  },
+  "status": "executable",
+  "goal": "pack every item",
+  "selected_catalogue": {
+   "channel": "pack_all_robocasa",
+   "size": 4,
+   "graph_total_skills": 56,
+   "oracles": [
+    "segment_success"
+   ],
+   "catalogue_digest": "96499d537b4b02c8300ea352a058c9211f9a3a272fc44d9c3cfaa07f4f346897",
+   "skills": [
+    {
+     "name": "navigate_to_object",
+     "args": {
+      "object": "str"
+     },
+     "bound": true,
+     "tasks": [
+      "pack_all_robocasa"
+     ],
+     "doc": {}
+    },
+    {
+     "name": "pick",
+     "args": {
+      "object": "str"
+     },
+     "bound": true,
+     "tasks": [
+      "pack_all_robocasa"
+     ],
+     "doc": {}
+    },
+    {
+     "name": "transport",
+     "args": {
+      "object": "str",
+      "target": "str"
+     },
+     "bound": true,
+     "tasks": [
+      "pack_all_robocasa"
+     ],
+     "doc": {}
+    },
+    {
+     "name": "place_in",
+     "args": {
+      "object": "str",
+      "target": "str"
+     },
+     "bound": true,
+     "tasks": [
+      "pack_all_robocasa"
+     ],
+     "doc": {}
+    }
+   ]
+  },
+  "composite_plan": {
+   "plan_id": "af1625d70ab43c84bc423e95b90fabd5da2cb532cb41d0b0f0c6ca17c2de33a5",
+   "channel": "pack_all_robocasa",
+   "task": "pack_all_robocasa",
+   "instruction": "Pack every food item into its assigned tupperware.",
+   "plan": {
+    "goal": "pack every item",
+    "nodes": [
+     {
+      "after": [],
+      "args": {
+       "object": "hot1"
+      },
+      "id": "navigate_to_object-hot1",
+      "kind": "segment",
+      "skill": "navigate_to_object"
+     },
+     {
+      "after": [
+       "navigate_to_object-hot1"
+      ],
+      "args": {
+       "object": "hot1"
+      },
+      "id": "pick-hot1",
+      "kind": "segment",
+      "skill": "pick"
+     },
+     {
+      "after": [
+       "pick-hot1"
+      ],
+      "args": {
+       "object": "hot1",
+       "target": "tupperware0"
+      },
+      "id": "transport-hot1",
+      "kind": "segment",
+      "skill": "transport"
+     },
+     {
+      "after": [
+       "transport-hot1"
+      ],
+      "args": {
+       "object": "hot1",
+       "target": "tupperware0"
+      },
+      "id": "place_in-hot1",
+      "kind": "segment",
+      "skill": "place_in"
+     }
+    ],
+    "verify": [
+     {
+      "after": "navigate_to_object-hot1",
+      "predicate": "segment_success"
+     },
+     {
+      "after": "pick-hot1",
+      "predicate": "segment_success"
+     },
+     {
+      "after": "transport-hot1",
+      "predicate": "segment_success"
+     },
+     {
+      "after": "place_in-hot1",
+      "predicate": "segment_success"
+     }
+    ]
+   }
+  },
+  "expanded_plan": {
+   "nodes": [
+    {
+     "id": "navigate_to_object-hot1",
+     "skill": "navigate_to_object",
+     "kind": "segment",
+     "args": {
+      "object": "hot1"
+     },
+     "after": [],
+     "taxonomy_path": [
+      "RobotSkill",
+      "Mobility",
+      "Navigate",
+      "NavigateToObject"
+     ],
+     "stages": [],
+     "decomposition": [],
+     "leaves": [
+      "navigate_to_object.nav_hot1"
+     ],
+     "bound": true
+    },
+    {
+     "id": "pick-hot1",
+     "skill": "pick",
+     "kind": "segment",
+     "args": {
+      "object": "hot1"
+     },
+     "after": [
+      "navigate_to_object-hot1"
+     ],
+     "taxonomy_path": [
+      "RobotSkill",
+      "Manipulation",
+      "ObjectManipulation",
+      "Pick"
+     ],
+     "stages": [],
+     "decomposition": [],
+     "leaves": [
+      "pick.grasp_hot1"
+     ],
+     "bound": true
+    },
+    {
+     "id": "transport-hot1",
+     "skill": "transport",
+     "kind": "segment",
+     "args": {
+      "object": "hot1",
+      "target": "tupperware0"
+     },
+     "after": [
+      "pick-hot1"
+     ],
+     "taxonomy_path": [
+      "RobotSkill",
+      "Manipulation",
+      "ObjectManipulation",
+      "Transport"
+     ],
+     "stages": [],
+     "decomposition": [],
+     "leaves": [
+      "transport.carry_hot1"
+     ],
+     "bound": true
+    },
+    {
+     "id": "place_in-hot1",
+     "skill": "place_in",
+     "kind": "segment",
+     "args": {
+      "object": "hot1",
+      "target": "tupperware0"
+     },
+     "after": [
+      "transport-hot1"
+     ],
+     "taxonomy_path": [
+      "RobotSkill",
+      "Manipulation",
+      "ObjectManipulation",
+      "Place"
+     ],
+     "stages": [],
+     "decomposition": [],
+     "leaves": [
+      "place_in.pack_hot1"
+     ],
+     "bound": true
+    }
+   ],
+   "chain": [
+    {
+     "node": "navigate_to_object-hot1",
+     "label": "navigate_to_object.nav_hot1",
+     "skill": "navigate_to_object",
+     "stage": "nav_hot1",
+     "canonical": "NavigateToObject",
+     "via": "TASK_BINDING",
+     "taxonomy_path": [
+      "RobotSkill",
+      "Mobility",
+      "Navigate",
+      "NavigateToObject"
+     ],
+     "args": {
+      "object": "hot1"
+     },
+     "bound": true,
+     "binding": {
+      "task": "pack_all_robocasa",
+      "policy": "plugins.embodiment_robocasa.lunch_driver:provider",
+      "embodiment": "robocasa",
+      "task_template": "nav_{object}",
+      "backend": "scripted_mobile_manipulation"
+     },
+     "reason": null,
+     "after": []
+    },
+    {
+     "node": "pick-hot1",
+     "label": "pick.grasp_hot1",
+     "skill": "pick",
+     "stage": "grasp_hot1",
+     "canonical": "Pick",
+     "via": "TASK_BINDING",
+     "taxonomy_path": [
+      "RobotSkill",
+      "Manipulation",
+      "ObjectManipulation",
+      "Pick"
+     ],
+     "args": {
+      "object": "hot1"
+     },
+     "bound": true,
+     "binding": {
+      "task": "pack_all_robocasa",
+      "policy": "plugins.embodiment_robocasa.lunch_driver:provider",
+      "embodiment": "robocasa",
+      "task_template": "grasp_{object}",
+      "backend": "scripted_mobile_manipulation"
+     },
+     "reason": null,
+     "after": [
+      "navigate_to_object.nav_hot1"
+     ]
+    },
+    {
+     "node": "transport-hot1",
+     "label": "transport.carry_hot1",
+     "skill": "transport",
+     "stage": "carry_hot1",
+     "canonical": "Transport",
+     "via": "TASK_BINDING",
+     "taxonomy_path": [
+      "RobotSkill",
+      "Manipulation",
+      "ObjectManipulation",
+      "Transport"
+     ],
+     "args": {
+      "object": "hot1",
+      "target": "tupperware0"
+     },
+     "bound": true,
+     "binding": {
+      "task": "pack_all_robocasa",
+      "policy": "plugins.embodiment_robocasa.lunch_driver:provider",
+      "embodiment": "robocasa",
+      "task_template": "carry_{object}",
+      "backend": "scripted_mobile_manipulation"
+     },
+     "reason": null,
+     "after": [
+      "pick.grasp_hot1"
+     ]
+    },
+    {
+     "node": "place_in-hot1",
+     "label": "place_in.pack_hot1",
+     "skill": "place_in",
+     "stage": "pack_hot1",
+     "canonical": "Place",
+     "via": "TASK_BINDING",
+     "taxonomy_path": [
+      "RobotSkill",
+      "Manipulation",
+      "ObjectManipulation",
+      "Place"
+     ],
+     "args": {
+      "object": "hot1",
+      "target": "tupperware0"
+     },
+     "bound": true,
+     "binding": {
+      "task": "pack_all_robocasa",
+      "policy": "plugins.embodiment_robocasa.lunch_driver:provider",
+      "embodiment": "robocasa",
+      "task_template": "pack_{object}",
+      "backend": "scripted_mobile_manipulation"
+     },
+     "reason": null,
+     "after": [
+      "transport.carry_hot1"
+     ]
+    }
+   ],
+   "terminal": "done"
+  },
+  "executable": true,
+  "missing_bindings": [],
+  "unbound_oracles": [],
+  "validation": {
+   "ok": true,
+   "message": "",
+   "validator": "plugins.task.validate.validate_plan",
+   "unparseable": false
+  }
+ },
+ "rejected": {
+  "instruction": "Prepare a cup of coffee.",
+  "session": "session-robocasa",
+  "seed": 424242,
+  "channel": {
+   "id": "robocasa_skill_graph",
+   "kind": "graph",
+   "task": null,
+   "planner": "plugins.planner_vlm:provider",
+   "score": 3,
+   "matched": [
+    "coffee",
+    "cup",
+    "prepare"
+   ]
+  },
+  "retrieval": {
+   "pinned": false,
+   "graph_total_skills": 56
+  },
+  "graph_provenance": {
+   "source": "/home/all/zihan_workspace/physical_harnessing/sims/robocasa/skill_annotation_analysis/taxonomy/unified_skill_graph.json",
+   "sha256": "e84b579a08a7d7fece988289caa43314bed6c20bfdd0af73947a42e1031d8fc4",
+   "schema_version": "1.0",
+   "root": "concept:RobotSkill",
+   "nodes": 128,
+   "edges": 322,
+   "relations": {
+    "DECOMPOSES_TO": 6,
+    "HAS_STAGE": 61,
+    "IS_A": 65,
+    "OBSERVED_TRANSITION": 130,
+    "REALIZES": 60
+   },
+   "relation_semantics": {
+    "IS_A": "taxonomy child -> parent; used for retrieval and progressive disclosure",
+    "HAS_STAGE": "executable observed skill -> ordered annotation stage",
+    "REALIZES": "observed stage -> canonical skill interface it implements",
+    "DECOMPOSES_TO": "composite -> ordered canonical component; ontology-authored",
+    "OBSERVED_TRANSITION": "stage -> next stage; empirical adjacency, not causality"
+   },
+   "datasets_analyzed": 32,
+   "episodes_analyzed": 16181
+  },
+  "planner": {
+   "ref": "plugins.planner_vlm:provider"
+  },
+  "status": "rejected",
+  "goal": "Prepare a cup of coffee",
+  "selected_catalogue": {
+   "channel": "robocasa_skill_graph",
+   "size": 9,
+   "graph_total_skills": 56,
+   "oracles": [
+    "annotation_complete"
+   ],
+   "catalogue_digest": "ee3681364e74a765e09135fc5f5619b3c6a3ca558aa58e6fc2e82fcc24c45af6",
+   "skills": [
+    {
+     "name": "CoffeeSetupMug",
+     "args": {},
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "StartCoffeeMachine",
+     "args": {},
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "NavigateKitchen",
+     "args": {},
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "PickPlaceCounterToDishwasher",
+     "args": {},
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "PickPlaceDrawerToCounter",
+     "args": {},
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "Pick",
+     "args": {
+      "object": "str"
+     },
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "Place",
+     "args": {
+      "object": "str",
+      "target": "str"
+     },
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "PressButton",
+     "args": {
+      "target": "str"
+     },
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    },
+    {
+     "name": "TransferObject",
+     "args": {
+      "object": "str",
+      "target": "str"
+     },
+     "bound": false,
+     "tasks": [],
+     "doc": {}
+    }
+   ]
+  },
+  "composite_plan": {
+   "plan_id": null,
+   "channel": "robocasa_skill_graph",
+   "task": null,
+   "instruction": "Prepare a cup of coffee.",
+   "plan": {
+    "goal": "Prepare a cup of coffee",
+    "nodes": [
+     {
+      "after": [],
+      "args": {},
+      "id": "setup-mug",
+      "kind": "segment",
+      "skill": "MakeEspresso"
+     },
+     {
+      "after": [
+       "setup-mug"
+      ],
+      "args": {},
+      "id": "start-machine",
+      "kind": "segment",
+      "skill": "StartCoffeeMachine"
+     }
+    ],
+    "verify": [
+     {
+      "after": "setup-mug",
+      "predicate": "annotation_complete"
+     },
+     {
+      "after": "start-machine",
+      "predicate": "annotation_complete"
+     }
+    ]
+   }
+  },
+  "expanded_plan": null,
+  "executable": false,
+  "missing_bindings": [],
+  "unbound_oracles": [
+   "annotation_complete"
+  ],
+  "validation": {
+   "ok": false,
+   "message": "node 'setup-mug' names unknown skill 'MakeEspresso'; catalogue is ['CoffeeSetupMug', 'NavigateKitchen', 'Pick', 'PickPlaceCounterToDishwasher', 'PickPlaceDrawerToCounter', 'Place', 'PressButton', 'StartCoffeeMachine', 'TransferObject']",
+   "validator": "plugins.task.validate.validate_plan",
+   "unparseable": false
+  }
+ }
+}

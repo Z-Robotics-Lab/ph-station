@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-ph-board",
-  "description": "physical-harness fork host bridge: read-only Remote over board.store via its CLI face",
+  "description": "physical-harness host bridge over board.store and board.planning via their CLI face",
   "version": "0.1.1-rc.2",
   "private": true,
   "repository": {

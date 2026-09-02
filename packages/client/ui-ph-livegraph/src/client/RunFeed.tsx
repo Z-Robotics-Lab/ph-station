@@ -29,6 +29,7 @@ export interface RunFeed extends LiveFeed {
   /** The 取景窗 frame read, passed through so the viewport polls the same
    * injected face without a second provider. */
   fetchRuntimeFrame: FeedInjected['fetchRuntimeFrame']
+  fetchRuntimeRollout: FeedInjected['fetchRuntimeRollout']
   /** The 过程流 keyframe reads, passed through for the same reason. */
   fetchKeyframes: FeedInjected['fetchKeyframes']
   fetchKeyframe: FeedInjected['fetchKeyframe']
@@ -99,6 +100,7 @@ function RootRunFeed({ inject, children }: { inject: FeedScope; children: ReactN
   const value: RunFeed = {
     online, sessionName, sessions, selectSession, feed, sessionRows, version, scoped,
     fetchRuntimeFrame: inject.fetchRuntimeFrame,
+    fetchRuntimeRollout: inject.fetchRuntimeRollout,
     fetchKeyframes: inject.fetchKeyframes,
     fetchKeyframe: inject.fetchKeyframe,
     runs, runIndex: effIndex, run, headSeq, live, playing,

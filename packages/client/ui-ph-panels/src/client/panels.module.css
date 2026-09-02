@@ -395,6 +395,447 @@
   opacity: 0.7;
 }
 
+/* --- unified skill library ------------------------------------------------ */
+
+.libraryBody {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.libraryToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.55rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.libraryTab,
+.librarySelect,
+.librarySearch {
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.libraryTab {
+  cursor: pointer;
+}
+
+.libraryTab:hover,
+.libraryTabActive {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.libraryTabActive {
+  font-weight: 700;
+  border-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+.libraryLayoutSwitch {
+  display: inline-flex;
+  padding: 0.12rem;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 0.48rem;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.libraryLayoutSwitch .libraryTab {
+  border: 0;
+  border-radius: 0.32rem;
+}
+
+.librarySearch {
+  flex: 1 1 13rem;
+  min-width: 8rem;
+}
+
+.librarySelect option {
+  color: initial;
+}
+
+.libraryStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.libraryStat {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: baseline;
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, currentColor 5%, transparent);
+  font-size: 0.72rem;
+}
+
+.libraryStat span {
+  opacity: 0.62;
+}
+
+.librarySplit {
+  display: grid;
+  grid-template-columns: minmax(18rem, 0.9fr) minmax(20rem, 1.1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.librarySplitGraph {
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+}
+
+.libraryTree,
+.libraryDetail {
+  min-height: 0;
+  overflow: auto;
+  padding: 0.55rem;
+}
+
+.libraryTree {
+  border-right: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.treeBranch > summary {
+  list-style: disclosure-closed;
+}
+
+.treeBranch[open] > summary {
+  list-style: disclosure-open;
+}
+
+.treeBranch > summary::marker {
+  opacity: 0.6;
+}
+
+.treeRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: calc(100% - 1rem);
+  padding: 0.2rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.treeRow:hover,
+.treeRowActive {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.treeRowActive {
+  border-color: color-mix(in srgb, currentColor 20%, transparent);
+}
+
+.treeName {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.treeKind {
+  opacity: 0.55;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.treeChildren {
+  margin-left: 0.8rem;
+  padding-left: 0.35rem;
+  border-left: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.treeLeaf {
+  padding-left: 0.85rem;
+}
+
+/* Overall taxonomy map. The hierarchy comes from the harness projection of
+   unified_skill_graph.json; CSS only lays the parent/child tree out. */
+.skillMapViewport {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid var(--dsw-alias-border-l2);
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--dsw-alias-brand-primary) 9%, transparent), transparent 30rem),
+    var(--dsw-alias-bg-layer-1);
+}
+
+.skillMapCanvas {
+  width: max-content;
+  min-width: 100%;
+  padding: 0.65rem 1.25rem 2.5rem;
+}
+
+.skillMapSource {
+  position: sticky;
+  left: 0;
+  width: max-content;
+  margin-bottom: 0.5rem;
+  padding: 0.18rem 0.5rem;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-tertiary);
+  font: 0.62rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  z-index: 2;
+}
+
+.skillMapTree,
+.skillMapTree ul {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: 1.65rem 0 0;
+}
+
+.skillMapTree {
+  padding-top: 0;
+}
+
+.skillMapTree li {
+  position: relative;
+  min-width: 9rem;
+  padding: 1.65rem 0.3rem 0;
+  list-style: none;
+  text-align: center;
+}
+
+.skillMapTree > li {
+  padding-top: 0;
+}
+
+.skillMapTree li::before,
+.skillMapTree li::after {
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 1.65rem;
+  border-top: 1px solid var(--dsw-alias-border-l4);
+  content: '';
+}
+
+.skillMapTree li::before {
+  right: 50%;
+}
+
+.skillMapTree li::after {
+  left: 50%;
+  border-left: 1px solid var(--dsw-alias-border-l4);
+}
+
+.skillMapTree li:only-child::before,
+.skillMapTree li:only-child::after,
+.skillMapTree > li::before,
+.skillMapTree > li::after {
+  display: none;
+}
+
+.skillMapTree li:first-child::before,
+.skillMapTree li:last-child::after {
+  border: 0;
+}
+
+.skillMapTree li:last-child::before {
+  border-right: 1px solid var(--dsw-alias-border-l4);
+  border-radius: 0 0.45rem 0 0;
+}
+
+.skillMapTree li:first-child::after {
+  border-radius: 0.45rem 0 0;
+}
+
+.skillMapTree ul::before {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 1.65rem;
+  background: var(--dsw-alias-border-l4);
+  content: '';
+}
+
+.skillMapNode {
+  position: relative;
+  display: inline-flex;
+  width: 8.4rem;
+  min-height: 3.9rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.18rem;
+  padding: 0.5rem 0.58rem;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 0.62rem;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  box-shadow: 0 0.32rem 0.9rem color-mix(in srgb, var(--dsw-alias-bg-mask-drop) 16%, transparent);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.skillMapNode:hover {
+  border-color: var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+  transform: translateY(-0.12rem);
+}
+
+.skillMapNode:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
+}
+
+.skillMapNodeActive {
+  border-color: var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-interactive-bg-active);
+  box-shadow: 0 0 0 0.16rem color-mix(in srgb, var(--dsw-alias-brand-primary) 15%, transparent);
+}
+
+.skillMapNodeRoot {
+  width: 10rem;
+  border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 65%, var(--dsw-alias-border-l3));
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, var(--dsw-alias-bg-layer-2));
+}
+
+.skillMapNodeCategory {
+  border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 48%, var(--dsw-alias-border-l3));
+}
+
+.skillMapNodeCanonical {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--dsw-alias-state-business-tertiary) 28%, var(--dsw-alias-bg-layer-2));
+}
+
+.skillMapNodeObserved {
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 5%, var(--dsw-alias-bg-layer-2));
+}
+
+.skillMapNode strong {
+  width: 100%;
+  overflow: hidden;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skillMapNodeKind {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.skillMapBinding,
+.skillMapChildren {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.58rem;
+}
+
+.skillMapBinding i {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 50%;
+}
+
+.skillMapBound {
+  background: var(--dsw-alias-state-success-primary);
+}
+
+.skillMapUnbound {
+  background: var(--dsw-alias-state-warn-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skillMapNode {
+    transition: none;
+  }
+}
+
+.skillDetailCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.skillDetailHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.skillPath {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  opacity: 0.65;
+  word-break: break-word;
+}
+
+.skillDetailList {
+  margin: 0;
+  padding-left: 1.3rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.runtimeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: 0.65rem;
+  padding: 0.55rem;
+  overflow: auto;
+  align-content: start;
+}
+
+.runtimeBinding {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid color-mix(in srgb, currentColor 8%, transparent);
+  font-size: 0.75rem;
+  word-break: break-word;
+}
+
+@media (max-width: 760px) {
+  .librarySplit {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(14rem, 1fr) minmax(14rem, 1fr);
+  }
+
+  .libraryTree {
+    border-right: 0;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+  }
+
+  .skillMapViewport {
+    min-height: 24rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--dsw-alias-border-l2);
+  }
+}
+
 /* --- status bar (shell.overlay bottom strip) ------------------------------- */
 
 .statusBar {
@@ -629,6 +1070,601 @@
 /* NO-GO is a finished result, not an error -- amber (attention), never red. */
 .progressVerdictNo { background: color-mix(in srgb, #b26a00 32%, transparent); }
 
+/* 规划 panel: a task box over the harness planner + the rendered chain. Same
+   neutral currentColor mixes as the rest; status colors are the only accents. */
+.planForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+  padding: 0.5rem 0.5rem 0.25rem;
+}
+
+.planLabel,
+.planLabelSmall,
+.planLabelSimulator {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+
+.planLabel {
+  flex: 1 1 18rem;
+}
+
+.planInput,
+.planInputSmall,
+.planSelect {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, currentColor 3%, transparent);
+  color: inherit;
+}
+
+.planInputSmall {
+  width: 9rem;
+}
+
+.planLabelSimulator {
+  position: relative;
+  min-width: 9.5rem;
+}
+
+.planSelect {
+  min-width: 9.5rem;
+  padding-right: 2rem;
+  cursor: pointer;
+}
+
+.planAvailable {
+  position: absolute;
+  top: 0;
+  right: 0;
+  color: var(--dsw-alias-state-success-primary);
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.planBtn {
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+
+.planBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.planBtnExecute:not(:disabled) {
+  border-color: color-mix(in srgb, #2e9e5b 60%, currentColor);
+  background: color-mix(in srgb, #2e9e5b 18%, transparent);
+}
+
+.planBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0 0.5rem 0.75rem;
+  overflow-y: auto;
+  font-size: 0.82rem;
+}
+
+.planVerdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0;
+}
+
+.planStatus {
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.planStatusExecutable {
+  color: #2e9e5b;
+  border-color: color-mix(in srgb, #2e9e5b 50%, transparent);
+  background: color-mix(in srgb, #2e9e5b 12%, transparent);
+}
+
+.planStatusPlanningOnly {
+  color: #c98a1a;
+  border-color: color-mix(in srgb, #c98a1a 50%, transparent);
+  background: color-mix(in srgb, #c98a1a 12%, transparent);
+}
+
+.planStatusRejected {
+  color: #c94a3a;
+  border-color: color-mix(in srgb, #c94a3a 50%, transparent);
+  background: color-mix(in srgb, #c94a3a 12%, transparent);
+}
+
+.planGoal {
+  font-weight: 600;
+}
+
+.planMeta {
+  opacity: 0.65;
+  font-size: 0.75rem;
+}
+
+.planNotice {
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid color-mix(in srgb, #c98a1a 70%, transparent);
+  background: color-mix(in srgb, #c98a1a 8%, transparent);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.planError {
+  color: #c94a3a;
+}
+
+.planList,
+.planChain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.planListRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+  border-radius: 0.375rem;
+}
+
+.planDecomp {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.planLeaf {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, currentColor 3%, transparent);
+}
+
+.planTerminal {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  opacity: 0.75;
+}
+
+.planLeafHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.planLeafBody {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin-top: 0.25rem;
+  font-size: 0.76rem;
+}
+
+.planSkill {
+  font-weight: 600;
+}
+
+.planMono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.74rem;
+  word-break: break-all;
+}
+
+.planKv {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: baseline;
+}
+
+.planKey {
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.66rem;
+}
+
+.planChip {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  white-space: nowrap;
+}
+
+.planChipBound {
+  color: #2e9e5b;
+  border-color: color-mix(in srgb, #2e9e5b 50%, transparent);
+}
+
+.planChipUnbound {
+  color: #c98a1a;
+  border-color: color-mix(in srgb, #c98a1a 50%, transparent);
+}
+
+.planChipLive {
+  color: #2b7bd6;
+  border-color: color-mix(in srgb, #2b7bd6 50%, transparent);
+}
+
+.planHandle {
+  margin-top: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px dashed color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 0.5rem;
+}
+
+/* A generated plan is rendered as a nested skill graph: composite stages run
+   left-to-right and each stage owns its server-expanded leaf chain. */
+.planGraph {
+  overflow: hidden;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 0.8rem;
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent), transparent 28rem),
+    var(--dsw-alias-bg-layer-1);
+  box-shadow: 0 0.7rem 2rem color-mix(in srgb, var(--dsw-alias-bg-mask-drop) 25%, transparent);
+}
+
+.planGraphHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 0.9rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-2) 78%, transparent);
+}
+
+.planGraphEyebrow,
+.planGraphNodeKind {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.planGraphTitle {
+  margin-top: 0.15rem;
+  color: var(--dsw-alias-label-primary);
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.planGraphSummary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.planGraphSummary span {
+  padding: 0.18rem 0.5rem;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.planGraphScroller {
+  overflow-x: auto;
+  padding: 1.15rem 1rem 1.25rem;
+}
+
+.planGraphFlow {
+  display: flex;
+  min-width: max-content;
+  align-items: flex-start;
+}
+
+.planGraphNode,
+.planGraphCluster {
+  position: relative;
+  border: 1px solid var(--dsw-alias-border-l3);
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-2) 90%, transparent);
+  box-shadow: 0 0.45rem 1.1rem color-mix(in srgb, var(--dsw-alias-bg-mask-drop) 18%, transparent);
+}
+
+.planGraphNode {
+  display: flex;
+  width: 10rem;
+  min-height: 4.25rem;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.7rem;
+}
+
+.planGraphNode strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+}
+
+.planGraphGoal {
+  border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 55%, var(--dsw-alias-border-l3));
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, var(--dsw-alias-bg-layer-2));
+}
+
+.planGraphDone {
+  width: 6.5rem;
+  border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 55%, var(--dsw-alias-border-l3));
+}
+
+.planGraphDone .planGraphDot {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+}
+
+.planGraphArrow {
+  display: flex;
+  width: 3.2rem;
+  flex: 0 0 3.2rem;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 2.15rem;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.58rem;
+}
+
+.planGraphArrow span {
+  max-width: 3rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planGraphArrow i {
+  position: relative;
+  width: 100%;
+  height: 1px;
+  margin-top: 0.15rem;
+  background: var(--dsw-alias-border-l4);
+}
+
+.planGraphArrow i::after {
+  position: absolute;
+  top: -0.22rem;
+  right: -0.05rem;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-top: 1px solid var(--dsw-alias-label-tertiary);
+  border-right: 1px solid var(--dsw-alias-label-tertiary);
+  content: '';
+  transform: rotate(45deg);
+}
+
+.planGraphCluster {
+  width: 16rem;
+  min-height: 8rem;
+  overflow: hidden;
+  border-radius: 0.8rem;
+}
+
+.planGraphClusterHead {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, var(--dsw-alias-bg-layer-2));
+}
+
+.planGraphIndex {
+  display: grid;
+  width: 1.65rem;
+  height: 1.65rem;
+  flex: 0 0 1.65rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 40%, var(--dsw-alias-border-l2));
+  border-radius: 0.45rem;
+  color: var(--dsw-alias-brand-text);
+  font: 700 0.64rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.planGraphClusterIdentity {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.planGraphClusterIdentity strong {
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-size: 0.84rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planGraphDot {
+  display: inline-block;
+  width: 0.48rem;
+  height: 0.48rem;
+  flex: 0 0 0.48rem;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.planGraphDotBound {
+  color: var(--dsw-alias-state-success-primary);
+  background: var(--dsw-alias-state-success-primary);
+}
+
+.planGraphDotUnbound {
+  color: var(--dsw-alias-state-warn-primary);
+  background: var(--dsw-alias-state-warn-primary);
+}
+
+.planGraphPath {
+  overflow: hidden;
+  padding: 0.42rem 0.7rem 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.62rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planGraphArgs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.42rem 0.7rem 0;
+}
+
+.planArg {
+  display: inline-flex;
+  max-width: 100%;
+  gap: 0.3rem;
+  overflow: hidden;
+  padding: 0.12rem 0.38rem;
+  border-radius: 0.3rem;
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-secondary);
+  font: 0.62rem/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planArg span {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.planGraphLeaves {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 1rem 0.7rem 0.7rem;
+}
+
+.planGraphBranch {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 0.75rem;
+  background: var(--dsw-alias-border-l4);
+}
+
+.planGraphLeaf {
+  padding: 0.48rem 0.55rem;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 0.55rem;
+  background: var(--dsw-alias-bg-layer-3);
+}
+
+.planGraphLeafHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--dsw-alias-label-primary);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.planGraphLeafArrow {
+  height: 1rem;
+  color: var(--dsw-alias-label-tertiary);
+  line-height: 1rem;
+  text-align: center;
+}
+
+.planGraphCanonical {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.66rem;
+}
+
+.planGraphCanonical span {
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planGraphLeaf .planGraphArgs {
+  padding: 0.35rem 0 0;
+}
+
+.planGraphLegend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.55rem 0.9rem;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.66rem;
+}
+
+.planGraphLegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.planGraphLegend span:last-child {
+  margin-left: auto;
+}
+
+@media (max-width: 760px) {
+  .planGraphHead {
+    flex-direction: column;
+  }
+
+  .planGraphSummary {
+    justify-content: flex-start;
+  }
+
+  .planGraphLegend span:last-child {
+    width: 100%;
+    margin-left: 0;
+  }
 /* --- Run-RSI launcher + chain stepper (演化台 head) ------------------------- */
 /* Same neutral currentColor mixes as the rest of the panel; the stopped state
    and the NO-GO line share the amber "finished result, not error" tone of

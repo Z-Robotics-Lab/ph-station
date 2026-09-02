@@ -77,6 +77,8 @@ export type PhLiveGraphKey =
   | 'sessionArchived'
   | 'sessionArchivedHint'
   | 'viewport'
+  | 'rolloutDownload'
+  | 'rolloutDownloading'
   | 'viewportPick'
   | 'viewportFollow'
   | 'viewportAgo'
@@ -167,6 +169,8 @@ export const zh: Record<PhLiveGraphKey, string> = {
   'sessionArchived': '历史归档',
   'sessionArchivedHint': '已归档的历史记录：不会再有新事件，也不会有画面。',
   'viewport': '取景窗',
+  'rolloutDownload': '下载视频',
+  'rolloutDownloading': '准备中…',
   'viewportPick': '固定看某个 session（默认跟随共享选择）',
   'viewportFollow': '跟随',
   'viewportAgo': '前',
@@ -251,6 +255,8 @@ export const en: Record<PhLiveGraphKey, string> = {
   'sessionArchived': 'Archived',
   'sessionArchivedHint': 'Archived record: it will never gain a new event or a frame.',
   'viewport': 'Viewport',
+  'rolloutDownload': 'Download video',
+  'rolloutDownloading': 'Preparing…',
   'viewportPick': 'Pin to one session (default: follow the shared selection)',
   'viewportFollow': 'Follow',
   'viewportAgo': 'ago',

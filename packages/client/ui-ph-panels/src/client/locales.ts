@@ -1,15 +1,114 @@
 /** `phpanels` namespace dictionaries: tab labels + one-line subtitles, empty-state
- * explainers, jargon tooltips, and field labels for the 代际进化 / 能力卡 / 账本
- * panels, the status bar, and the 任务台 composer chips. */
+ * explainers, jargon tooltips, and field labels for the 规划 / 技能库 / 代际进化 /
+ * 能力卡 / 账本 panels, the status bar, and the 任务台 composer chips. */
 
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'phpanels'
 
 /** The phpanels dictionary key set (source of truth for both locales). */
 export type PhPanelsKey =
+  | 'view.plan'
+  | 'view.library'
   | 'view.evolution'
   | 'view.cards'
   | 'view.ledger'
+  // 规划 (natural-language task -> skill chain)
+  | 'sub.plan'
+  | 'plan.instructionLabel'
+  | 'plan.placeholder'
+  | 'plan.simulator'
+  | 'plan.simulatorAvailable'
+  | 'plan.session'
+  | 'plan.seed'
+  | 'plan.plan'
+  | 'plan.planning'
+  | 'plan.error'
+  | 'plan.empty'
+  | 'plan.execute'
+  | 'plan.submitting'
+  | 'plan.cancel'
+  | 'plan.status.executable'
+  | 'plan.status.planning_only'
+  | 'plan.status.rejected'
+  | 'plan.status.no_match'
+  | 'plan.planningOnlyNotice'
+  | 'plan.channel'
+  | 'plan.matched'
+  | 'plan.catalogue'
+  | 'plan.validation'
+  | 'plan.composite'
+  | 'plan.decomposition'
+  | 'plan.expanded'
+  | 'plan.terminal'
+  | 'plan.node.skill'
+  | 'plan.node.stage'
+  | 'plan.node.args'
+  | 'plan.node.after'
+  | 'plan.node.taxonomy'
+  | 'plan.node.binding'
+  | 'plan.bound'
+  | 'plan.unbound'
+  | 'plan.missing'
+  | 'plan.unboundOracles'
+  | 'plan.graph'
+  | 'plan.generatedGraph'
+  | 'plan.graphFlow'
+  | 'plan.graphHint'
+  | 'plan.goal'
+  | 'plan.task'
+  | 'plan.compositeSkill'
+  | 'plan.compositeCount'
+  | 'plan.leafCount'
+  | 'plan.brief'
+  | 'plan.briefId'
+  | 'plan.briefState'
+  | 'plan.queue'
+  | 'plan.submitRefused'
+  | 'plan.brief.queued'
+  | 'plan.brief.running'
+  | 'plan.brief.stalled'
+  | 'plan.brief.done'
+  | 'plan.brief.failed'
+  | 'plan.brief.cancelled'
+  // unified annotation taxonomy + executable runtime catalogues
+  | 'sub.library'
+  | 'library.taxonomy'
+  | 'library.runtime'
+  | 'library.layout'
+  | 'library.overallGraph'
+  | 'library.outlineTree'
+  | 'library.graphSource'
+  | 'library.children'
+  | 'library.search'
+  | 'library.bindingFilter'
+  | 'library.filter.all'
+  | 'library.filter.bound'
+  | 'library.filter.unbound'
+  | 'library.refresh'
+  | 'library.graphSkills'
+  | 'library.directBound'
+  | 'library.runtimeSkills'
+  | 'library.tasks'
+  | 'library.episodes'
+  | 'library.noMatch'
+  | 'library.selectSkill'
+  | 'library.kind.root'
+  | 'library.kind.category'
+  | 'library.kind.observed_skill'
+  | 'library.kind.canonical_skill'
+  | 'library.categoryHint'
+  | 'library.annotationExecutable'
+  | 'library.stages'
+  | 'library.decomposition'
+  | 'library.bindingTasks'
+  | 'library.noDirectBinding'
+  | 'library.candidates'
+  | 'library.datasets'
+  | 'library.labels'
+  | 'library.frames'
+  | 'library.skillEpisodes'
+  | 'library.none'
+  | 'library.canonical'
   // 演化台 (Evolution Console): the aggregate RSI panel + its sub-tab labels
   | 'view.rsi'
   | 'sub.rsi'
@@ -141,6 +240,103 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh: Record<PhPanelsKey, string> = {
+  'view.plan': '规划',
+  'view.library': '技能库',
+  'sub.plan': '选择仿真器，把自然语言任务生成可视化技能图谱：图谱检索 → DeepSeek 规划 → 校验 → 技能展开 → 绑定检查',
+  'plan.instructionLabel': '任务',
+  'plan.placeholder': '例如：Prepare a cup of coffee.',
+  'plan.simulator': '仿真器',
+  'plan.simulatorAvailable': '可用',
+  'plan.session': '会话',
+  'plan.seed': 'seed',
+  'plan.plan': '规划',
+  'plan.planning': '规划中…',
+  'plan.error': '规划失败',
+  'plan.empty': '输入一句自然语言任务并点“规划”。后端从 RoboCasa 统一技能图谱检索相关技能子树，让 DeepSeek 只在这份紧凑目录里选技能，再用运行时同一个校验器检查、按 HAS_STAGE / DECOMPOSES_TO 展开。这里不会执行任何东西；只有每个叶子技能都有真实 policy/driver binding 时才允许“执行”。',
+  'plan.execute': '执行',
+  'plan.submitting': '提交中…',
+  'plan.cancel': '取消',
+  'plan.status.executable': '可执行',
+  'plan.status.planning_only': '仅规划（无 binding）',
+  'plan.status.rejected': '校验拒绝',
+  'plan.status.no_match': '没有匹配的技能词表',
+  'plan.planningOnlyNotice': '这条链只是符号计划：RoboCasa 标注里存在这些技能，但本仓库没有它们的 policy/driver binding。不能执行，也没有执行结果。',
+  'plan.channel': '词表',
+  'plan.matched': '命中',
+  'plan.catalogue': '给模型的紧凑目录 / 图谱技能总数',
+  'plan.validation': '校验器拒绝',
+  'plan.composite': '组合计划（模型输出，已校验）',
+  'plan.decomposition': '规范展开',
+  'plan.expanded': '展开后的叶子链',
+  'plan.terminal': '终止',
+  'plan.node.skill': '技能',
+  'plan.node.stage': '阶段',
+  'plan.node.args': '参数',
+  'plan.node.after': '依赖',
+  'plan.node.taxonomy': '分类路径',
+  'plan.node.binding': 'binding',
+  'plan.bound': '有 binding',
+  'plan.unbound': '无 binding',
+  'plan.missing': '缺少 binding',
+  'plan.unboundOracles': '符号 verify 谓词（无可执行 oracle）：',
+  'plan.graph': '生成的技能图谱',
+  'plan.generatedGraph': '技能图谱 · 已校验',
+  'plan.graphFlow': '技能执行流程',
+  'plan.graphHint': '组合技能从左到右，叶子技能在节点内自上而下展开',
+  'plan.goal': '任务目标',
+  'plan.task': '任务',
+  'plan.compositeSkill': '组合技能',
+  'plan.compositeCount': '个组合节点',
+  'plan.leafCount': '个叶子技能',
+  'plan.brief': '执行简报',
+  'plan.briefId': 'brief',
+  'plan.briefState': '状态',
+  'plan.queue': '队列位置',
+  'plan.submitRefused': '提交被拒绝',
+  'plan.brief.queued': '排队中',
+  'plan.brief.running': '运行中',
+  'plan.brief.stalled': '停滞（该会话没有活的运行时）',
+  'plan.brief.done': '完成',
+  'plan.brief.failed': '失败',
+  'plan.brief.cancelled': '已取消',
+  'sub.library': '查看完整 RoboCasa 技能分类树、组合/阶段标注，以及真正有 policy/driver binding 的运行时技能',
+  'library.taxonomy': '技能树',
+  'library.runtime': '运行时技能',
+  'library.layout': '技能树布局',
+  'library.overallGraph': '总体技能树',
+  'library.outlineTree': '目录树',
+  'library.graphSource': '数据源 · unified_skill_graph.json',
+  'library.children': '个子节点',
+  'library.search': '搜索技能、数据集或阶段',
+  'library.bindingFilter': 'binding 筛选',
+  'library.filter.all': '全部',
+  'library.filter.bound': '有直接 binding',
+  'library.filter.unbound': '无直接 binding',
+  'library.refresh': '刷新',
+  'library.graphSkills': '图谱技能',
+  'library.directBound': '直接绑定',
+  'library.runtimeSkills': '运行时技能',
+  'library.tasks': '任务 binding',
+  'library.episodes': 'annotation episode',
+  'library.noMatch': '没有符合筛选条件的技能',
+  'library.selectSkill': '从左侧技能树选择一个节点，查看阶段、组合、label、数据集证据和 binding 状态。',
+  'library.kind.root': '根',
+  'library.kind.category': '分类',
+  'library.kind.observed_skill': '观测技能',
+  'library.kind.canonical_skill': '规范技能',
+  'library.categoryHint': '这是分类节点，用来组织 IS_A 技能树，不是可调度技能。',
+  'library.annotationExecutable': 'annotation 可执行标记',
+  'library.stages': '阶段（HAS_STAGE / REALIZES）',
+  'library.decomposition': '组合（DECOMPOSES_TO）',
+  'library.bindingTasks': '直接绑定的任务',
+  'library.noDirectBinding': '没有同名的运行时 binding，不能从图谱通道直接执行',
+  'library.candidates': '同 canonical 的实现候选（不是直接 binding）',
+  'library.datasets': '出现的数据集',
+  'library.labels': 'annotation label',
+  'library.frames': '标注帧数',
+  'library.skillEpisodes': '覆盖 episode',
+  'library.none': '无',
+  'library.canonical': '对应 canonical',
   'view.evolution': '迭代记录',
   'view.cards': '能力卡',
   'view.ledger': '账本',
@@ -262,6 +458,103 @@ export const zh: Record<PhPanelsKey, string> = {
 
 /** English dictionary. */
 export const en: Record<PhPanelsKey, string> = {
+  'view.plan': 'Plan',
+  'view.library': 'Skill Library',
+  'sub.plan': 'Choose a simulator and turn a natural-language task into a visual skill graph: graph retrieval → DeepSeek planning → validation → skill expansion → binding check.',
+  'plan.instructionLabel': 'Task',
+  'plan.placeholder': 'e.g. Prepare a cup of coffee.',
+  'plan.simulator': 'Simulator',
+  'plan.simulatorAvailable': 'Available',
+  'plan.session': 'Session',
+  'plan.seed': 'seed',
+  'plan.plan': 'Plan',
+  'plan.planning': 'Planning…',
+  'plan.error': 'Planning failed',
+  'plan.empty': 'Type a natural-language task and press Plan. The harness retrieves the relevant subtree of the RoboCasa unified skill graph, lets DeepSeek select only from that compact catalogue, then checks the reply with the runtime\'s own validator and expands it by HAS_STAGE / DECOMPOSES_TO. Nothing executes here; Execute is enabled only when every leaf skill has a real policy/driver binding.',
+  'plan.execute': 'Execute',
+  'plan.submitting': 'Submitting…',
+  'plan.cancel': 'Cancel',
+  'plan.status.executable': 'Executable',
+  'plan.status.planning_only': 'Planning only (unbound)',
+  'plan.status.rejected': 'Validation rejected',
+  'plan.status.no_match': 'No matching skill vocabulary',
+  'plan.planningOnlyNotice': 'This chain is symbolic: the skills exist in the RoboCasa annotations, but this repository has no policy/driver binding for them. It cannot run, and there is no execution result.',
+  'plan.channel': 'Vocabulary',
+  'plan.matched': 'matched',
+  'plan.catalogue': 'compact catalogue sent to the model / graph skills total',
+  'plan.validation': 'Validator refused',
+  'plan.composite': 'Composite plan (model output, validated)',
+  'plan.decomposition': 'Canonical expansion',
+  'plan.expanded': 'Expanded leaf chain',
+  'plan.terminal': 'terminal',
+  'plan.node.skill': 'skill',
+  'plan.node.stage': 'stage',
+  'plan.node.args': 'args',
+  'plan.node.after': 'after',
+  'plan.node.taxonomy': 'taxonomy',
+  'plan.node.binding': 'binding',
+  'plan.bound': 'bound',
+  'plan.unbound': 'unbound',
+  'plan.missing': 'Missing bindings',
+  'plan.unboundOracles': 'Symbolic verify predicates (no executable oracle):',
+  'plan.graph': 'Generated skill graph',
+  'plan.generatedGraph': 'Skill graph · validated',
+  'plan.graphFlow': 'Skill execution flow',
+  'plan.graphHint': 'Composite skills flow left to right; leaf skills expand top to bottom inside each node',
+  'plan.goal': 'Task goal',
+  'plan.task': 'Task',
+  'plan.compositeSkill': 'Composite skill',
+  'plan.compositeCount': 'composite nodes',
+  'plan.leafCount': 'leaf skills',
+  'plan.brief': 'Execution brief',
+  'plan.briefId': 'brief',
+  'plan.briefState': 'state',
+  'plan.queue': 'queue position',
+  'plan.submitRefused': 'Submit refused',
+  'plan.brief.queued': 'queued',
+  'plan.brief.running': 'running',
+  'plan.brief.stalled': 'stalled (no live runtime for this session)',
+  'plan.brief.done': 'done',
+  'plan.brief.failed': 'failed',
+  'plan.brief.cancelled': 'cancelled',
+  'sub.library': 'Browse the complete RoboCasa taxonomy, compositions and stages, alongside runtime skills with real policy/driver bindings.',
+  'library.taxonomy': 'Skill tree',
+  'library.runtime': 'Runtime skills',
+  'library.layout': 'Skill tree layout',
+  'library.overallGraph': 'Overall Skill Tree',
+  'library.outlineTree': 'Outline Tree',
+  'library.graphSource': 'Source · unified_skill_graph.json',
+  'library.children': 'children',
+  'library.search': 'Search skills, datasets, or stages',
+  'library.bindingFilter': 'Binding filter',
+  'library.filter.all': 'All',
+  'library.filter.bound': 'Directly bound',
+  'library.filter.unbound': 'Not directly bound',
+  'library.refresh': 'Refresh',
+  'library.graphSkills': 'Graph skills',
+  'library.directBound': 'Direct bindings',
+  'library.runtimeSkills': 'Runtime skills',
+  'library.tasks': 'Task bindings',
+  'library.episodes': 'Annotation episodes',
+  'library.noMatch': 'No skills match the filters',
+  'library.selectSkill': 'Select a node in the skill tree to inspect stages, composition, labels, dataset evidence, and binding state.',
+  'library.kind.root': 'root',
+  'library.kind.category': 'category',
+  'library.kind.observed_skill': 'observed skill',
+  'library.kind.canonical_skill': 'canonical skill',
+  'library.categoryHint': 'This category organizes the IS_A taxonomy; it is not a dispatchable skill.',
+  'library.annotationExecutable': 'annotation executable flag',
+  'library.stages': 'Stages (HAS_STAGE / REALIZES)',
+  'library.decomposition': 'Composition (DECOMPOSES_TO)',
+  'library.bindingTasks': 'Directly bound tasks',
+  'library.noDirectBinding': 'No same-name runtime binding; this graph node cannot execute directly.',
+  'library.candidates': 'Same-canonical implementation candidates (not direct bindings)',
+  'library.datasets': 'Observed datasets',
+  'library.labels': 'Annotation labels',
+  'library.frames': 'Annotated frames',
+  'library.skillEpisodes': 'Episode support',
+  'library.none': 'None',
+  'library.canonical': 'Canonical concept',
   'view.evolution': 'Generations',
   'view.cards': 'Capability cards',
   'view.ledger': 'Ledger',
