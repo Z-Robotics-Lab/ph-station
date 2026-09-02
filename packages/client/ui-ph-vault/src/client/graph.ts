@@ -1,19 +1,16 @@
 /**
  * Pure fold: the board vault payload → the wiki graph's view model plus its
- * dagre layout. Rendering-state assembly only — every number, status, and
+ * layered layout. Rendering-state assembly only — every number, status, and
  * relation is copied verbatim from board/vault.py (the deterministic fold);
  * nothing is computed here (charter: TS renders only).
  *
- * The vault is a typed, backlinked graph over three node kinds (skill /
- * package / capability) and a fixed nine-relation edge vocabulary. This module
- * mirrors board/vault.py's output as TypeScript, filters it by the operator's
- * kind/status/search selection, and lays the survivors out through one global
- * dagre left-to-right pass so skill lineage (DESCENDS_FROM) reads as a
- * horizontal chain and the kinds fall into left→right ranks by edge direction
- * (packages and skills feed capabilities, so capabilities settle to the right).
+ * The vault is a typed, backlinked graph over five node kinds and a fixed
+ * relation vocabulary. This module mirrors board/vault.py's output as
+ * TypeScript, indexes it, folds the class tree, and lays the canvas out in
+ * three fixed columns — 能力 (capability) | 卡片 (card) | 技能 (skill, one
+ * swimlane per class) — by stacking nodes with gaps (no force/dagre pass), so
+ * the layers the operator asked about are the columns themselves.
  */
-
-import dagre from '@dagrejs/dagre'
 
 /** The fixed relation vocabulary (board/vault.py §2.5); edges carry one each. */
 export type VaultRel =
@@ -191,14 +188,6 @@ export interface VaultGraph {
   readonly edges: VaultEdge[]
 }
 
-/** The operator's live filter selection; an empty set for a facet means "all". */
-export interface VaultFilters {
-  readonly kinds: ReadonlySet<VaultKind>
-  readonly rels: ReadonlySet<VaultRel>
-  readonly statuses: ReadonlySet<SkillStatus>
-  readonly search: string
-}
-
 /** Every relation, in reading order (the chip row + edge legend). */
 export const ALL_RELS: readonly VaultRel[] = [
   'DESCENDS_FROM', 'GOVERNS', 'REQUIRES', 'PROVIDES', 'BINDS',
@@ -208,50 +197,6 @@ export const ALL_RELS: readonly VaultRel[] = [
 
 /** The kinds, in reading order. */
 export const ALL_KINDS: readonly VaultKind[] = ['skill', 'class', 'benchmark', 'package', 'capability']
-
-/** The two highest-volume cross-band families (seven edges each in the live
- * fold), both terminating on the capability band. Hidden by default so the
- * graph opens legible; the operator opts them back in per relation chip. */
-export const DENSE_RELS: readonly VaultRel[] = ['REQUIRES', 'PROVIDES']
-
-/** Per-relation edge tally over the whole fold. `total` counts every fold edge
- * of the family; `rendered` counts only those whose both endpoints are node
- * kinds and can therefore draw. */
-export interface RelTally { readonly total: number; readonly rendered: number }
-
-/**
- * Tally every relation family's fold edges against how many can render (both
- * endpoints are nodes). Families whose targets are tasks/campaigns/evidence
- * (GOVERNS/BINDS/EVIDENCED_BY/MOUNTED_IN) tally `rendered: 0`.
- * @param graph - the folded vault graph.
- * @returns a tally for every relation family, including zero-edge ones.
- */
-export function relTallies(graph: VaultGraph): Record<VaultRel, RelTally> {
-  const ids = new Set(graph.nodes.map(n => n.id))
-  const total = new Map<VaultRel, number>()
-  const rendered = new Map<VaultRel, number>()
-  for (const e of graph.edges) {
-    total.set(e.rel, (total.get(e.rel) ?? 0) + 1)
-    if (ids.has(e.src) && ids.has(e.dst)) rendered.set(e.rel, (rendered.get(e.rel) ?? 0) + 1)
-  }
-  return Object.fromEntries(ALL_RELS.map(r =>
-    [r, { total: total.get(r) ?? 0, rendered: rendered.get(r) ?? 0 }]),
-  ) as Record<VaultRel, RelTally>
-}
-
-/**
- * The relation families that draw at least one edge; the rest are dead
- * controls (legend rows and filter chips the canvas hides).
- * @param graph - the folded vault graph.
- * @returns the relation families with at least one rendered edge.
- */
-export function renderableRels(graph: VaultGraph): Set<VaultRel> {
-  const t = relTallies(graph)
-  return new Set(ALL_RELS.filter(r => t[r].rendered > 0))
-}
-
-/** The three derived skill statuses, in reading order. */
-export const ALL_STATUSES: readonly SkillStatus[] = ['promoted', 'candidate', 'retired']
 
 /** Edge stroke per relation; legible in both themes via the token sheet with a
  * literal fallback. One source for the canvas edges, the legend, and the node
@@ -284,18 +229,6 @@ export const KIND_COLOR: Record<VaultKind, string> = {
   capability: 'var(--dsw-alias-state-purple-primary, #8b5cf6)',
 }
 
-/**
- * Whether a node passes the current kind/status/search filters.
- * @param node - the vault node to test.
- * @param f - the active filters; empty sets and a blank search hide nothing.
- * @returns true when every active filter admits the node.
- */
-export function nodeVisible(node: VaultNode, f: VaultFilters): boolean {
-  if (f.kinds.size > 0 && !f.kinds.has(node.kind)) return false
-  if (node.kind === 'skill' && f.statuses.size > 0 && !f.statuses.has(node.status as SkillStatus)) return false
-  return matches(node, f.search)
-}
-
 /** Client-side substring search over id / name / task / label / description. */
 export function matches(node: VaultNode, search: string): boolean {
   const q = search.trim().toLowerCase()
@@ -305,127 +238,14 @@ export function matches(node: VaultNode, search: string): boolean {
     .filter((s): s is string => typeof s === 'string').join(' ').toLowerCase().includes(q)
 }
 
-/** A positioned React Flow node carrying its vault body for the custom renderer. */
-export interface LaidOutNode {
-  id: string
-  type: VaultKind
-  position: { x: number; y: number }
-  data: { node: VaultNode; dimmed: boolean }
-}
-
-/** A React Flow edge with its relation label. */
-export interface LaidOutEdge {
-  id: string
-  source: string
-  target: string
-  rel: VaultRel
-  label: string
-}
-
-/** Everything the canvas draws: positioned nodes plus the edges to paint. */
-export interface VaultLayout {
-  nodes: LaidOutNode[]
-  edges: LaidOutEdge[]
-}
-
-/** Fixed node footprints for the deterministic dagre pass (React Flow measures
- * after mount, but the layout wants stable inputs). */
+/** Fixed node footprints (React Flow measures after mount, but the stacked
+ * layout wants stable inputs). */
 export const NODE_SIZE: Record<VaultKind, { width: number; height: number }> = {
   skill: { width: 210, height: 88 },
   class: { width: 170, height: 52 },
   benchmark: { width: 190, height: 58 },
   package: { width: 190, height: 58 },
   capability: { width: 180, height: 52 },
-}
-
-/** A node's footprint: fixed per kind, except a class grows with its skill
- * count so the overview reads size ∝ membership (capped at 40 skills). */
-export function nodeSize(node: VaultNode): { width: number; height: number } {
-  if (node.kind !== 'class') return NODE_SIZE[node.kind]
-  const s = Math.min(node.skills ?? node.count ?? 0, 40)
-  return { width: NODE_SIZE.class.width + 3 * s, height: NODE_SIZE.class.height + s }
-}
-
-/** Global dagre LR spacing (px). `ranksep` is the left→right gap between ranks
- * (roomy so a lineage chain reads as a clear horizontal run); `nodesep` is the
- * vertical gap between nodes sharing a rank (tight so parallel rows stack
- * evenly without wasting height). `network-simplex` gives the most compact,
- * evenly-aligned ranking at this node count. */
-const DAGRE_GRAPH = {
-  rankdir: 'LR', ranker: 'network-simplex',
-  ranksep: 96, nodesep: 26, marginx: 20, marginy: 20,
-} as const
-
-/**
- * Fold the graph into ONE global dagre left-to-right layout over the nodes that
- * pass the kind/status filter. Every edge whose endpoints are both visible
- * nodes seeds the dagre pass — independent of the relation chips — so a node's
- * position is stable when a relation family is toggled; the chips change only
- * which edges paint. Skill lineage (DESCENDS_FROM: child→parent) therefore lays
- * out as a horizontal chain, and because the cross-kind families point at
- * capabilities (REQUIRES: skill→capability, PROVIDES: package→capability),
- * capabilities settle into the rightmost ranks with no container needed.
- *
- * An edge paints only when both endpoints survive and its relation is selected.
- * Relations whose target is a task/campaign/evidence id (GOVERNS, BINDS,
- * EVIDENCED_BY, MOUNTED_IN) have no node to land on, so they neither seed the
- * layout nor paint — {@link renderableRels} reports which families appear. A
- * node dimmed by search still lays out (context) but renders muted.
- * @param graph - the board vault payload.
- * @param f - the live filter selection.
- * @returns positioned nodes and the edges to paint.
- */
-export function layout(graph: VaultGraph, f: VaultFilters): VaultLayout {
-  const kindPass = new Map(graph.nodes
-    .filter(n => (f.kinds.size === 0 || f.kinds.has(n.kind))
-      && !(n.kind === 'skill' && f.statuses.size > 0 && !f.statuses.has(n.status as SkillStatus)))
-    .map(n => [n.id, n]))
-  // Layout seed: every node-to-node edge among the survivors, chips or not.
-  const nodeEdges = graph.edges.filter(e => kindPass.has(e.src) && kindPass.has(e.dst))
-
-  const g = new dagre.graphlib.Graph()
-  g.setGraph({ ...DAGRE_GRAPH })
-  g.setDefaultEdgeLabel(() => ({}))
-  for (const [id, node] of kindPass) g.setNode(id, { ...nodeSize(node) })
-  for (const e of nodeEdges) g.setEdge(e.src, e.dst)
-  dagre.layout(g)
-
-  const q = f.search.trim().toLowerCase()
-  const nodes: LaidOutNode[] = [...kindPass.values()].map((node) => {
-    const pos = g.node(node.id)
-    return {
-      id: node.id,
-      type: node.kind,
-      position: { x: pos.x - pos.width / 2, y: pos.y - pos.height / 2 },
-      data: { node, dimmed: q !== '' && !nodeVisible(node, f) },
-    }
-  })
-  const relOk = (rel: VaultRel): boolean => f.rels.size === 0 || f.rels.has(rel)
-  const edges: LaidOutEdge[] = nodeEdges.filter(e => relOk(e.rel)).map(e => ({
-    id: `${e.rel}:${e.src}->${e.dst}`,
-    source: e.src, target: e.dst, rel: e.rel, label: e.count === undefined ? e.rel : `${e.rel} ×${e.count}`,
-  }))
-  return { nodes, edges }
-}
-
-/**
- * In-edges (backlinks) of one node.
- * @param graph - the folded vault graph.
- * @param id - the node id.
- * @returns every edge whose destination is the node, in fold order.
- */
-export function backlinks(graph: VaultGraph, id: string): VaultEdge[] {
-  return graph.edges.filter(e => e.dst === id)
-}
-
-/**
- * Out-edges of one node.
- * @param graph - the folded vault graph.
- * @param id - the node id.
- * @returns every edge whose source is the node, in fold order.
- */
-export function outEdges(graph: VaultGraph, id: string): VaultEdge[] {
-  return graph.edges.filter(e => e.src === id)
 }
 
 /**
@@ -497,9 +317,10 @@ export interface ClassRow { readonly node: ClassNode; readonly skills: LibrarySk
 /** The generic a skill is an INSTANCE_OF, or undefined for a generic skill. */
 export const genericOf = (x: VaultIndex, id: string): string | undefined => outOf(x, id, 'INSTANCE_OF')[0]?.dst
 
-/** The left column: class rows (IN_CLASS members, filtered) plus the legacy
- * nodes (packages, capabilities, sealed skills) under one trailing section. */
-export interface ClassTree { readonly classes: ClassRow[]; readonly legacy: VaultNode[] }
+/** The left column: class rows (IN_CLASS members, filtered), the 卡片与能力
+ * section (packages + capabilities), and the 历史记录 section (legacy sealed
+ * skills; shown only behind the 历史 toggle). */
+export interface ClassTree { readonly classes: ClassRow[]; readonly cards: VaultNode[]; readonly legacy: LegacySkillNode[] }
 
 /** Whether a library skill passes the benchmark / embodiment / search filters. */
 export function skillPasses(x: VaultIndex, n: LibrarySkillNode, f: TreeFilters): boolean {
@@ -510,7 +331,7 @@ export function skillPasses(x: VaultIndex, n: LibrarySkillNode, f: TreeFilters):
 
 /**
  * Fold the index into the class tree. A class row survives only with at least
- * one passing member; the legacy section is search-filtered only.
+ * one passing member; the cards and legacy sections are search-filtered only.
  * @param x - the index.
  * @param f - the tree filters.
  * @returns the tree, in fold order.
@@ -532,11 +353,14 @@ export function classTree(x: VaultIndex, f: TreeFilters): ClassTree {
     const roots = skills.filter(s => under(s) === undefined).map(node => ({ node, instances: skills.filter(s => under(s) === node.id) }))
     classes.push({ node: c, skills, roots })
   }
-  const legacy = [...(x.byKind.get('skill') ?? []).filter(n => !isLibrary(n)),
-    ...(x.byKind.get('package') ?? []), ...(x.byKind.get('capability') ?? [])]
-    .filter(n => matches(n, f.search))
-  return { classes, legacy }
+  const cards = [...(x.byKind.get('package') ?? []), ...(x.byKind.get('capability') ?? [])].filter(n => matches(n, f.search))
+  const legacy = legacySkills(x).filter(n => matches(n, f.search))
+  return { classes, cards, legacy }
 }
+
+/** The legacy sealed records (runs history: promoted / candidate / retired), in fold order. */
+export const legacySkills = (x: VaultIndex): LegacySkillNode[] =>
+  (x.byKind.get('skill') ?? []).filter((n): n is LegacySkillNode => n.kind === 'skill' && !isLibrary(n))
 
 /** Every embodiment key any library skill binds, sorted. */
 export function embodiments(x: VaultIndex): string[] {
@@ -545,89 +369,259 @@ export function embodiments(x: VaultIndex): string[] {
   return [...keys].sort()
 }
 
-/** The skill-level relations the overview aggregates to class level. */
-const AGG_RELS: readonly VaultRel[] = ['DEPENDS_ON', 'BOUND_TO', 'EVIDENCED_ON']
 
-/**
- * The no-selection canvas: every class node, the benchmark / package nodes at
- * least one class edge touches, and one aggregated edge per (relation, class,
- * target) pair carrying the fold-edge `count` — no skill nodes at all, so 100+
- * skills and their dense DEPENDS_ON family read as a dozen classes.
- * @param graph - the folded vault graph.
- * @param x - its index.
- * @returns the class overview as a graph.
- */
-export function overview(graph: VaultGraph, x: VaultIndex): VaultGraph {
-  const classOf = (id: string): string | undefined => outOf(x, id, 'IN_CLASS')[0]?.dst
-  const agg = new Map<string, VaultEdge>()
-  for (const e of graph.edges) {
-    if (!AGG_RELS.includes(e.rel)) continue
-    const src = classOf(e.src)
-    const dst = e.rel === 'DEPENDS_ON' ? classOf(e.dst) : e.dst
-    if (src === undefined || dst === undefined || src === dst) continue
-    const key = `${e.rel}:${src}->${dst}`
-    const prev = agg.get(key)
-    agg.set(key, prev === undefined
-      ? { rel: e.rel, src, dst, rule: e.rule, via: 'overview', count: 1 }
-      : { ...prev, count: (prev.count ?? 0) + 1 })
-  }
-  const edges = [...agg.values()]
-  const touched = new Set(edges.flatMap(e => [e.src, e.dst]))
-  const nodes = graph.nodes.filter(n => n.kind === 'class' || ((n.kind === 'benchmark' || n.kind === 'package') && touched.has(n.id)))
-  return { ...graph, nodes, edges }
+// --- layered canvas: 能力 | 卡片 | 技能 ---------------------------------------
+
+/** Which layers the canvas shows: cards (能力 + 卡片, skills added by hand),
+ * skills (the class swimlanes alone), or all three columns. */
+export type LayerMode = 'cards' | 'skills' | 'all'
+
+/** The relation chips over the canvas. Each maps to one fold relation except
+ * CONTRACT (requires/ensures predicate nodes drawn from the records) and
+ * HISTORY (the legacy sealed records and every legacy relation). */
+export type RelToggle = 'DEPENDS_ON' | 'CONTRACT' | 'INSTANCE_OF' | 'BOUND_TO' | 'PROVIDES' | 'MOUNTED_IN' | 'EVIDENCED_ON' | 'HISTORY'
+
+/** The chips, in reading order. */
+export const ALL_TOGGLES: readonly RelToggle[] = ['DEPENDS_ON', 'CONTRACT', 'INSTANCE_OF', 'BOUND_TO', 'PROVIDES', 'MOUNTED_IN', 'EVIDENCED_ON', 'HISTORY']
+
+/** The legacy relations (the runs history), all behind the 历史 chip. */
+export const HISTORY_RELS: readonly VaultRel[] = ['DESCENDS_FROM', 'GOVERNS', 'REQUIRES', 'CLAIMS', 'SUPERSEDES', 'EVIDENCED_BY', 'BINDS']
+
+/** The chip that admits a fold relation; IN_CLASS is drawn as lane membership, never as an edge. */
+export function toggleOf(rel: VaultRel): RelToggle | null {
+  if (rel === 'IN_CLASS') return null
+  return HISTORY_RELS.includes(rel) ? 'HISTORY' : rel as RelToggle
 }
 
-/** What the selection's neighborhood unfolds: the generic skills whose
- * instances draw, and whether a library skill reaches depth 2. */
-export interface NeighborhoodOpts { readonly expanded: ReadonlySet<string>; readonly deep: boolean }
+/** The chips on at load: 依赖 · 实例 · 绑定 · 提供 · 挂载, plus 证据 when the
+ * fold carries at least one drawable EVIDENCED_ON edge; 前置/保证 and 历史 off. */
+export function defaultToggles(graph: VaultGraph): Set<RelToggle> {
+  const on = new Set<RelToggle>(['DEPENDS_ON', 'INSTANCE_OF', 'BOUND_TO', 'PROVIDES', 'MOUNTED_IN'])
+  const ids = new Set(graph.nodes.map(n => n.id))
+  if (graph.edges.some(e => e.rel === 'EVIDENCED_ON' && ids.has(e.src) && ids.has(e.dst))) on.add('EVIDENCED_ON')
+  return on
+}
 
-const COLLAPSED: NeighborhoodOpts = { expanded: new Set(), deep: false }
+/** The canvas state the layout folds from. */
+export interface LayerView {
+  readonly mode: LayerMode
+  readonly on: ReadonlySet<RelToggle>
+  /** Classes whose swimlane unfolds to its generic skills (shared with the tree). */
+  readonly openClasses: ReadonlySet<string>
+  /** Generic skills whose instances unfold. */
+  readonly expanded: ReadonlySet<string>
+  /** Cards mode: the skill ids added to the canvas. */
+  readonly added: ReadonlySet<string>
+  readonly search: string
+}
+
+/** A React Flow node type: a vault kind, a class swimlane (parent group), a
+ * column / sub-group header, or a requires/ensures predicate. */
+export type FlowType = VaultKind | 'lane' | 'header' | 'predicate'
+
+/** A positioned React Flow node. Children of a lane carry `parentId` and a
+ * position relative to it (xyflow parent-node convention). */
+export interface LaidOutNode {
+  id: string
+  type: FlowType
+  position: { x: number; y: number }
+  width: number
+  height: number
+  parentId?: string
+  data: {
+    node?: VaultNode | undefined
+    /** Header / lane label: a raw string or a locale key (`key`) plus a count. */
+    label?: string | undefined
+    key?: string | undefined
+    count?: number | undefined
+    open?: boolean | undefined
+    dimmed: boolean
+  }
+}
+
+/** A painted edge; `requires` / `ensures` are the predicate edges. */
+export type EdgeRel = VaultRel | 'requires' | 'ensures'
+
+/** A React Flow edge with its relation label and fold-edge count. */
+export interface LaidOutEdge {
+  id: string
+  source: string
+  target: string
+  rel: EdgeRel
+  label: string
+  count: number
+}
+
+/** Everything the canvas draws. */
+export interface VaultLayout { nodes: LaidOutNode[]; edges: LaidOutEdge[] }
+
+/** Fixed column x (px): 能力 | 卡片 | 技能 | 谓词 (predicates, 前置/保证 chip only). */
+export const COL_X = { capability: 0, package: 290, skill: 620, predicate: 980 } as const
+
+/** Edge stroke for the predicate edges (the fold relations use REL_COLOR). */
+export const PRED_COLOR: Record<'requires' | 'ensures', string> = {
+  requires: 'var(--dsw-alias-state-warning-primary, #d98a1f)',
+  ensures: 'var(--dsw-alias-state-success-primary, #2e9e5b)',
+}
+
+const GAP = 14
+const LANE_W = 270
+const LANE_PAD = 20
+const LANE_HEAD = 40
+const INST_INDENT = 16
+const HEAD_H = 26
+const PRED_SIZE = { width: 200, height: 34 }
+
+/** The cards column sub-groups, in reading order. */
+export type CardGroup = 'embodiment' | 'provider' | 'mission' | 'other'
+const CARD_GROUPS: readonly CardGroup[] = ['embodiment', 'provider', 'mission', 'other']
+
+/** A card's sub-group by what it provides: an `embodiment.*` seam → 具身; any
+ * other seam → 执行器/策略; a benchmark, a benchmark's card, or a `mission_*`
+ * card → 任务/基准; the rest (build/skill/planner helpers) → 其他. */
+export function cardGroup(n: PackageNode | BenchmarkNode, x: VaultIndex): CardGroup {
+  if (n.kind === 'benchmark') return 'mission'
+  const provides = n.provides ?? []
+  if (provides.some(c => c.startsWith('embodiment.'))) return 'embodiment'
+  if (provides.length > 0) return 'provider'
+  // ponytail: name heuristic for mission cards; switch to a manifest field once the fold carries one.
+  const isBenchCard = (x.byKind.get('benchmark') ?? []).some(b => (b as BenchmarkNode).card === n.id)
+  return isBenchCard || /mission/.test(n.id) ? 'mission' : 'other'
+}
 
 /**
- * The subgraph the canvas draws for a selection: a class → itself, its generic
- * skills (no INSTANCE_OF out-edge), and their DEPENDS_ON / BOUND_TO /
- * EVIDENCED_ON neighbors; a library skill → its depth-1 neighbors (depth 2 with
- * `deep`); any other node → its depth-2 neighborhood; no selection → the class
- * {@link overview}. Instances stay collapsed under their generic (the node
- * badge shows `+n`) until the generic is in `expanded`; a class's members never
- * unfold through a depth-2 IN_CLASS hop.
- * Node and edge order follow the fold (deterministic layout input).
- * @param graph - the folded vault graph.
+ * Lay the canvas out in fixed columns. Capabilities stack in column 1; cards
+ * (packages + benchmarks) stack in column 2 under their sub-group headers;
+ * column 3 holds one swimlane per class (a parent node labeled `grasp · 14`):
+ * header-only while collapsed, its generic skills as children once open, an
+ * instance nested under its generic once that generic is expanded. Cards mode
+ * draws only the lanes of the added skills; skills mode draws column 3 alone.
+ * The 历史 chip adds one lane of the legacy sealed skills; the 前置/保证 chip
+ * adds a fourth column of predicate nodes wired requires→skill / skill→ensures.
+ *
+ * Edges: a fold edge paints when its chip is on and both endpoints resolve to
+ * a drawn node — a collapsed instance resolves to its generic, a member of a
+ * collapsed lane to the lane — and parallel resolutions fold into one counted
+ * edge (`DEPENDS_ON ×3`), so collapsed lanes read as the class overview.
+ * @param graph - the board vault payload.
  * @param x - its index.
- * @param selected - the selected node id, or null.
- * @param opts - expanded generics and the depth toggle.
- * @returns the neighborhood as a graph.
+ * @param v - the canvas state.
+ * @returns positioned nodes (lanes before their children) and the edges to paint.
  */
-export function neighborhood(graph: VaultGraph, x: VaultIndex, selected: string | null, opts: NeighborhoodOpts = COLLAPSED): VaultGraph {
-  const sel = selected === null ? undefined : x.byId.get(selected)
-  if (selected === null || sel === undefined) return overview(graph, x)
-  const keep = new Set<string>([selected])
-  if (sel.kind === 'class') {
-    for (const e of inTo(x, selected, 'IN_CLASS')) {
-      if (genericOf(x, e.src) !== undefined) continue
-      keep.add(e.src)
-      for (const out of outOf(x, e.src)) if (out.rel !== 'IN_CLASS') keep.add(out.dst)
-      for (const inn of inTo(x, e.src)) if (inn.rel === 'DEPENDS_ON' || (inn.rel === 'INSTANCE_OF' && opts.expanded.has(e.src))) keep.add(inn.src)
-    }
-  } else {
-    // In-edges to follow: never a class's members (IN_CLASS), a generic's
-    // instances (INSTANCE_OF) only once it is expanded.
-    const follow = (e: VaultEdge, into: string): boolean =>
-      e.rel !== 'IN_CLASS' && (e.rel !== 'INSTANCE_OF' || opts.expanded.has(into))
-    let frontier = [selected]
-    const depths = isLibrary(sel) && !opts.deep ? 1 : 2
-    for (let depth = 0; depth < depths; depth++) {
-      const next: string[] = []
-      for (const id of frontier) {
-        for (const e of outOf(x, id)) if (!keep.has(e.dst)) { keep.add(e.dst); next.push(e.dst) }
-        for (const e of inTo(x, id)) if (follow(e, id) && !keep.has(e.src)) { keep.add(e.src); next.push(e.src) }
-      }
-      frontier = next
+export function layered(graph: VaultGraph, x: VaultIndex, v: LayerView): VaultLayout {
+  const nodes: LaidOutNode[] = []
+  const q = v.search.trim()
+  const dim = (n: VaultNode): boolean => q !== '' && !matches(n, q)
+  const header = (id: string, key: string, xPos: number, y: number, count?: number): number => {
+    nodes.push({ id, type: 'header', position: { x: xPos, y }, width: LANE_W, height: HEAD_H, data: { key, count, dimmed: false } })
+    return y + HEAD_H + GAP / 2
+  }
+  const place = (n: VaultNode, xPos: number, y: number, parentId?: string): number => {
+    const size = NODE_SIZE[n.kind]
+    nodes.push({
+      id: n.id, type: n.kind, position: { x: xPos, y }, ...size,
+      ...(parentId === undefined ? {} : { parentId }), data: { node: n, dimmed: dim(n) },
+    })
+    return y + size.height + GAP
+  }
+
+  if (v.mode !== 'skills') {
+    const caps = x.byKind.get('capability') ?? []
+    let y = header('col:capability', 'col.capability', COL_X.capability, 0, caps.length)
+    for (const c of caps) y = place(c, COL_X.capability, y)
+
+    const cards = [...(x.byKind.get('package') ?? []), ...(x.byKind.get('benchmark') ?? [])] as Array<PackageNode | BenchmarkNode>
+    y = header('col:package', 'col.package', COL_X.package, 0, cards.length)
+    for (const g of CARD_GROUPS) {
+      const members = cards.filter(c => cardGroup(c, x) === g)
+      if (members.length === 0) continue
+      y = header(`group:${g}`, `group.${g}`, COL_X.package, y, members.length)
+      for (const c of members) y = place(c, COL_X.package, y)
     }
   }
-  return {
-    ...graph,
-    nodes: graph.nodes.filter(n => keep.has(n.id)),
-    edges: graph.edges.filter(e => keep.has(e.src) && keep.has(e.dst)),
+
+  // Column 3: one swimlane per class. Lane id = class id, so selecting the lane selects the class.
+  const collapsedLanes = new Set<string>()
+  const lane = (id: string, y: number, data: LaidOutNode['data'], members: VaultNode[], indent: (n: VaultNode) => number): number => {
+    const head: LaidOutNode = { id, type: 'lane', position: { x: COL_X.skill, y }, width: LANE_W, height: LANE_HEAD, data }
+    nodes.push(head)
+    let cy = LANE_HEAD
+    for (const m of members) cy = place(m, LANE_PAD + indent(m), cy, id)
+    if (members.length > 0) head.height = cy - GAP + LANE_PAD / 2
+    return y + head.height + GAP
   }
+  const classes = (x.byKind.get('class') ?? []) as ClassNode[]
+  const memberOf = (c: ClassNode): LibrarySkillNode[] => inTo(x, c.id, 'IN_CLASS').map(e => x.byId.get(e.src)).filter(isLibrary)
+  let y = header('col:skill', 'col.skill', COL_X.skill, 0, classes.reduce((n, c) => n + (c.skills ?? c.count ?? 0), 0))
+  for (const c of classes) {
+    const all = memberOf(c)
+    let shown: LibrarySkillNode[]
+    if (v.mode === 'cards') {
+      shown = all.filter(m => v.added.has(m.id))
+      if (shown.length === 0) continue
+    } else {
+      shown = v.openClasses.has(c.id) ? all : []
+      if (shown.length === 0) collapsedLanes.add(c.id)
+    }
+    // Generic → its expanded instances directly beneath, indented.
+    const ids = new Set(shown.map(s => s.id))
+    const gen = (s: LibrarySkillNode): string | undefined => {
+      const g = genericOf(x, s.id)
+      return g !== undefined && ids.has(g) ? g : undefined
+    }
+    const ordered = shown.filter(s => gen(s) === undefined)
+      .flatMap(s => [s, ...(v.expanded.has(s.id) ? shown.filter(i => gen(i) === s.id) : [])])
+    const open = shown.length > 0
+    const indent = (n: VaultNode): number => (gen(n as LibrarySkillNode) === undefined ? 0 : INST_INDENT)
+    y = lane(c.id, y, { node: c, label: c.name ?? c.id, count: all.length, open, dimmed: dim(c) }, ordered, indent)
+  }
+  const legacy = v.on.has('HISTORY') ? legacySkills(x) : []
+  if (legacy.length > 0) y = lane('lane:history', y, { key: 'tree.history', count: legacy.length, open: true, dimmed: false }, legacy, () => 0)
+
+  // Predicate column: every requires/ensures ref of a drawn library skill, once.
+  const drawnSkills = nodes.map(n => n.data.node).filter(isLibrary)
+  if (v.on.has('CONTRACT')) {
+    const preds = [...new Set(drawnSkills.flatMap(s => [...(s.requires ?? []), ...(s.ensures ?? [])]))]
+    let py = header('col:predicate', 'col.predicate', COL_X.predicate, 0, preds.length)
+    for (const p of preds) {
+      nodes.push({ id: `pred:${p}`, type: 'predicate', position: { x: COL_X.predicate, y: py }, ...PRED_SIZE, data: { label: p, dimmed: false } })
+      py += PRED_SIZE.height + GAP
+    }
+  }
+
+  // Edges: resolve each endpoint to the node that stands for it on this canvas.
+  const drawn = new Set(nodes.filter(n => n.type !== 'header').map(n => n.id))
+  const anchor = (id: string): string | undefined => {
+    if (drawn.has(id)) return id
+    const n = x.byId.get(id)
+    if (!isLibrary(n)) return undefined
+    const g = genericOf(x, id)
+    if (g !== undefined && drawn.has(g)) return g
+    const c = outOf(x, id, 'IN_CLASS')[0]?.dst
+    return c !== undefined && collapsedLanes.has(c) ? c : undefined
+  }
+  const agg = new Map<string, LaidOutEdge>()
+  for (const e of graph.edges) {
+    const tg = toggleOf(e.rel)
+    if (tg === null || !v.on.has(tg)) continue
+    const a = anchor(e.src), b = anchor(e.dst)
+    if (a === undefined || b === undefined || a === b) continue
+    const id = `${e.rel}:${a}->${b}`
+    const prev = agg.get(id)
+    agg.set(id, prev === undefined ? { id, source: a, target: b, rel: e.rel, label: e.rel, count: 1 } : { ...prev, count: prev.count + 1 })
+  }
+  const edges = [...agg.values()].map(e => (e.count > 1 ? { ...e, label: `${e.rel} ×${e.count}` } : e))
+  if (v.on.has('CONTRACT')) {
+    for (const s of drawnSkills) {
+      for (const p of s.requires ?? []) edges.push({ id: `requires:${p}->${s.id}`, source: `pred:${p}`, target: s.id, rel: 'requires', label: 'requires', count: 1 })
+      for (const p of s.ensures ?? []) edges.push({ id: `ensures:${s.id}->${p}`, source: s.id, target: `pred:${p}`, rel: 'ensures', label: 'ensures', count: 1 })
+    }
+  }
+  return { nodes, edges }
+}
+
+/** A node's absolute position (a lane child's position is relative to its lane). */
+export function absolutePosition(nodes: readonly LaidOutNode[], n: LaidOutNode): { x: number; y: number } {
+  const p = n.parentId === undefined ? undefined : nodes.find(o => o.id === n.parentId)
+  return p === undefined ? n.position : { x: p.position.x + n.position.x, y: p.position.y + n.position.y }
 }

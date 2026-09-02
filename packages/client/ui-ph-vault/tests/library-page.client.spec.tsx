@@ -5,31 +5,34 @@
  * narrows to skills EVIDENCED_ON it; selecting a skill shows its contract,
  * bindings, evidence, and dependency links; a dependency link navigates; a
  * package detail shows the card's manifest fields; the canvas receives the
- * selection's neighborhood (the class overview with no selection; instances
- * collapsed under their generic until expanded). The React Flow canvas is
- * stubbed for the page tests (jsdom has no ResizeObserver); one test mounts
- * the real canvas over a mocked `@xyflow/react` to prove it refits on every
- * graph change. The layout fold is covered by lr-layout.client.spec.ts.
+ * layered layout (class lanes collapsed until opened; instances collapsed
+ * under their generic until expanded); the layer mode and relation chips
+ * drive it. The React Flow canvas is stubbed for the page tests (jsdom has no
+ * ResizeObserver); one test mounts the real canvas over a mocked
+ * `@xyflow/react` to prove it refits on every layout change. The layout fold
+ * itself is covered by layered-layout.client.spec.ts.
  */
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import { classTree, indexGraph, layout, neighborhood, overview } from '../src/client/graph.ts'
-import type { VaultFilters, VaultGraph } from '../src/client/graph.ts'
+import { classTree, defaultToggles, indexGraph, layered } from '../src/client/graph.ts'
+import type { VaultGraph, VaultLayout } from '../src/client/graph.ts'
 import { en } from '../src/client/locales.ts'
 
 vi.mock('../src/client/VaultGraphCanvas.tsx', () => ({
   KindGlyph: () => null,
-  VaultGraphCanvas: ({ graph, selected, onSelect, onToggle }: {
-    graph: VaultGraph
+  VaultGraphCanvas: ({ flow, selected, onSelect, onToggle, onToggleClass }: {
+    flow: VaultLayout
     selected: string | null
     onSelect: (id: string) => void
     onToggle: (id: string) => void
+    onToggleClass: (id: string) => void
   }) => (
-    <div data-testid="canvas" data-selected={selected ?? ''} data-nodes={graph.nodes.map(n => n.id).join(' ')} data-edges={graph.edges.map(e => `${e.rel}:${e.src}>${e.dst}=${e.count ?? ''}`).join(' ')}>
-      {graph.nodes.map(n => <button key={n.id} type="button" data-testid={`gn:${n.id}`} onClick={() => { onSelect(n.id) }}>{n.id}</button>)}
+    <div data-testid="canvas" data-selected={selected ?? ''} data-nodes={flow.nodes.filter(n => n.type !== 'header').map(n => n.id).join(' ')} data-edges={flow.edges.map(e => `${e.rel}:${e.source}>${e.target}=${e.count}`).join(' ')}>
+      {flow.nodes.filter(n => n.type !== 'header').map(n => <button key={n.id} type="button" data-testid={`gn:${n.id}`} onClick={() => { onSelect(n.id) }}>{n.id}</button>)}
       <button type="button" data-testid="badge:skill:grasp_can" onClick={() => { onToggle('skill:grasp_can') }}>+</button>
+      <button type="button" data-testid="lane:class:grasp" onClick={() => { onToggleClass('class:grasp') }}>▾</button>
     </div>
   ),
 }))
@@ -108,7 +111,7 @@ function mount() {
 describe('graph index', () => {
   const idx = indexGraph(GRAPH)
 
-  it('groups library skills under their class, nests instances under their generic, and parks legacy nodes in one trailing section', () => {
+  it('groups library skills under their class, nests instances under their generic, and splits cards from the legacy records', () => {
     const tree = classTree(idx, { benchmark: '', embodiment: '', search: '' })
     // `skills` keeps every member (the count); `roots` nests instances under the generic.
     expect(tree.classes.map(c => [c.node.id, c.skills.map(s => s.name)])).toEqual([
@@ -117,7 +120,8 @@ describe('graph index', () => {
     expect(tree.classes[0]!.roots.map(r => [r.node.name, r.instances.map(i => i.name)])).toEqual([
       ['grasp_can', ['grasp_can1', 'grasp_can2']], ['grasp_cup', []],
     ])
-    expect(tree.legacy.map(n => n.id)).toEqual(['sha-legacy', 'plugins/robocasa', 'cap.sim'])
+    expect(tree.cards.map(n => n.id)).toEqual(['plugins/robocasa', 'cap.sim'])
+    expect(tree.legacy.map(n => n.id)).toEqual(['sha-legacy'])
   })
 
   it('narrows by benchmark (EVIDENCED_ON) and by embodiment (bindings key)', () => {
@@ -127,69 +131,32 @@ describe('graph index', () => {
     expect(byEmb.classes.map(c => [c.node.id, c.skills.map(s => s.name)])).toEqual([['class:grasp', ['grasp_cup']]])
   })
 
-  it('no selection → the class overview: class nodes, touched benchmark/package nodes, aggregated counted edges, no skills', () => {
-    const ov = overview(GRAPH, idx)
-    expect(ov.nodes.map(n => n.id)).toEqual(['benchmark:kitchen', 'class:grasp', 'class:nav', 'plugins/robocasa'])
-    expect(ov.edges.map(e => [e.rel, e.src, e.dst, e.count])).toEqual([
+  it('lays the fixture out in columns: capabilities, cards (benchmark under 任务/基准), collapsed class lanes with counted edges', () => {
+    const lay = layered(GRAPH, idx, { mode: 'all', on: defaultToggles(GRAPH), openClasses: new Set(), expanded: new Set(), added: new Set(), search: '' })
+    expect(lay.nodes.filter(n => n.type !== 'header').map(n => n.id)).toEqual(['cap.sim', 'plugins/robocasa', 'benchmark:kitchen', 'benchmark:lab', 'class:grasp', 'class:nav'])
+    expect(lay.edges.map(e => [e.rel, e.source, e.target, e.count])).toEqual([
       ['BOUND_TO', 'class:grasp', 'plugins/robocasa', 1],
       ['DEPENDS_ON', 'class:grasp', 'class:nav', 2],
       ['EVIDENCED_ON', 'class:grasp', 'benchmark:kitchen', 2],
       ['EVIDENCED_ON', 'class:nav', 'benchmark:kitchen', 1],
+      ['PROVIDES', 'plugins/robocasa', 'cap.sim', 1],
     ])
-    expect(neighborhood(GRAPH, idx, null)).toEqual(ov)
-    // The aggregated count rides the painted edge label.
-    const lay = layout(ov, NO_FILTER)
     expect(lay.edges.map(e => e.label)).toContain('DEPENDS_ON ×2')
-    expect(lay.nodes.map(n => n.type)).not.toContain('skill')
-  })
-
-  it('draws a class with its generic skills and their typed neighbors; instances unfold only when expanded', () => {
-    const cls = neighborhood(GRAPH, idx, 'class:grasp')
-    expect(cls.nodes.map(n => n.id)).toEqual([
-      'benchmark:kitchen', 'class:grasp', 'plugins/robocasa', 'skill:grasp_can', 'skill:grasp_cup', 'skill:nav_fridge',
-    ])
-    expect(cls.edges.every(e => cls.nodes.some(n => n.id === e.src) && cls.nodes.some(n => n.id === e.dst))).toBe(true)
-    const open = neighborhood(GRAPH, idx, 'class:grasp', { expanded: new Set(['skill:grasp_can']), deep: false })
-    expect(open.nodes.map(n => n.id)).toContain('skill:grasp_can1')
-    expect(open.nodes.map(n => n.id)).toContain('skill:grasp_can2')
-    expect(open.edges.filter(e => e.rel === 'INSTANCE_OF')).toHaveLength(2)
-  })
-
-  it('draws a library skill at depth 1, depth 2 with the deeper toggle, never a class\'s members through IN_CLASS', () => {
-    const nav = neighborhood(GRAPH, idx, 'skill:nav_fridge')
-    // depth 1 only: grasp_can + grasp_can1 (depend on it), kitchen, class:nav — not grasp_can's card or class.
-    expect(nav.nodes.map(n => n.id)).toEqual(['benchmark:kitchen', 'class:nav', 'skill:grasp_can', 'skill:grasp_can1', 'skill:nav_fridge'])
-    const deep = neighborhood(GRAPH, idx, 'skill:nav_fridge', { expanded: new Set(), deep: true })
-    expect(deep.nodes.map(n => n.id)).toContain('plugins/robocasa')
-    expect(deep.nodes.map(n => n.id)).toContain('class:grasp')
-    // grasp_cup is a class:grasp member reachable only via IN_CLASS in-edge; grasp_can2 only via a collapsed INSTANCE_OF.
-    expect(deep.nodes.map(n => n.id)).not.toContain('skill:grasp_cup')
-    expect(deep.nodes.map(n => n.id)).not.toContain('skill:grasp_can2')
-  })
-
-  it('lays every selection out on distinct positions across more than one rank (no stacked column)', () => {
-    for (const sel of [null, 'class:grasp', 'skill:nav_fridge', 'skill:grasp_can']) {
-      const lay = layout(neighborhood(GRAPH, idx, sel, { expanded: new Set(['skill:grasp_can']), deep: false }), NO_FILTER)
-      const spots = new Set(lay.nodes.map(n => `${n.position.x},${n.position.y}`))
-      expect(spots.size, `${sel}`).toBe(lay.nodes.length)
-      expect(new Set(lay.nodes.map(n => n.position.x)).size, `${sel}`).toBeGreaterThan(1)
-    }
   })
 })
 
-const NO_FILTER: VaultFilters = { kinds: new Set(), rels: new Set(), statuses: new Set(), search: '' }
-
 describe('VaultGraphCanvas', () => {
-  it('refits the viewport on every graph change and sizes a class node by its skill count', async () => {
+  it('refits the viewport on every layout change', async () => {
     ;(globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} }
     const { VaultGraphCanvas } = await vi.importActual<typeof import('../src/client/VaultGraphCanvas.tsx')>('../src/client/VaultGraphCanvas.tsx')
     const idx = indexGraph(GRAPH)
-    const props = { filters: NO_FILTER, onSelect: vi.fn(), t }
-    const { rerender } = render(<VaultGraphCanvas graph={neighborhood(GRAPH, idx, null)} selected={null} {...(props as unknown as Pick<Parameters<typeof VaultGraphCanvas>[0], 'filters' | 'onSelect' | 't'>)} />)
+    const view = (open: string[]) => ({ mode: 'all' as const, on: defaultToggles(GRAPH), openClasses: new Set(open), expanded: new Set<string>(), added: new Set<string>(), search: '' })
+    const props = { onSelect: vi.fn(), t }
+    const { rerender } = render(<VaultGraphCanvas flow={layered(GRAPH, idx, view([]))} selected={null} {...(props as unknown as Pick<Parameters<typeof VaultGraphCanvas>[0], 'onSelect' | 't'>)} />)
     await waitFor(() => { expect(fitView).toHaveBeenCalled() })
     const before = fitView.mock.calls.length
     const pos0 = screen.getByTestId('rf').getAttribute('data-pos')
-    rerender(<VaultGraphCanvas graph={neighborhood(GRAPH, idx, 'class:grasp')} selected="class:grasp" {...(props as unknown as Pick<Parameters<typeof VaultGraphCanvas>[0], 'filters' | 'onSelect' | 't'>)} />)
+    rerender(<VaultGraphCanvas flow={layered(GRAPH, idx, view(['class:grasp']))} selected="class:grasp" {...(props as unknown as Pick<Parameters<typeof VaultGraphCanvas>[0], 'onSelect' | 't'>)} />)
     await waitFor(() => { expect(fitView.mock.calls.length).toBeGreaterThan(before) })
     expect(screen.getByTestId('rf').getAttribute('data-pos')).not.toBe(pos0)
   })
@@ -203,12 +170,16 @@ describe('VaultView', () => {
     expect(screen.getByText('· 1')).toBeTruthy()
     expect(screen.getByText(en['tree.legacy'])).toBeTruthy()
     expect(screen.queryByText('grasp_can')).toBeNull()
-    // No selection: the canvas draws the class overview (no skill nodes, counted edges).
+    // Nothing open: the canvas draws the three columns with every class lane collapsed (counted edges).
     const canvas = screen.getByTestId('canvas')
-    expect(canvas.getAttribute('data-nodes')).toBe('benchmark:kitchen class:grasp class:nav plugins/robocasa')
+    expect(canvas.getAttribute('data-nodes')).toBe('cap.sim plugins/robocasa benchmark:kitchen benchmark:lab class:grasp class:nav')
     expect(canvas.getAttribute('data-edges')).toContain('DEPENDS_ON:class:grasp>class:nav=2')
+    // The 历史 chip is off: the legacy record is neither in the tree nor on the canvas.
+    expect(screen.queryByText(en['tree.history'])).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: `grasp: ${en['pane.expand']}` }))
     expect(screen.getByText('grasp_can')).toBeTruthy()
+    // Opening the class in the tree opens its lane on the canvas (one shared state).
+    expect(canvas.getAttribute('data-nodes')).toContain('skill:grasp_can')
     expect(screen.getByText('5/9')).toBeTruthy()
     expect(screen.getByText('grasp_cup')).toBeTruthy()
     // Instances nest under their generic behind a +n toggle.
@@ -257,26 +228,64 @@ describe('VaultView', () => {
     // 'kitchen' is the benchmark filter option and the benchmark link.
     expect(screen.getAllByText('kitchen')).toHaveLength(2)
     expect(screen.getByRole('button', { name: 'robocasa' })).toBeTruthy()
-    // The canvas draws the selection's neighborhood and marks the selection.
+    // The canvas marks the selection; its dependency (and its collapsed instance's) folds to the collapsed nav lane.
     const canvas = screen.getByTestId('canvas')
     expect(canvas.getAttribute('data-selected')).toBe('skill:grasp_can')
-    expect(canvas.getAttribute('data-nodes')).toContain('skill:nav_fridge')
+    expect(canvas.getAttribute('data-edges')).toContain('DEPENDS_ON:skill:grasp_can>class:nav=2')
     // Following the dependency selects nav_fridge: detail, tree (its class opens), and canvas follow.
     fireEvent.click(dep)
     expect(screen.getByRole('heading', { name: 'nav_fridge' })).toBeTruthy()
     expect(screen.getByText(en['dep.in'])).toBeTruthy()
     expect(screen.getByTestId('canvas').getAttribute('data-selected')).toBe('skill:nav_fridge')
+    expect(screen.getByTestId('canvas').getAttribute('data-nodes')).toContain('skill:nav_fridge')
     expect(screen.getAllByText('nav_fridge').length).toBeGreaterThanOrEqual(2)
     // A canvas click selects too (bidirectional).
     fireEvent.click(screen.getByTestId('gn:class:nav'))
     expect(screen.getByRole('heading', { name: 'nav' })).toBeTruthy()
     expect(screen.getByText(en['class.benchmarks'])).toBeTruthy()
-    // The deeper toggle shows for a library skill only and widens its neighborhood.
-    expect(screen.queryByLabelText(en['graph.deeper'])).toBeNull()
-    fireEvent.click(screen.getByTestId('gn:skill:nav_fridge'))
-    expect(screen.getByTestId('canvas').getAttribute('data-nodes')).not.toContain('plugins/robocasa')
-    fireEvent.click(screen.getByLabelText(en['graph.deeper']))
-    expect(screen.getByTestId('canvas').getAttribute('data-nodes')).toContain('plugins/robocasa')
+    // The lane chevron folds the class on the canvas and in the tree.
+    fireEvent.click(screen.getByTestId('lane:class:grasp'))
+    expect(screen.getByTestId('canvas').getAttribute('data-nodes')).not.toContain('skill:grasp_can')
+    expect(screen.queryByText('grasp_can')).toBeNull()
+  })
+
+  it('relation chips gate edges; the layer mode swaps columns; cards mode adds a card\'s bound skills by hand', async () => {
+    mount()
+    await waitFor(() => { expect(screen.getByText('grasp')).toBeTruthy() })
+    const edges = () => screen.getByTestId('canvas').getAttribute('data-edges') ?? ''
+    const nodes = () => screen.getByTestId('canvas').getAttribute('data-nodes') ?? ''
+    expect(edges()).toContain('DEPENDS_ON:')
+    fireEvent.click(screen.getByLabelText(en['tog.DEPENDS_ON']))
+    expect(edges()).not.toContain('DEPENDS_ON:')
+    // 前置/保证 draws predicate nodes for the open lane's skills.
+    fireEvent.click(screen.getByText('grasp'))
+    fireEvent.click(screen.getByLabelText(en['tog.CONTRACT']))
+    expect(nodes()).toContain('pred:near(target)')
+    expect(edges()).toContain('requires:pred:near(target)>skill:grasp_can=1')
+    // 历史 shows the legacy record (tree section + canvas lane + its REQUIRES edge).
+    fireEvent.click(screen.getByLabelText(en['tog.HISTORY']))
+    expect(screen.getByText(en['tree.history'])).toBeTruthy()
+    expect(nodes()).toContain('sha-legacy')
+    expect(edges()).toContain('REQUIRES:sha-legacy>cap.sim=1')
+    // 技能 mode: no capability / card column.
+    fireEvent.click(screen.getByRole('button', { name: en['mode.skills'] }))
+    expect(nodes()).not.toContain('cap.sim')
+    // 能力与卡片 mode: no skills until added; the selected card's 添加技能 adds its BOUND_TO skills.
+    fireEvent.click(screen.getByRole('button', { name: en['mode.cards'] }))
+    expect(nodes()).toContain('cap.sim')
+    expect(nodes()).not.toContain('skill:grasp_can')
+    expect(screen.queryByText(`${en['add.bound']} · 1`)).toBeNull()
+    fireEvent.click(screen.getByTestId('gn:plugins/robocasa'))
+    fireEvent.click(screen.getByText(`${en['add.bound']} · 1`))
+    expect(nodes()).toContain('class:grasp')
+    expect(nodes()).toContain('skill:grasp_can')
+    expect(nodes()).not.toContain('skill:grasp_cup')
+    expect(edges()).toContain('BOUND_TO:skill:grasp_can>plugins/robocasa=1')
+    fireEvent.click(screen.getByText(en['add.all']))
+    expect(nodes()).toContain('skill:grasp_cup')
+    expect(nodes()).toContain('class:nav')
+    fireEvent.click(screen.getByText(en['add.clear']))
+    expect(nodes()).not.toContain('skill:grasp_can')
   })
 
   it('selecting a class draws its generics with instances collapsed; the canvas badge expands them (tree follows)', async () => {
@@ -311,7 +320,13 @@ describe('VaultView', () => {
     expect(screen.getByText('kitchen_thaw')).toBeTruthy()
     expect(screen.getByText(en['node.bundles'])).toBeTruthy()
     expect(screen.getAllByText('cap.sim').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('BOUND_TO')).toBeTruthy()
+    // Bound skills are links on the card page; the capability page lists its providers.
+    expect(screen.getByText(en['pkg.boundSkills'])).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'grasp_can' }))
+    expect(screen.getByRole('heading', { name: 'grasp_can' })).toBeTruthy()
+    fireEvent.click(screen.getByTestId('gn:cap.sim'))
+    expect(screen.getByText(en['cap.providedBy'])).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'robocasa' }).length).toBeGreaterThanOrEqual(2) // tree row + provider link
     fireEvent.click(screen.getByTestId('gn:benchmark:kitchen'))
     expect(screen.getByRole('heading', { name: 'kitchen' })).toBeTruthy()
     expect(screen.getByText(`${en['bench.embodiment']}: robocasa`)).toBeTruthy()

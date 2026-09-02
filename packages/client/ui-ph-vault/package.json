@@ -44,7 +44,6 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@dagrejs/dagre": "^1.1.4",
     "@xyflow/react": "^12.8.1"
   },
   "peerDependencies": {

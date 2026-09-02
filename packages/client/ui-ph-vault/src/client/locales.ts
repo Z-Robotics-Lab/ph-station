@@ -15,6 +15,7 @@ export type PhVaultKey =
   | 'pane.collapse'
   | 'pane.expand'
   | 'tree.legacy'
+  | 'tree.history'
   | 'filter.benchmark'
   | 'filter.embodiment'
   | 'filter.all'
@@ -84,12 +85,37 @@ export type PhVaultKey =
   | 'ev.fixed'
   | 'ev.noise'
   | 'ev.none'
-  | 'legend.node'
   | 'legend.title'
   | 'legend.relations'
+  | 'legend.capability'
+  | 'legend.package'
+  | 'legend.skill'
   | 'graph.hint'
-  | 'graph.deeper'
   | 'graph.instances'
+  | 'mode.cards'
+  | 'mode.skills'
+  | 'mode.all'
+  | 'tog.DEPENDS_ON'
+  | 'tog.CONTRACT'
+  | 'tog.INSTANCE_OF'
+  | 'tog.BOUND_TO'
+  | 'tog.PROVIDES'
+  | 'tog.MOUNTED_IN'
+  | 'tog.EVIDENCED_ON'
+  | 'tog.HISTORY'
+  | 'add.bound'
+  | 'add.all'
+  | 'add.clear'
+  | 'col.capability'
+  | 'col.package'
+  | 'col.skill'
+  | 'col.predicate'
+  | 'group.embodiment'
+  | 'group.provider'
+  | 'group.mission'
+  | 'group.other'
+  | 'pkg.boundSkills'
+  | 'cap.providedBy'
   | 'minimapShow'
   | 'minimapHide'
 
@@ -112,6 +138,7 @@ export const zh: Record<PhVaultKey, string> = {
   'pane.collapse': '收起',
   'pane.expand': '展开',
   'tree.legacy': '卡片与能力',
+  'tree.history': '历史记录',
   'filter.benchmark': '基准',
   'filter.embodiment': '具身',
   'filter.all': '全部',
@@ -181,12 +208,37 @@ export const zh: Record<PhVaultKey, string> = {
   'ev.fixed': '修复数',
   'ev.noise': '噪声',
   'ev.none': '无',
-  'legend.node': '节点',
-  'legend.title': '图例',
-  'legend.relations': '关系',
+  'legend.title': '图例：三层的边界',
+  'legend.relations': '边',
+  'legend.capability': '能力 = 内核的接口槽位（embodiment.env、policy.driver、task.planner 等 10 个固定名字）',
+  'legend.package': '卡片 = 带 manifest 的插件目录，安装单元；提供（PROVIDES）能力，承载执行器',
+  'legend.skill': '技能 = SkillRecord：符号契约（前置 / 保证 / 破坏）+ 绑定到某张卡片的执行器（BOUND_TO）+ 证据',
   'graph.hint': '单击节点选中——树与详情同步',
-  'graph.deeper': '深一层',
   'graph.instances': '实例',
+  'mode.cards': '能力与卡片',
+  'mode.skills': '技能',
+  'mode.all': '全部',
+  'tog.DEPENDS_ON': '依赖',
+  'tog.CONTRACT': '前置/保证',
+  'tog.INSTANCE_OF': '实例',
+  'tog.BOUND_TO': '绑定',
+  'tog.PROVIDES': '提供',
+  'tog.MOUNTED_IN': '挂载',
+  'tog.EVIDENCED_ON': '证据',
+  'tog.HISTORY': '历史',
+  'add.bound': '添加技能',
+  'add.all': '添加全部技能',
+  'add.clear': '清空',
+  'col.capability': '能力',
+  'col.package': '卡片',
+  'col.skill': '技能',
+  'col.predicate': '谓词',
+  'group.embodiment': '具身',
+  'group.provider': '执行器 / 策略',
+  'group.mission': '任务 / 基准',
+  'group.other': '其他',
+  'pkg.boundSkills': '绑定到它的技能',
+  'cap.providedBy': '提供它的卡片',
   'minimapShow': '显示缩略图',
   'minimapHide': '隐藏缩略图',
 }
@@ -203,6 +255,7 @@ export const en: Record<PhVaultKey, string> = {
   'pane.collapse': 'Collapse',
   'pane.expand': 'Expand',
   'tree.legacy': 'Cards & capabilities',
+  'tree.history': 'History',
   'filter.benchmark': 'Benchmark',
   'filter.embodiment': 'Embodiment',
   'filter.all': 'all',
@@ -272,12 +325,37 @@ export const en: Record<PhVaultKey, string> = {
   'ev.fixed': 'fixed',
   'ev.noise': 'noise',
   'ev.none': 'none',
-  'legend.node': 'node',
-  'legend.title': 'Legend',
-  'legend.relations': 'Relations',
+  'legend.title': 'Legend: the three layers',
+  'legend.relations': 'Edges',
+  'legend.capability': 'Capability = a kernel interface slot (10 fixed names such as embodiment.env, policy.driver, task.planner)',
+  'legend.package': 'Card = a plugin directory with a manifest, the install unit; PROVIDES capabilities and hosts executors',
+  'legend.skill': 'Skill = a SkillRecord: symbolic contract (requires / ensures / clobbers) + binding to a card\'s executor (BOUND_TO) + evidence',
   'graph.hint': 'Click a node to select it — the tree and detail follow',
-  'graph.deeper': 'One level deeper',
   'graph.instances': 'instances',
+  'mode.cards': 'Capabilities & cards',
+  'mode.skills': 'Skills',
+  'mode.all': 'All',
+  'tog.DEPENDS_ON': 'depends',
+  'tog.CONTRACT': 'requires/ensures',
+  'tog.INSTANCE_OF': 'instances',
+  'tog.BOUND_TO': 'bound',
+  'tog.PROVIDES': 'provides',
+  'tog.MOUNTED_IN': 'mounted',
+  'tog.EVIDENCED_ON': 'evidence',
+  'tog.HISTORY': 'history',
+  'add.bound': 'Add skills',
+  'add.all': 'Add all skills',
+  'add.clear': 'Clear',
+  'col.capability': 'Capabilities',
+  'col.package': 'Cards',
+  'col.skill': 'Skills',
+  'col.predicate': 'Predicates',
+  'group.embodiment': 'embodiment',
+  'group.provider': 'executor / policy',
+  'group.mission': 'mission / benchmark',
+  'group.other': 'other',
+  'pkg.boundSkills': 'Skills bound to it',
+  'cap.providedBy': 'Provided by cards',
   'minimapShow': 'Show minimap',
   'minimapHide': 'Hide minimap',
 }

@@ -1,27 +1,23 @@
 /**
- * The 技能库 graph canvas: the React Flow surface that draws the global
- * left→right vault layout. Renders three visually distinct node kinds (skill /
- * package / capability) as different SVG silhouettes in different hues, routes
- * typed relation edges horizontally (source handle right, target handle left;
- * labeled only under the cursor or in a node's focus set), and carries a
- * collapsible legend that lists only the relations that draw. React Flow's
- * built-in MiniMap and Controls ride along. Pure presentation over graph.ts's
- * fold — no statistic.
- *
- * Split out of VaultView so the same surface renders under the plugin (real
- * board data) and under a standalone harness (mock data) for visual proofs.
+ * The 技能库 graph canvas: the React Flow surface that draws graph.ts's layered
+ * layout — 能力 | 卡片 | 技能 columns, one parent swimlane node per class,
+ * column / sub-group headers, and (behind the 前置/保证 chip) predicate nodes.
+ * Renders the vault kinds as different SVG silhouettes in different hues and
+ * routes every edge as a smoothstep, picking the handle side from the column
+ * order so a cross-column edge runs straight between neighbors; labels only
+ * under the cursor or in the selection's focus set. React Flow's built-in
+ * MiniMap and Controls ride along. Pure presentation over graph.ts — no
+ * statistic; the relation chips and the legend live in VaultView above it.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Background, Controls, Handle, MiniMap, Position, ReactFlow, useStore } from '@xyflow/react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import {
-  ALL_KINDS, KIND_COLOR, layout, NODE_SIZE, nodeSize, REL_COLOR, relTallies,
-} from './graph.ts'
+import { absolutePosition, KIND_COLOR, NODE_SIZE, PRED_COLOR, REL_COLOR } from './graph.ts'
 import type {
-  BenchmarkNode, CapabilityNode, ClassNode, PackageNode, RelTally, SkillNode,
-  VaultFilters, VaultGraph, VaultKind, VaultNode, VaultRel,
+  BenchmarkNode, CapabilityNode, EdgeRel, PackageNode, SkillNode, VaultKind, VaultLayout, VaultNode,
 } from './graph.ts'
+import type { PhVaultKey } from './locales.ts'
 import css from './VaultView.module.css'
 
 /** The bound locale reader for this view's namespace. */
@@ -134,16 +130,23 @@ export function KindGlyph({ kind, size = 14 }: { kind: VaultKind; size?: number 
 
 // --- per-kind silhouettes ----------------------------------------------------
 
-/** Left target + right source handles: React Flow v12 drops any edge whose
- * endpoints expose no handle (LR flow → target left, source right). Muted. */
+/** Source + target handles on both sides: an edge picks the side facing its
+ * other endpoint (see {@link sides}), so a card→capability edge leaves the
+ * card's left and a skill→card edge leaves the skill's left. Muted. */
 function NodeHandles() {
   return (
     <>
-      <Handle type="target" position={Position.Left} isConnectable={false} className={css.handle} />
-      <Handle type="source" position={Position.Right} isConnectable={false} className={css.handle} />
+      <Handle type="target" id="lt" position={Position.Left} isConnectable={false} className={css.handle} />
+      <Handle type="source" id="ls" position={Position.Left} isConnectable={false} className={css.handle} />
+      <Handle type="target" id="rt" position={Position.Right} isConnectable={false} className={css.handle} />
+      <Handle type="source" id="rs" position={Position.Right} isConnectable={false} className={css.handle} />
     </>
   )
 }
+
+/** Edge stroke per painted relation (fold relations + the two predicate edges). */
+const edgeColor = (rel: EdgeRel): string =>
+  rel === 'requires' || rel === 'ensures' ? PRED_COLOR[rel] : REL_COLOR[rel]
 
 /** The SVG outline for a kind, drawn to the node's fixed footprint so the three
  * kinds read apart by silhouette alone: skill = rounded card with a left accent
@@ -277,18 +280,6 @@ function PackageGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean }
   )
 }
 
-function ClassGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
-  const n = data.node as ClassNode
-  const lod = useLod()
-  return (
-    <ShapeFrame kind="class" dimmed={data.dimmed}>
-      {lod === 'far' ? <FarGlyph kind="class" /> : (
-        <div className={css.gtitle}><KindGlyph kind="class" /><span>{n.name ?? n.id} · {n.skills ?? n.count ?? 0}</span></div>
-      )}
-    </ShapeFrame>
-  )
-}
-
 function BenchmarkGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
   const n = data.node as BenchmarkNode
   const lod = useLod()
@@ -319,47 +310,72 @@ function CapabilityGraphNode({ data }: { data: { node: VaultNode; dimmed: boolea
   )
 }
 
-// --- collapsible legend ------------------------------------------------------
-
-/** The relation/kind key. Opens collapsed (the field below it is more useful at
- * a glance); lists only the relations that draw an edge, each with its
- * `rendered/total` fold tally so the four never-drawn families (their targets
- * are tasks/campaigns/evidence, not nodes) do not read as missing edges. */
-function Legend({ t, rels, tallies }: { t: Tr; rels: readonly VaultRel[]; tallies: Record<VaultRel, RelTally> }) {
-  const [open, setOpen] = useState(false)
+/** A class swimlane (xyflow parent node): header `grasp · 14` with a fold
+ * chevron; the generic skills are its children. Selectable like a class. */
+function LaneNode({ data }: { data: LaneData }) {
+  const label = data.label ?? (data.key === undefined ? '' : data.t(data.key as PhVaultKey))
   return (
-    <div className={css.legend}>
-      <button type="button" className={css.legendHead} onClick={() => { setOpen(o => !o) }}>
-        <span>{t('legend.title')}</span>
-        <span className={css.legendToggle}>{open ? '−' : '+'}</span>
-      </button>
-      {open ? (
-        <div className={css.legendBody}>
-          <div className={css.legendKinds}>
-            {ALL_KINDS.map(k => (
-              <div key={k} className={css.legendKind} style={{ color: KIND_COLOR[k] }}>
-                <span className={`${css.legendShape} ${css[`ls_${k}`]}`} />
-                <KindGlyph kind={k} size={12} />
-                <span className={css.legendName}>{t(`kind.${k}` as const)}</span>
-              </div>
-            ))}
-          </div>
-          <div className={css.legendRels}>
-            <div className={css.legendSub}>{t('legend.relations')}</div>
-            <div className={css.legendRelGrid}>
-              {rels.map(r => (
-                <div key={r} className={css.legendRel}>
-                  <span className={css.legendLine} style={{ background: REL_COLOR[r] }} />
-                  <span>{r}</span>
-                  <span className={css.legendCount}>{tallies[r].rendered}/{tallies[r].total}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
+    <div className={`${css.lane} ${data.open ? css.laneOpen : ''} ${data.dimmed ? css.dim : ''}`}>
+      <NodeHandles />
+      <div className={css.laneHead}>
+        <KindGlyph kind="class" size={13} />
+        <span className={css.laneName}>{label}</span>
+        <span className={css.laneCount}>· {data.count ?? 0}</span>
+        {data.onToggle ? (
+          <button
+            type="button" className={css.chev} title={data.t(data.open ? 'pane.collapse' : 'pane.expand')}
+            aria-label={`${label}: ${data.t(data.open ? 'pane.collapse' : 'pane.expand')}`}
+            onClick={(e) => { e.stopPropagation(); data.onToggle?.(data.id) }}
+          >
+            {data.open ? '▾' : '▸'}
+          </button>
+        ) : null}
+      </div>
     </div>
   )
+}
+
+/** A column or sub-group header: plain text, not selectable. */
+function HeaderNode({ data }: { data: LaneData }) {
+  return (
+    <div className={`${css.colHead} ${data.id.startsWith('group:') ? css.groupHead : ''}`}>
+      {data.label ?? data.t(data.key as PhVaultKey)}{data.count === undefined ? '' : ` · ${data.count}`}
+    </div>
+  )
+}
+
+/** One requires/ensures predicate ref, drawn between the skills it links. */
+function PredicateNode({ data }: { data: LaneData }) {
+  return (
+    <div className={`${css.pred} ${css.mono}`}>
+      <NodeHandles />
+      {data.label}
+    </div>
+  )
+}
+
+/** Node data for lanes, headers, and predicates: the layout's label fields
+ * plus the bound locale reader and the lane fold toggle. */
+interface LaneData {
+  id: string
+  label?: string | undefined
+  key?: string | undefined
+  count?: number | undefined
+  open?: boolean | undefined
+  dimmed: boolean
+  t: Tr
+  onToggle?: ((id: string) => void) | undefined
+}
+
+// --- edge routing ------------------------------------------------------------
+
+/** Handle sides for an edge from `a` to `b`: neighbors across columns face
+ * each other; nodes in one column both use their right side (a U-turn beside
+ * the column). */
+function sides(a: { x: number; w: number }, b: { x: number; w: number }): { sourceHandle: string; targetHandle: string } {
+  if (a.x + a.w <= b.x) return { sourceHandle: 'rs', targetHandle: 'lt' }
+  if (b.x + b.w <= a.x) return { sourceHandle: 'ls', targetHandle: 'rt' }
+  return { sourceHandle: 'rs', targetHandle: 'rt' }
 }
 
 // --- the canvas --------------------------------------------------------------
@@ -368,29 +384,26 @@ function Legend({ t, rels, tallies }: { t: Tr; rels: readonly VaultRel[]; tallie
  * (the focused node and its direct neighbors). */
 interface Focus { edges: ReadonlySet<string>; nodes: ReadonlySet<string> }
 
-/** The grouped vault graph surface.
- * @param graph - the board vault fold (or the selection's neighborhood of it).
- * @param filters - the live kind/status/relation/search selection.
+/** The layered vault graph surface.
+ * @param flow - the laid-out canvas (graph.ts `layered`).
  * @param selected - the selected node id: its incident edges are highlighted.
  * @param onSelect - select a node (single click; the tree and detail follow).
  * @param expanded - generic skills whose instances draw (their badge reads −n).
  * @param onToggle - flip one generic's instance collapse (the badge click).
+ * @param onToggleClass - fold / unfold one class swimlane (the lane chevron).
  * @param t - the bound `phvault` locale reader.
  */
 export function VaultGraphCanvas({
-  graph, filters, selected = null, onSelect, expanded, onToggle, t,
+  flow, selected = null, onSelect, expanded, onToggle, onToggleClass, t,
 }: {
-  graph: VaultGraph
-  filters: VaultFilters
+  flow: VaultLayout
   selected?: string | null
   onSelect: (id: string) => void
   expanded?: ReadonlySet<string> | undefined
   onToggle?: ((id: string) => void) | undefined
+  onToggleClass?: ((id: string) => void) | undefined
   t: Tr
 }) {
-  const flow = useMemo(() => layout(graph, filters), [graph, filters])
-  const tallies = useMemo(() => relTallies(graph), [graph])
-
   // Refit after the pane sizes: this canvas embeds in a dockview pane that lays
   // out after mount, so the one-shot onInit fitView can run against a zero-size
   // pane. A ResizeObserver rAF-debounces the refit so the frame settles once the
@@ -433,9 +446,6 @@ export function VaultGraphCanvas({
     setMiniPref(next)
     writeMiniPref('phvault', next)
   }
-  const shownRels = useMemo(() => flow.edges.length === 0
-    ? [] : Object.keys(tallies).filter((r): r is VaultRel => tallies[r as VaultRel].rendered > 0), [tallies, flow])
-
   // The selected node is the focus (highlight its edges, dim the rest); a
   // labeled edge appears only under the cursor or in the focus set, so the
   // resting canvas carries no mid-arc text.
@@ -452,43 +462,58 @@ export function VaultGraphCanvas({
   }, [focusId, flow])
 
   const nodeTypes = useMemo(() => ({
-    skill: SkillGraphNode, class: ClassGraphNode, benchmark: BenchmarkGraphNode,
-    package: PackageGraphNode, capability: CapabilityGraphNode,
+    skill: SkillGraphNode, benchmark: BenchmarkGraphNode, package: PackageGraphNode,
+    capability: CapabilityGraphNode, lane: LaneNode, header: HeaderNode, predicate: PredicateNode,
   }), [])
 
   const instancesTitle = t('graph.instances')
-  const rfNodes = useMemo(() => flow.nodes.map(n => ({
-    id: n.id, type: n.type, position: n.position,
-    data: { ...n.data, expanded: expanded?.has(n.id) ?? false, onToggle, instancesTitle } satisfies NodeData,
-    // Fixed dimensions so React Flow routes edges without waiting on its
-    // ResizeObserver (which never fires in a headless/backgrounded tab).
-    ...nodeSize(n.data.node),
-    draggable: false, connectable: false, selectable: true, zIndex: 10,
-    // Fade every node outside the focused node's neighborhood.
-    ...(focus !== null && !focus.nodes.has(n.id) ? { style: { opacity: 0.22 } } : {}),
-  })), [flow, focus, expanded, onToggle, instancesTitle])
-
-  const rfEdges = useMemo(() => flow.edges.map((e) => {
-    const incident = focus?.edges.has(e.id) ?? false
-    const faded = focus !== null && !incident
-    const showLabel = incident || hoverEdge === e.id
-    const color = REL_COLOR[e.rel]
+  const rfNodes = useMemo(() => flow.nodes.map((n) => {
+    const chrome = n.type === 'lane' || n.type === 'header' || n.type === 'predicate'
+    const data = chrome
+      ? {
+        id: n.id, label: n.data.label, key: n.data.key, count: n.data.count, open: n.data.open, dimmed: n.data.dimmed, t,
+        // Only a class lane folds; the history lane has no class node behind it.
+        onToggle: n.type === 'lane' && n.data.node !== undefined ? onToggleClass : undefined,
+      } satisfies LaneData
+      : {
+        node: n.data.node as VaultNode, dimmed: n.data.dimmed, expanded: expanded?.has(n.id) ?? false, onToggle, instancesTitle,
+      } satisfies NodeData
     return {
-      id: e.id, source: e.source, target: e.target,
-      // Only the focused node's edges reroute orthogonally (a comb of
-      // right-angles); every other edge stays bezier so the whole graph does
-      // not turn into overlapping vertical trunks.
-      type: incident ? 'smoothstep' : 'default',
-      zIndex: incident ? 6 : 5,
-      // Label only under the cursor or in the focus set — no resting mid-arc text.
-      ...(showLabel ? { label: e.label, labelShowBg: true } : { labelShowBg: false }),
-      labelBgPadding: [4, 2] as [number, number],
-      labelBgStyle: { fill: 'var(--dsw-alias-bg-layer-1, #fff)', fillOpacity: 0.9 },
-      labelStyle: { fill: color, fontSize: 9, fontWeight: 600 },
-      style: { stroke: color, strokeWidth: incident ? 2 : 1.4, opacity: faded ? 0.06 : 1 },
-      markerEnd: (faded ? undefined : { type: 'arrowclosed', color, width: 14, height: 14 }) as unknown as string,
+      id: n.id, type: n.type, position: n.position, data,
+      // Fixed dimensions so React Flow routes edges without waiting on its
+      // ResizeObserver (which never fires in a headless/backgrounded tab).
+      width: n.width, height: n.height,
+      ...(n.parentId === undefined ? {} : { parentId: n.parentId, extent: 'parent' as const }),
+      draggable: false, connectable: false, selectable: n.type !== 'header' && n.type !== 'predicate',
+      zIndex: n.type === 'lane' ? 1 : n.type === 'header' ? 0 : 10,
+      // Fade every node outside the focused node's neighborhood.
+      ...(focus !== null && !chrome && !focus.nodes.has(n.id) ? { style: { opacity: 0.22 } } : {}),
     }
-  }), [flow, focus, hoverEdge])
+  }), [flow, focus, expanded, onToggle, onToggleClass, instancesTitle, t])
+
+  const rfEdges = useMemo(() => {
+    const box = new Map(flow.nodes.map(n => [n.id, { x: absolutePosition(flow.nodes, n).x, w: n.width }]))
+    return flow.edges.map((e) => {
+      const incident = focus?.edges.has(e.id) ?? false
+      const faded = focus !== null && !incident
+      const showLabel = incident || hoverEdge === e.id
+      const color = edgeColor(e.rel)
+      const a = box.get(e.source), b = box.get(e.target)
+      return {
+        id: e.id, source: e.source, target: e.target,
+        ...(a !== undefined && b !== undefined ? sides(a, b) : {}),
+        type: 'smoothstep',
+        zIndex: incident ? 6 : 5,
+        // Label only under the cursor or in the focus set — no resting mid-arc text.
+        ...(showLabel ? { label: e.label, labelShowBg: true } : { labelShowBg: false }),
+        labelBgPadding: [4, 2] as [number, number],
+        labelBgStyle: { fill: 'var(--dsw-alias-bg-layer-1, #fff)', fillOpacity: 0.9 },
+        labelStyle: { fill: color, fontSize: 9, fontWeight: 600 },
+        style: { stroke: color, strokeWidth: incident ? 2 : 1.4, opacity: faded ? 0.06 : 1 },
+        markerEnd: (faded ? undefined : { type: 'arrowclosed', color, width: 14, height: 14 }) as unknown as string,
+      }
+    })
+  }, [flow, focus, hoverEdge])
 
   return (
     <div className={css.canvas} ref={canvasRef}>
@@ -496,7 +521,7 @@ export function VaultGraphCanvas({
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
-        onNodeClick={(_e, node) => { onSelect(node.id) }}
+        onNodeClick={(_e, node) => { if (node.type !== 'header' && node.type !== 'predicate') onSelect(node.id) }}
         onEdgeMouseEnter={(_e, edge) => { setHoverEdge(edge.id) }}
         onEdgeMouseLeave={() => { setHoverEdge(null) }}
         // A headless/backgrounded tab never fires React Flow's ResizeObserver,
@@ -536,7 +561,6 @@ export function VaultGraphCanvas({
       >
         <MapGlyph off={!miniCollapsed} />
       </button>
-      <Legend t={t} rels={shownRels} tallies={tallies} />
       <div className={css.graphHint}>{t('graph.hint')}</div>
     </div>
   )

@@ -2658,9 +2658,6 @@ importers:
 
   packages/client/ui-ph-vault:
     dependencies:
-      '@dagrejs/dagre':
-        specifier: ^1.1.4
-        version: 1.1.8
       '@xyflow/react':
         specifier: ^12.8.1
         version: 12.11.3(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(immer@10.2.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

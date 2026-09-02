@@ -1,9 +1,10 @@
 /**
  * 技能库 (Skill Library) — the one browsable page over the harness's skill
  * graph: a class tree on the left (每个 class 下面是它的 skills, filtered by
- * benchmark / embodiment / search), the wiki graph of the selection's
- * neighborhood in the center, and a wiki-style detail page on the right.
- * Selection is one state shared by all three columns.
+ * benchmark / embodiment / search), the layered canvas (能力 | 卡片 | 技能
+ * columns, relation chips, layer mode, legend) in the center, and a wiki-style
+ * detail page on the right. Selection is one state shared by all three columns;
+ * the class fold state is shared by the tree and the canvas swimlanes.
  *
  * Renders only: the graph, every status, and every number come from the board
  * vault fold (board/vault.py); this component indexes, filters, lays out
@@ -17,12 +18,12 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  classTree, DENSE_RELS, embodiments, evidenceSummary, genericOf, indexGraph, inTo, isLibrary,
-  neighborhood, outOf, REL_COLOR, renderableRels,
+  ALL_TOGGLES, classTree, defaultToggles, embodiments, evidenceSummary, genericOf, indexGraph,
+  inTo, isLibrary, KIND_COLOR, layered, outOf, PRED_COLOR, REL_COLOR,
 } from './graph.ts'
 import type {
-  BenchmarkNode, CapabilityNode, ClassNode, EvidenceBlock, LegacySkillNode, LibrarySkillNode,
-  PackageNode, VaultEdge, VaultFilters, VaultGraph, VaultIndex, VaultKind, VaultNode, VaultRel,
+  BenchmarkNode, CapabilityNode, ClassNode, EvidenceBlock, LayerMode, LayerView, LegacySkillNode,
+  LibrarySkillNode, PackageNode, RelToggle, VaultEdge, VaultGraph, VaultIndex, VaultNode,
 } from './graph.ts'
 import { KindGlyph, VaultGraphCanvas } from './VaultGraphCanvas.tsx'
 import css from './VaultView.module.css'
@@ -377,7 +378,8 @@ function SkillPage({ node, idx, open, t }: { node: LegacySkillNode; idx: VaultIn
 
 /** A card's manifest fields (what the former 能力卡 page showed) plus its typed links. */
 function PackagePage({ node, idx, open, t }: { node: PackageNode; idx: VaultIndex; open: Open; t: Tr }) {
-  const links = [...outOf(idx, node.id), ...inTo(idx, node.id)]
+  const bound = inTo(idx, node.id, 'BOUND_TO')
+  const links = [...outOf(idx, node.id), ...inTo(idx, node.id)].filter(e => e.rel !== 'PROVIDES' && e.rel !== 'BOUND_TO')
   return (
     <div className={css.page}>
       <div className={css.pageHead}>
@@ -396,6 +398,12 @@ function PackagePage({ node, idx, open, t }: { node: PackageNode; idx: VaultInde
           <div className={css.linkRow}>{(node.provides ?? []).map(c => (
             <button key={c} type="button" className={`${css.capChip} ${css.mono}`} onClick={() => { open(c) }}>{c}</button>
           ))}</div>
+        </Sect>
+      ) : null}
+
+      {bound.length > 0 ? (
+        <Sect title={t('pkg.boundSkills')}>
+          <div className={css.linkRow}>{bound.map(e => <NodeLink key={e.src} id={e.src} idx={idx} open={open} title={`${e.rule} · ${e.via}`} />)}</div>
         </Sect>
       ) : null}
 
@@ -433,7 +441,8 @@ function PackagePage({ node, idx, open, t }: { node: PackageNode; idx: VaultInde
 }
 
 function CapabilityPage({ node, idx, open, t }: { node: CapabilityNode; idx: VaultIndex; open: Open; t: Tr }) {
-  const back = inTo(idx, node.id)
+  const providers = inTo(idx, node.id, 'PROVIDES')
+  const back = inTo(idx, node.id).filter(e => e.rel !== 'PROVIDES')
   return (
     <div className={css.page}>
       <div className={css.pageHead}>
@@ -447,6 +456,10 @@ function CapabilityPage({ node, idx, open, t }: { node: CapabilityNode; idx: Vau
         <div className={css.kv}><span className={css.kvLabel}>{t('node.contract')}</span> <span className={css.mono}>{node.contract ?? '—'}</span></div>
         {node.doc ? <p className={css.doc}>{node.doc}</p> : null}
       </section>
+      <Sect title={t('cap.providedBy')}>
+        {providers.length === 0 ? <span className={css.none}>{t('ev.none')}</span>
+          : <div className={css.linkRow}>{providers.map(e => <NodeLink key={e.src} id={e.src} idx={idx} open={open} title={`${e.rule} · ${e.via}`} />)}</div>}
+      </Sect>
       {back.length > 0 ? (
         <Sect title={t('node.backlinks')}>
           <div className={css.linkRow}>{back.map(e => <EdgeLink key={`${e.rel}${e.src}`} e={e} self={node.id} open={open} />)}</div>
@@ -466,6 +479,45 @@ function Detail({ node, idx, open, t }: { node: VaultNode | undefined; idx: Vaul
     case 'package': return <PackagePage node={node} idx={idx} open={open} t={t} />
     default: return <CapabilityPage node={node} idx={idx} open={open} t={t} />
   }
+}
+
+// --- relation chips + legend -------------------------------------------------
+
+/** The relation chips' edge colors, for the legend key (HISTORY = its first legacy relation). */
+const toggleColor = (tg: RelToggle): string =>
+  tg === 'CONTRACT' ? PRED_COLOR.requires : tg === 'HISTORY' ? REL_COLOR.DESCENDS_FROM : REL_COLOR[tg]
+
+/** The three-layer boundary (one line per layer) and the edge color key; collapsible, opens closed. */
+function Legend({ t }: { t: Tr }) {
+  const [open, setOpen] = useState(false)
+  const layers = [['capability', 'legend.capability'], ['package', 'legend.package'], ['skill', 'legend.skill']] as const
+  return (
+    <div className={css.legendBar}>
+      <button type="button" className={css.legendHead} onClick={() => { setOpen(o => !o) }}>
+        <span>{t('legend.title')}</span>
+        <span className={css.legendToggle}>{open ? '−' : '+'}</span>
+      </button>
+      {open ? (
+        <div className={css.legendBody}>
+          {layers.map(([kind, key]) => (
+            <div key={kind} className={css.legendKind} style={{ color: KIND_COLOR[kind] }}>
+              <KindGlyph kind={kind} size={12} />
+              <span className={css.legendLine1}>{t(key)}</span>
+            </div>
+          ))}
+          <div className={css.legendSub}>{t('legend.relations')}</div>
+          <div className={css.legendRelGrid}>
+            {ALL_TOGGLES.map(tg => (
+              <div key={tg} className={css.legendRel}>
+                <span className={css.legendLine} style={{ background: toggleColor(tg) }} />
+                <span>{t(`tog.${tg}` as const)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 // --- side pane chrome --------------------------------------------------------
@@ -502,16 +554,20 @@ export function VaultView({
   const [benchmark, setBenchmark] = useState('')
   const [embodiment, setEmbodiment] = useState('')
   const [search, setSearch] = useState('')
-  const [rels, setRels] = useState<ReadonlySet<VaultRel>>(new Set())
+  const [mode, setMode] = useState<LayerMode>('all')
+  const [on, setOn] = useState<ReadonlySet<RelToggle>>(new Set())
+  // Cards mode: the skills added to the canvas by hand.
+  const [added, setAdded] = useState<ReadonlySet<string>>(new Set())
+  // Classes unfolded — one state for the tree rows and the canvas swimlanes.
   const [openClasses, setOpenClasses] = useState<ReadonlySet<string>>(new Set())
   // Generic skills whose instances unfold — one state for the tree and the canvas badge.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
-  const [deep, setDeep] = useState(false)
+  const [cardsOpen, setCardsOpen] = useState(false)
   const [legacyOpen, setLegacyOpen] = useState(false)
   const [leftOpen, setLeftOpen] = useState(true)
   const [rightOpen, setRightOpen] = useState(true)
   const errRef = useRef<string | null>(null)
-  const seededRels = useRef(false)
+  const seededToggles = useRef(false)
 
   const load = useCallback(async () => {
     try {
@@ -520,12 +576,10 @@ export function VaultView({
       setOnline(true)
       const g = r.value as VaultGraph
       setGraph(g)
-      // Seed the relation filter once: every family that draws EXCEPT the two
-      // dense cross-band families, which open collapsed so the whole-vault
-      // frame (no selection) stays legible; a selection's neighborhood draws all.
-      if (!seededRels.current) {
-        seededRels.current = true
-        setRels(new Set([...renderableRels(g)].filter(rel => !DENSE_RELS.includes(rel))))
+      // Seed the relation chips once (证据 only when the fold draws any).
+      if (!seededToggles.current) {
+        seededToggles.current = true
+        setOn(defaultToggles(g))
       }
     } catch (cause) {
       errRef.current = cause instanceof Error ? cause.message : String(cause)
@@ -563,31 +617,39 @@ export function VaultView({
   const idx = useMemo(() => indexGraph(graph ?? { schema_version: 0, nodes: [], edges: [] }), [graph])
   const tree = useMemo(() => classTree(idx, { benchmark, embodiment, search }), [idx, benchmark, embodiment, search])
   const embs = useMemo(() => embodiments(idx), [idx])
-  const sub = useMemo(() => graph === null ? null : neighborhood(graph, idx, selected, { expanded, deep }),
-    [graph, idx, selected, expanded, deep])
-  const filters: VaultFilters = useMemo(() => ({
-    kinds: new Set<VaultKind>(), statuses: new Set(), rels: selected === null ? rels : new Set(), search,
-  }), [rels, search, selected])
+  const view: LayerView = useMemo(() => ({ mode, on, openClasses, expanded, added, search }),
+    [mode, on, openClasses, expanded, added, search])
+  const flow = useMemo(() => graph === null ? null : layered(graph, idx, view), [graph, idx, view])
 
-  const toggleExpanded = useCallback((id: string) => {
-    setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
-  }, [])
+  const flip = (set: (f: (s: ReadonlySet<string>) => ReadonlySet<string>) => void) => (id: string) => {
+    set((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  }
+  const toggleExpanded = useCallback(flip(setExpanded), [])
+  const toggleClass = useCallback(flip(setOpenClasses), [])
+  const toggleOn = (tg: RelToggle) => { setOn((s) => { const n = new Set(s); if (n.has(tg)) n.delete(tg); else n.add(tg); return n }) }
 
   const open: Open = useCallback((id) => {
     setSelected(id)
     const n = idx.byId.get(id)
+    if (n === undefined) return
     if (isLibrary(n) && n.class) setOpenClasses(s => new Set(s).add(`class:${n.class}`))
+    if (n.kind === 'class') setOpenClasses(s => new Set(s).add(id))
     const g = genericOf(idx, id)
     if (g !== undefined) setExpanded(s => new Set(s).add(g))
-    if (n !== undefined && !isLibrary(n) && n.kind !== 'class' && n.kind !== 'benchmark') setLegacyOpen(true)
+    if (n.kind === 'package' || n.kind === 'capability') setCardsOpen(true)
+    // A legacy sealed record lives behind the 历史 chip: following a link to one turns it on.
+    if (n.kind === 'skill' && !isLibrary(n)) { setLegacyOpen(true); setOn(s => new Set(s).add('HISTORY')) }
   }, [idx])
 
   if (online === false) return <div className={css.empty}>{t('unavailable')} — {errRef.current}</div>
-  if (graph === null || sub === null) return <div className={css.empty}>{t('loading')}</div>
+  if (graph === null || flow === null) return <div className={css.empty}>{t('loading')}</div>
   if (graph.nodes.length === 0) return <div className={css.empty}>{t('empty')}</div>
 
   const benches = (idx.byKind.get('benchmark') ?? []) as BenchmarkNode[]
   const current = selected === null ? undefined : idx.byId.get(selected)
+  const boundToCurrent = current?.kind === 'package' ? inTo(idx, current.id, 'BOUND_TO').map(e => e.src) : []
+  const allSkills = (idx.byKind.get('skill') ?? []).filter(isLibrary).map(n => n.id)
+  const modes: readonly LayerMode[] = ['cards', 'skills', 'all']
 
   return (
     <div className={css.grid}>
@@ -640,33 +702,58 @@ export function VaultView({
               </div>
             )
           })}
-          {tree.legacy.length > 0 ? (
-            <div className={css.treeSect}>
-              <div className={css.classRow}>
-                <button type="button" className={css.chev} onClick={() => { setLegacyOpen(o => !o) }} aria-label={`${t('tree.legacy')}: ${t(legacyOpen ? 'pane.collapse' : 'pane.expand')}`}>{legacyOpen ? '▾' : '▸'}</button>
-                <span className={`${css.rowBtn} ${css.rowStatic}`}><span className={css.rowName}>{t('tree.legacy')}</span><span className={css.rowEv}>· {tree.legacy.length}</span></span>
+          {([['tree.legacy', tree.cards, cardsOpen, setCardsOpen], ['tree.history', on.has('HISTORY') ? tree.legacy : [], legacyOpen, setLegacyOpen]] as const)
+            .map(([key, rows, isOpen, setIsOpen]) => rows.length === 0 ? null : (
+              <div key={key} className={css.treeSect}>
+                <div className={css.classRow}>
+                  <button type="button" className={css.chev} onClick={() => { setIsOpen(!isOpen) }} aria-label={`${t(key)}: ${t(isOpen ? 'pane.collapse' : 'pane.expand')}`}>{isOpen ? '▾' : '▸'}</button>
+                  <span className={`${css.rowBtn} ${css.rowStatic}`}><span className={css.rowName}>{t(key)}</span><span className={css.rowEv}>· {rows.length}</span></span>
+                </div>
+                {isOpen ? rows.map(n => (
+                  <button key={n.id} type="button" className={`${css.rowBtn} ${css.skillRow} ${selected === n.id ? css.rowOn : ''}`} onClick={() => { open(n.id) }} title={n.id}>
+                    <KindGlyph kind={n.kind} size={12} />
+                    <span className={css.rowName}>{nameOf(n)}</span>
+                    {n.kind === 'skill' ? <span className={css.rowEv}>{n.status}</span> : null}
+                  </button>
+                )) : null}
               </div>
-              {legacyOpen ? tree.legacy.map(n => (
-                <button key={n.id} type="button" className={`${css.rowBtn} ${css.skillRow} ${selected === n.id ? css.rowOn : ''}`} onClick={() => { open(n.id) }} title={n.id}>
-                  <KindGlyph kind={n.kind} size={12} />
-                  <span className={css.rowName}>{nameOf(n)}</span>
-                  {n.kind === 'skill' ? <span className={css.rowEv}>{n.status}</span> : null}
-                </button>
-              )) : null}
-            </div>
-          ) : null}
+            ))}
         </div>
       </Side>
       <div className={css.center}>
-        {isLibrary(current) ? (
-          <label className={css.deepToggle}>
-            <input type="checkbox" checked={deep} onChange={(e) => { setDeep(e.target.checked) }} />
-            {t('graph.deeper')}
-          </label>
-        ) : null}
+        <div className={css.bar}>
+          <div className={css.seg} role="group">
+            {modes.map(m => (
+              <button key={m} type="button" className={`${css.segBtn} ${mode === m ? css.segOn : ''}`} aria-pressed={mode === m} onClick={() => { setMode(m) }}>
+                {t(`mode.${m}` as const)}
+              </button>
+            ))}
+          </div>
+          <div className={css.chipGroup}>
+            {ALL_TOGGLES.map(tg => (
+              <label key={tg} className={`${css.chip} ${on.has(tg) ? css.chipOn : ''}`}>
+                <input type="checkbox" className={css.chipBox} checked={on.has(tg)} onChange={() => { toggleOn(tg) }} />
+                <span className={css.chipDot} style={{ background: toggleColor(tg) }} />
+                {t(`tog.${tg}` as const)}
+              </label>
+            ))}
+          </div>
+          {mode === 'cards' ? (
+            <div className={css.chipGroup}>
+              {current?.kind === 'package' ? (
+                <button type="button" className={css.barBtn} disabled={boundToCurrent.length === 0} onClick={() => { setAdded(s => new Set([...s, ...boundToCurrent])) }}>
+                  {t('add.bound')} · {boundToCurrent.length}
+                </button>
+              ) : null}
+              <button type="button" className={css.barBtn} onClick={() => { setAdded(new Set(allSkills)) }}>{t('add.all')}</button>
+              <button type="button" className={css.barBtn} disabled={added.size === 0} onClick={() => { setAdded(new Set()) }}>{t('add.clear')}</button>
+            </div>
+          ) : null}
+        </div>
+        <Legend t={t} />
         <VaultGraphCanvas
-          graph={sub} filters={filters} selected={selected} onSelect={open}
-          expanded={expanded} onToggle={toggleExpanded} t={t}
+          flow={flow} selected={selected} onSelect={open}
+          expanded={expanded} onToggle={toggleExpanded} onToggleClass={toggleClass} t={t}
         />
       </div>
       <Side title={t('pane.detail')} side="right" open={rightOpen} setOpen={setRightOpen} t={t}>
