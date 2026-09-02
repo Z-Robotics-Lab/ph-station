@@ -1,5 +1,5 @@
 /**
- * Browser 技能库 (Skill Vault) plugin: one entry in the conversation view slot
+ * Browser 技能库 (Skill Library) plugin: one entry in the conversation view slot
  * that renders the deterministic wiki graph over the harness's sealed skills,
  * packages, and capabilities (board.vault). Renders only — every node, edge,
  * status, and number comes verbatim from the board vault fold.

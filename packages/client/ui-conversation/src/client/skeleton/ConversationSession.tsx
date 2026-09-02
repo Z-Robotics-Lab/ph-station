@@ -4,7 +4,7 @@ import { useEffect, useSyncExternalStore } from 'react'
 import clsx from 'clsx'
 import { IconNewChatOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
-  IconBook, IconBooks, IconBox, IconLayoutDashboard, IconMessage,
+  IconBook, IconBooks, IconLayoutDashboard, IconMessage,
   IconReport, IconRoute, IconSitemap, IconTrendingUp, type IconComponent,
 } from '@deepseek-ai/dsh-client-ui-ph-icons'
 import type { SessionId, SessionListState, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
@@ -41,7 +41,6 @@ const VIEW_TAB_ICONS: Readonly<Record<string, IconComponent>> = {
   livegraph: IconSitemap,
   battle: IconReport,
   evolution: IconTrendingUp,
-  cards: IconBox,
   ledger: IconBook,
   vault: IconBooks,
   rsi: IconTrendingUp,

@@ -1,6 +1,6 @@
 /**
- * Browser plugin for the 严格评测 / 迭代记录 / 机箱 / 账本 panels and the status
- * bar. Each view is one entry in a slot — four `conversation.view` entries, the
+ * Browser plugin for the 严格评测 / 迭代记录 / 账本 panels and the status bar.
+ * Each view is one entry in a slot — three `conversation.view` entries, the
  * status bar in the frame-wide `shell.overlay` — reading the harness evidence layer
  * through the board Remote and rendering only. No service, no business logic:
  * every number comes from board.store / board.cards.
@@ -18,7 +18,6 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { en, NS, zh } from './locales.ts'
 import { RsiRun, type RsiConsoleInjected } from './RsiRun.tsx'
 import { EvolutionView, type EvolutionInjected } from './EvolutionView.tsx'
-import { CardsView, type CardsInjected } from './CardsView.tsx'
 import { LedgerView, type LedgerInjected } from './LedgerView.tsx'
 import { StatusBar, type StatusInjected } from './StatusBar.tsx'
 import { TaskChips } from './TaskChips.tsx'
@@ -27,7 +26,7 @@ import { TaskChips } from './TaskChips.tsx'
 export const inject = ['slots', 'remote', 'remote.board', 'locale']
 
 /**
- * Client plugin body: register the four view entries and the status bar. Each
+ * Client plugin body: register the three view entries and the status bar. Each
  * registration rides the slot service's effect wrapper, so plugin unload
  * removes them.
  * @param ctx - client root context.
@@ -71,16 +70,6 @@ export function apply(ctx: Context): void {
           fetchCampaignProgress: () => board.campaignProgress(),
         }),
       }, EvolutionView),
-      ctx.slots.register({
-        name: 'conversation.view',
-        id: 'cards',
-        order: 22,
-        locale: NS,
-        label: () => t('view.cards'),
-        inject: (_sessionId: SessionId): CardsInjected => ({
-          fetchCards: () => board.cards(),
-        }),
-      }, CardsView),
       ctx.slots.register({
         name: 'conversation.view',
         id: 'ledger',

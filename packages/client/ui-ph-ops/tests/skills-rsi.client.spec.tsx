@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Skills + RSI pages: the skills table renders the board's rows and expands to
- * per-executor evidence; the RSI page lists campaigns found through rsiRun,
+ * RSI page: it lists campaigns found through rsiRun,
  * draws the rsiSeries chart as inline SVG, tells one round in its four beats
  * (看到了什么 / 试了什么 / 结果 / 发布), filters the runtime feed to this brief's
  * lines, starts a campaign with a task-only brief, stops the open brief through
@@ -12,7 +11,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import { SkillsView } from '../src/client/SkillsView.tsx'
 import { RsiView, describeTried } from '../src/client/RsiView.tsx'
 import { en } from '../src/client/locales.ts'
 
@@ -22,42 +20,6 @@ const ok = (value: unknown): RemoteResult<unknown> => ({ ok: true, value })
 const t = (key: keyof typeof en, params?: Record<string, unknown>) =>
   en[key].replace(/\{(\w+)\}/g, (_, k: string) => String(params?.[k]))
 const sessions = ok([{ name: 'session-main', kinds: { 'runtime.boot': 1 } }])
-
-describe('SkillsView', () => {
-  it('renders the rows and expands one to its by_executor evidence', async () => {
-    const props = {
-      fetchSessions: vi.fn(() => Promise.resolve(sessions)),
-      fetchSkills: vi.fn(() => Promise.resolve(ok([{
-        name: 'pick_can', kind: 'segment', description: '', source: 'session',
-        bindings: { robocasa: ['pi05', 'scripted'] },
-        evidence: { robocasa: { n: 9, k: 5, by_executor: { pi05: { n: 2, k: 1 }, scripted: { n: 7, k: 4 } } } },
-        limits: { max_steps: 300 }, failure_modes: ['reach_stall'],
-      }]))),
-      t,
-    }
-    render(<SkillsView {...(props as unknown as Parameters<typeof SkillsView>[0])} />)
-    await waitFor(() => { expect(screen.getByText('pick_can')).toBeTruthy() })
-    expect(props.fetchSkills).toHaveBeenCalledWith('session-main')
-    expect(screen.getByText('robocasa')).toBeTruthy()
-    expect(screen.getByText('pi05, scripted')).toBeTruthy()
-    expect(screen.getByText('9')).toBeTruthy()
-    expect(screen.getByText('reach_stall')).toBeTruthy()
-    expect(screen.queryByText('scripted: 4/7')).toBeNull()
-    fireEvent.click(screen.getByText('pick_can'))
-    expect(screen.getByText('scripted: 4/7')).toBeTruthy()
-    expect(screen.getByText('pi05: 1/2')).toBeTruthy()
-  })
-
-  it('folds to the honest empty state', async () => {
-    const props = {
-      fetchSessions: vi.fn(() => Promise.resolve(sessions)),
-      fetchSkills: vi.fn(() => Promise.resolve(ok([]))),
-      t,
-    }
-    render(<SkillsView {...(props as unknown as Parameters<typeof SkillsView>[0])} />)
-    await waitFor(() => { expect(screen.getByText(en['skills.empty'])).toBeTruthy() })
-  })
-})
 
 describe('RsiView', () => {
   const campaign = {

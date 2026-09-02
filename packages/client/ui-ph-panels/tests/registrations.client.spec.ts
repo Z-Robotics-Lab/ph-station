@@ -2,7 +2,8 @@
 /**
  * Registration contract: the panels package fills `conversation.view` with the
  * legacy strict launcher ('rsi-strict', embedded by the unified RSI page in
- * ui-ph-ops) plus 迭代记录 / 能力卡 / 账本 — never the old 'rsi' aggregate — and
+ * ui-ph-ops) plus 迭代记录 / 账本 — never the old 'rsi' aggregate nor a 'cards'
+ * tab (card manifests are the 技能库 package detail in ui-ph-vault) — and
  * empties every hole when its fiber goes down.
  */
 import { Context } from '@deepseek-ai/cordis'
@@ -38,8 +39,9 @@ describe('ui-ph-panels registrations', () => {
     await fiber.await()
     const views = b.slots.entries('conversation.view')
     const ids = views.map(e => e.options.id)
-    expect(ids).toEqual(['rsi-strict', 'evolution', 'cards', 'ledger'])
+    expect(ids).toEqual(['rsi-strict', 'evolution', 'ledger'])
     expect(ids).not.toContain('rsi')
+    expect(ids).not.toContain('cards')
     // Whichever locale the browser pins, the label is the strict launcher's.
     expect([zh['view.rsiStrict'], en['view.rsiStrict']]).toContain((views[0]!.options.label as () => string)())
     for (const hole of HOLES) expect(b.slots.entries(hole).length).toBeGreaterThan(0)

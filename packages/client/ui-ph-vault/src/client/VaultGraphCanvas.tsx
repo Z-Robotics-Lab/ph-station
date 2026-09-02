@@ -19,7 +19,7 @@ import {
   ALL_KINDS, KIND_COLOR, layout, NODE_SIZE, REL_COLOR, relTallies,
 } from './graph.ts'
 import type {
-  CapabilityNode, PackageNode, RelTally, SkillNode,
+  BenchmarkNode, CapabilityNode, ClassNode, PackageNode, RelTally, SkillNode,
   VaultFilters, VaultGraph, VaultKind, VaultNode, VaultRel,
 } from './graph.ts'
 import css from './VaultView.module.css'
@@ -91,10 +91,11 @@ function MapGlyph({ off }: { off: boolean }) {
 
 // --- kind glyphs (tabler outline path data, MIT; see THIRD_PARTY_NOTICES) ----
 
-/** A kind's tabler glyph (skill=bulb, package=box, capability=plug), inheriting
- * the surrounding text color. Vendored inline here rather than pulled from the
- * icons leaf so this panel stays self-contained (bulb/plug are not yet in it). */
-function KindGlyph({ kind, size = 14 }: { kind: VaultKind; size?: number }) {
+/** A kind's tabler glyph (skill=bulb, class=folder, benchmark=target,
+ * package=box, capability=plug), inheriting the surrounding text color.
+ * Vendored inline here rather than pulled from the icons leaf so this panel
+ * stays self-contained (bulb/plug are not yet in it). */
+export function KindGlyph({ kind, size = 14 }: { kind: VaultKind; size?: number }) {
   return (
     <svg
       width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -105,6 +106,12 @@ function KindGlyph({ kind, size = 14 }: { kind: VaultKind; size?: number }) {
           <path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" />
           <path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3" />
           <path d="M9.7 17l4.6 0" />
+        </>
+      ) : kind === 'class' ? (
+        <path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2" />
+      ) : kind === 'benchmark' ? (
+        <>
+          <circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" />
         </>
       ) : kind === 'package' ? (
         <>
@@ -162,6 +169,10 @@ function Silhouette({ kind }: { kind: VaultKind }) {
           />
           <path d={`M1 ${1 + notch} H${1 + notch} V1`} style={{ fill: 'none', stroke: color }} strokeWidth={1.4} />
         </>
+      ) : kind === 'class' ? (
+        <rect x={1} y={1} width={W - 2} height={H - 2} rx={6} style={st} strokeWidth={2} strokeDasharray="6 3" />
+      ) : kind === 'benchmark' ? (
+        <path d={`M${notch} 1 H${W - notch} L${W - 1} ${H / 2} L${W - notch} ${H - 1} H${notch} L1 ${H / 2} Z`} style={st} strokeWidth={2} />
       ) : (
         <rect x={1} y={1} width={W - 2} height={H - 2} rx={(H - 2) / 2} style={st} strokeWidth={2} />
       )}
@@ -192,6 +203,21 @@ function FarGlyph({ kind }: { kind: VaultKind }) {
 function SkillGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
   const n = data.node as SkillNode
   const lod = useLod()
+  if (n.status === 'library') {
+    return (
+      <ShapeFrame kind="skill" dimmed={data.dimmed}>
+        {lod === 'far' ? <FarGlyph kind="skill" /> : (
+          <>
+            <div className={css.gtitle}><KindGlyph kind="skill" /><span>{n.name}</span></div>
+            <div className={css.gsub}>
+              <span className={css.gstatus}>{n.skill_kind ?? 'segment'}</span>
+              {lod === 'near' && n.class ? <span className={css.gstatus}>{n.class}</span> : null}
+            </div>
+          </>
+        )}
+      </ShapeFrame>
+    )
+  }
   // Round the raw held-out delta: the board sends a full-precision float
   // (0.65 - 0.585 = 0.06500000000000006) that reads as noise in a node body.
   const rawDelta = n.evidence?.heldout_delta
@@ -228,6 +254,34 @@ function PackageGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean }
         <>
           <div className={css.gtitle}><KindGlyph kind="package" /><span>{n.name ?? n.id}</span></div>
           {lod === 'near' ? <div className={`${css.gsub} ${css.mono}`}>{n.id}</div> : null}
+        </>
+      )}
+    </ShapeFrame>
+  )
+}
+
+function ClassGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
+  const n = data.node as ClassNode
+  const lod = useLod()
+  return (
+    <ShapeFrame kind="class" dimmed={data.dimmed}>
+      {lod === 'far' ? <FarGlyph kind="class" /> : (
+        <div className={css.gtitle}><KindGlyph kind="class" /><span>{n.name ?? n.id}</span>
+          <span className={css.gstatus}>{n.skills ?? n.count ?? 0}</span></div>
+      )}
+    </ShapeFrame>
+  )
+}
+
+function BenchmarkGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
+  const n = data.node as BenchmarkNode
+  const lod = useLod()
+  return (
+    <ShapeFrame kind="benchmark" dimmed={data.dimmed}>
+      {lod === 'far' ? <FarGlyph kind="benchmark" /> : (
+        <>
+          <div className={css.gtitle}><KindGlyph kind="benchmark" /><span>{n.name ?? n.id}</span></div>
+          {n.embodiment ? <div className={css.gsub}>{n.embodiment}</div> : null}
         </>
       )}
     </ShapeFrame>
@@ -299,14 +353,15 @@ function Legend({ t, rels, tallies }: { t: Tr; rels: readonly VaultRel[]; tallie
 interface Focus { edges: ReadonlySet<string>; nodes: ReadonlySet<string> }
 
 /** The grouped vault graph surface.
- * @param graph - the board vault fold.
+ * @param graph - the board vault fold (or the selection's neighborhood of it).
  * @param filters - the live kind/status/relation/search selection.
- * @param onSelect - open a node's wiki page (on double-click).
+ * @param selected - the selected node id: its incident edges are highlighted.
+ * @param onSelect - select a node (single click; the tree and detail follow).
  * @param t - the bound `phvault` locale reader.
  */
 export function VaultGraphCanvas({
-  graph, filters, onSelect, t,
-}: { graph: VaultGraph; filters: VaultFilters; onSelect: (id: string) => void; t: Tr }) {
+  graph, filters, selected = null, onSelect, t,
+}: { graph: VaultGraph; filters: VaultFilters; selected?: string | null; onSelect: (id: string) => void; t: Tr }) {
   const flow = useMemo(() => layout(graph, filters), [graph, filters])
   const tallies = useMemo(() => relTallies(graph), [graph])
 
@@ -348,10 +403,10 @@ export function VaultGraphCanvas({
   const shownRels = useMemo(() => flow.edges.length === 0
     ? [] : Object.keys(tallies).filter((r): r is VaultRel => tallies[r as VaultRel].rendered > 0), [tallies, flow])
 
-  // Single-click focuses a node (highlight its edges, dim the rest); a labeled
-  // edge appears only under the cursor or in the focus set, so the resting
-  // canvas carries no mid-arc text. Double-click opens the wiki page.
-  const [focusId, setFocusId] = useState<string | null>(null)
+  // The selected node is the focus (highlight its edges, dim the rest); a
+  // labeled edge appears only under the cursor or in the focus set, so the
+  // resting canvas carries no mid-arc text.
+  const focusId = selected
   const [hoverEdge, setHoverEdge] = useState<string | null>(null)
   const focus = useMemo<Focus | null>(() => {
     if (focusId === null) return null
@@ -364,7 +419,8 @@ export function VaultGraphCanvas({
   }, [focusId, flow])
 
   const nodeTypes = useMemo(() => ({
-    skill: SkillGraphNode, package: PackageGraphNode, capability: CapabilityGraphNode,
+    skill: SkillGraphNode, class: ClassGraphNode, benchmark: BenchmarkGraphNode,
+    package: PackageGraphNode, capability: CapabilityGraphNode,
   }), [])
 
   const rfNodes = useMemo(() => flow.nodes.map(n => ({
@@ -405,9 +461,7 @@ export function VaultGraphCanvas({
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
-        onNodeClick={(_e, node) => { setFocusId(id => id === node.id ? null : node.id) }}
-        onNodeDoubleClick={(_e, node) => { onSelect(node.id) }}
-        onPaneClick={() => { setFocusId(null) }}
+        onNodeClick={(_e, node) => { onSelect(node.id) }}
         onEdgeMouseEnter={(_e, edge) => { setHoverEdge(edge.id) }}
         onEdgeMouseLeave={() => { setHoverEdge(null) }}
         // A headless/backgrounded tab never fires React Flow's ResizeObserver,

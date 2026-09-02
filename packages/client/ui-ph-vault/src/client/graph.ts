@@ -19,9 +19,10 @@ import dagre from '@dagrejs/dagre'
 export type VaultRel =
   | 'DESCENDS_FROM' | 'GOVERNS' | 'REQUIRES' | 'PROVIDES' | 'BINDS'
   | 'EVIDENCED_BY' | 'CLAIMS' | 'SUPERSEDES' | 'MOUNTED_IN'
+  | 'IN_CLASS' | 'DEPENDS_ON' | 'BOUND_TO' | 'EVIDENCED_ON'
 
-/** The three node kinds the fold emits. */
-export type VaultKind = 'skill' | 'package' | 'capability'
+/** The five node kinds the fold emits (class / benchmark group the skill library). */
+export type VaultKind = 'skill' | 'class' | 'benchmark' | 'package' | 'capability'
 
 /** Derived skill status (board/vault.py §2.6); drives the node color. */
 export type SkillStatus = 'promoted' | 'candidate' | 'retired'
@@ -39,8 +40,71 @@ export interface EvidenceBlock {
 /** One ablation ladder rung: [noise, {fixed, governed_rate, declared_privilege}]. */
 export type AblationRung = [number, { fixed?: number; governed_rate?: number; declared_privilege?: number }]
 
-/** A skill node body (a promoted/candidate/retired SkillRecord). */
-export interface SkillNode {
+/** One executor binding of a library skill on an embodiment. */
+export interface SkillBinding {
+  readonly transport?: string
+  readonly ref?: string | null
+  readonly checkpoint_sha?: string | null
+}
+
+/** Library evidence on one embodiment: whole-record n/k plus per-executor rows. */
+export interface LibEvidence {
+  readonly n?: number | null
+  readonly k?: number | null
+  readonly by_executor?: Record<string, { n?: number | null; k?: number | null }>
+}
+
+/** A skill-library record (harness.protocol SkillRecordV0, status "library"). */
+export interface LibrarySkillNode {
+  readonly kind: 'skill'
+  readonly id: string
+  readonly status: 'library'
+  readonly name: string
+  readonly skill_kind?: string
+  readonly class?: string
+  readonly description?: string
+  readonly args?: Record<string, string>
+  readonly requires?: string[]
+  readonly ensures?: string[]
+  readonly clobbers?: string[]
+  readonly limits?: Record<string, unknown>
+  readonly failure_modes?: string[]
+  readonly bindings?: Record<string, Record<string, SkillBinding>>
+  readonly evidence?: Record<string, LibEvidence>
+  readonly annotations?: VaultAnnotation | null
+}
+
+/** A class node: one row of the 技能库 tree (`skills` = member count). */
+export interface ClassNode {
+  readonly kind: 'class'
+  readonly id: string
+  readonly name?: string
+  readonly skills?: number
+  readonly count?: number
+  readonly annotations?: VaultAnnotation | null
+}
+
+/** A benchmark node: one card's `[benchmarks.<name>]` table. */
+export interface BenchmarkNode {
+  readonly kind: 'benchmark'
+  readonly id: string
+  readonly name?: string
+  readonly embodiment?: string | null
+  readonly tasks?: string[]
+  readonly arms?: string[]
+  readonly card?: string
+  readonly annotations?: VaultAnnotation | null
+}
+
+/** Any skill node: a legacy sealed record or a library record. */
+export type SkillNode = LegacySkillNode | LibrarySkillNode
+
+/** Whether a node is a library skill (the class-tree kind). */
+export const isLibrary = (n: VaultNode | undefined): n is LibrarySkillNode =>
+  n !== undefined && n.kind === 'skill' && n.status === 'library'
+
+/** A legacy skill node body (a promoted/candidate/retired SkillRecord). */
+export interface LegacySkillNode {
   readonly kind: 'skill'
   readonly id: string
   readonly task?: string
@@ -101,7 +165,7 @@ export interface VaultAnnotation {
 }
 
 /** Any vault node. */
-export type VaultNode = SkillNode | PackageNode | CapabilityNode
+export type VaultNode = SkillNode | ClassNode | BenchmarkNode | PackageNode | CapabilityNode
 
 /** One directed, typed edge with its mechanical derivation `rule` and `via`. */
 export interface VaultEdge {
@@ -110,6 +174,9 @@ export interface VaultEdge {
   readonly dst: string
   readonly rule: string
   readonly via: string
+  /** EVIDENCED_ON only: the skill's n/k on the benchmark's embodiment. */
+  readonly n?: number | null
+  readonly k?: number | null
 }
 
 /** The whole fold output (board/vault.py build_graph). */
@@ -132,10 +199,11 @@ export interface VaultFilters {
 export const ALL_RELS: readonly VaultRel[] = [
   'DESCENDS_FROM', 'GOVERNS', 'REQUIRES', 'PROVIDES', 'BINDS',
   'EVIDENCED_BY', 'CLAIMS', 'SUPERSEDES', 'MOUNTED_IN',
+  'IN_CLASS', 'DEPENDS_ON', 'BOUND_TO', 'EVIDENCED_ON',
 ]
 
-/** The three kinds, in reading order. */
-export const ALL_KINDS: readonly VaultKind[] = ['skill', 'package', 'capability']
+/** The kinds, in reading order. */
+export const ALL_KINDS: readonly VaultKind[] = ['skill', 'class', 'benchmark', 'package', 'capability']
 
 /** The two highest-volume cross-band families (seven edges each in the live
  * fold), both terminating on the capability band. Hidden by default so the
@@ -194,6 +262,10 @@ export const REL_COLOR: Record<VaultRel, string> = {
   CLAIMS: 'var(--dsw-alias-state-business-primary, #2f6fed)',
   SUPERSEDES: 'var(--dsw-alias-state-warning-primary, #d98a1f)',
   MOUNTED_IN: 'var(--dsw-alias-label-tertiary, #9aa1ac)',
+  IN_CLASS: 'var(--dsw-alias-state-warning-primary, #d98a1f)',
+  DEPENDS_ON: 'var(--dsw-alias-state-error-primary, #d94040)',
+  BOUND_TO: 'var(--dsw-alias-state-success-primary, #2e9e5b)',
+  EVIDENCED_ON: 'var(--dsw-alias-state-purple-primary, #8b5cf6)',
 }
 
 /** Primary hue per node kind, orthogonal to skill status: skill=blue,
@@ -201,6 +273,8 @@ export const REL_COLOR: Record<VaultRel, string> = {
  * MiniMap dot, and the legend. Status rides a secondary channel (§5.4). */
 export const KIND_COLOR: Record<VaultKind, string> = {
   skill: 'var(--dsw-alias-state-business-primary, #2f6fed)',
+  class: 'var(--dsw-alias-state-warning-primary, #d98a1f)',
+  benchmark: 'var(--dsw-alias-state-purple-primary, #8b5cf6)',
   package: 'var(--dsw-alias-state-success-primary, #2e9e5b)',
   capability: 'var(--dsw-alias-state-purple-primary, #8b5cf6)',
 }
@@ -213,14 +287,17 @@ export const KIND_COLOR: Record<VaultKind, string> = {
  */
 export function nodeVisible(node: VaultNode, f: VaultFilters): boolean {
   if (f.kinds.size > 0 && !f.kinds.has(node.kind)) return false
-  if (node.kind === 'skill' && f.statuses.size > 0 && !f.statuses.has(node.status)) return false
-  if (f.search.trim() !== '') {
-    const q = f.search.trim().toLowerCase()
-    const hay = [node.id, (node as SkillNode).task, (node as SkillNode).label, (node as PackageNode).name]
-      .filter((s): s is string => typeof s === 'string').join(' ').toLowerCase()
-    if (!hay.includes(q)) return false
-  }
-  return true
+  if (node.kind === 'skill' && f.statuses.size > 0 && !f.statuses.has(node.status as SkillStatus)) return false
+  return matches(node, f.search)
+}
+
+/** Client-side substring search over id / name / task / label / description. */
+export function matches(node: VaultNode, search: string): boolean {
+  const q = search.trim().toLowerCase()
+  if (q === '') return true
+  const n = node as { task?: string; label?: string; name?: string; description?: string }
+  return [node.id, n.task, n.label, n.name, n.description]
+    .filter((s): s is string => typeof s === 'string').join(' ').toLowerCase().includes(q)
 }
 
 /** A positioned React Flow node carrying its vault body for the custom renderer. */
@@ -250,6 +327,8 @@ export interface VaultLayout {
  * after mount, but the layout wants stable inputs). */
 export const NODE_SIZE: Record<VaultKind, { width: number; height: number }> = {
   skill: { width: 210, height: 88 },
+  class: { width: 170, height: 52 },
+  benchmark: { width: 190, height: 58 },
   package: { width: 190, height: 58 },
   capability: { width: 180, height: 52 },
 }
@@ -286,7 +365,7 @@ const DAGRE_GRAPH = {
 export function layout(graph: VaultGraph, f: VaultFilters): VaultLayout {
   const kindPass = new Map(graph.nodes
     .filter(n => (f.kinds.size === 0 || f.kinds.has(n.kind))
-      && !(n.kind === 'skill' && f.statuses.size > 0 && !f.statuses.has(n.status)))
+      && !(n.kind === 'skill' && f.statuses.size > 0 && !f.statuses.has(n.status as SkillStatus)))
     .map(n => [n.id, n]))
   // Layout seed: every node-to-node edge among the survivors, chips or not.
   const nodeEdges = graph.edges.filter(e => kindPass.has(e.src) && kindPass.has(e.dst))
@@ -343,4 +422,136 @@ export function outEdges(graph: VaultGraph, id: string): VaultEdge[] {
  */
 export function indexNodes(graph: VaultGraph): Map<string, VaultNode> {
   return new Map(graph.nodes.map(n => [n.id, n]))
+}
+
+// --- client-side index: by kind, adjacency by relation -----------------------
+
+/** Adjacency over the fold: out/in edges per node id, in fold order. */
+export interface VaultIndex {
+  readonly byId: Map<string, VaultNode>
+  readonly byKind: Map<VaultKind, VaultNode[]>
+  readonly outs: Map<string, VaultEdge[]>
+  readonly ins: Map<string, VaultEdge[]>
+}
+
+/**
+ * Index the fold once per load: nodes by id and kind, edges by endpoint. Every
+ * list keeps the fold's deterministic order, so the tree and pages render stably.
+ * @param graph - the folded vault graph.
+ * @returns the index.
+ */
+export function indexGraph(graph: VaultGraph): VaultIndex {
+  const byKind = new Map<VaultKind, VaultNode[]>()
+  for (const n of graph.nodes) byKind.set(n.kind, [...(byKind.get(n.kind) ?? []), n])
+  const outs = new Map<string, VaultEdge[]>()
+  const ins = new Map<string, VaultEdge[]>()
+  for (const e of graph.edges) {
+    outs.set(e.src, [...(outs.get(e.src) ?? []), e])
+    ins.set(e.dst, [...(ins.get(e.dst) ?? []), e])
+  }
+  return { byId: indexNodes(graph), byKind, outs, ins }
+}
+
+/** Out-edges of `id`, optionally one relation only. */
+export const outOf = (x: VaultIndex, id: string, rel?: VaultRel): VaultEdge[] =>
+  (x.outs.get(id) ?? []).filter(e => rel === undefined || e.rel === rel)
+
+/** In-edges of `id`, optionally one relation only. */
+export const inTo = (x: VaultIndex, id: string, rel?: VaultRel): VaultEdge[] =>
+  (x.ins.get(id) ?? []).filter(e => rel === undefined || e.rel === rel)
+
+/** Whole-record evidence summed over embodiments (k successes of n trials). */
+export function evidenceSummary(n: LibrarySkillNode): { n: number; k: number } {
+  let tn = 0, tk = 0
+  for (const ev of Object.values(n.evidence ?? {})) { tn += ev.n ?? 0; tk += ev.k ?? 0 }
+  return { n: tn, k: tk }
+}
+
+/** The tree's filters: a benchmark id, an embodiment key, a search string (each blank = all). */
+export interface TreeFilters {
+  readonly benchmark: string
+  readonly embodiment: string
+  readonly search: string
+}
+
+/** One class row of the tree with its (filtered) member skills. */
+export interface ClassRow { readonly node: ClassNode; readonly skills: LibrarySkillNode[] }
+
+/** The left column: class rows (IN_CLASS members, filtered) plus the legacy
+ * nodes (packages, capabilities, sealed skills) under one trailing section. */
+export interface ClassTree { readonly classes: ClassRow[]; readonly legacy: VaultNode[] }
+
+/** Whether a library skill passes the benchmark / embodiment / search filters. */
+export function skillPasses(x: VaultIndex, n: LibrarySkillNode, f: TreeFilters): boolean {
+  if (f.benchmark !== '' && !outOf(x, n.id, 'EVIDENCED_ON').some(e => e.dst === f.benchmark)) return false
+  if (f.embodiment !== '' && !(f.embodiment in (n.bindings ?? {}))) return false
+  return matches(n, f.search)
+}
+
+/**
+ * Fold the index into the class tree. A class row survives only with at least
+ * one passing member; the legacy section is search-filtered only.
+ * @param x - the index.
+ * @param f - the tree filters.
+ * @returns the tree, in fold order.
+ */
+export function classTree(x: VaultIndex, f: TreeFilters): ClassTree {
+  const classes: ClassRow[] = []
+  for (const c of (x.byKind.get('class') ?? []) as ClassNode[]) {
+    const skills = inTo(x, c.id, 'IN_CLASS').map(e => x.byId.get(e.src))
+      .filter((n): n is LibrarySkillNode => isLibrary(n) && skillPasses(x, n, f))
+    if (skills.length > 0) classes.push({ node: c, skills })
+  }
+  const legacy = [...(x.byKind.get('skill') ?? []).filter(n => !isLibrary(n)),
+    ...(x.byKind.get('package') ?? []), ...(x.byKind.get('capability') ?? [])]
+    .filter(n => matches(n, f.search))
+  return { classes, legacy }
+}
+
+/** Every embodiment key any library skill binds, sorted. */
+export function embodiments(x: VaultIndex): string[] {
+  const keys = new Set<string>()
+  for (const n of x.byKind.get('skill') ?? []) if (isLibrary(n)) for (const k of Object.keys(n.bindings ?? {})) keys.add(k)
+  return [...keys].sort()
+}
+
+/**
+ * The subgraph the canvas draws for a selection: a class → itself, its skills,
+ * and their DEPENDS_ON / BOUND_TO / EVIDENCED_ON neighbors; a library skill →
+ * its direct neighbors (the derived DEPENDS_ON family is dense enough that
+ * depth 2 reaches most of the fold); any other node → its depth-2 neighborhood
+ * over every relation; no selection → the whole fold.
+ * Node and edge order follow the fold (deterministic layout input).
+ * @param graph - the folded vault graph.
+ * @param x - its index.
+ * @param selected - the selected node id, or null.
+ * @returns the neighborhood as a graph.
+ */
+export function neighborhood(graph: VaultGraph, x: VaultIndex, selected: string | null): VaultGraph {
+  const sel = selected === null ? undefined : x.byId.get(selected)
+  if (selected === null || sel === undefined) return graph
+  const keep = new Set<string>([selected])
+  if (sel.kind === 'class') {
+    for (const e of inTo(x, selected, 'IN_CLASS')) {
+      keep.add(e.src)
+      for (const out of outOf(x, e.src)) if (out.rel !== 'IN_CLASS') keep.add(out.dst)
+      for (const inn of inTo(x, e.src, 'DEPENDS_ON')) keep.add(inn.src)
+    }
+  } else {
+    let frontier = [selected]
+    const depths = isLibrary(sel) ? 1 : 2
+    for (let depth = 0; depth < depths; depth++) {
+      const next: string[] = []
+      for (const id of frontier) {
+        for (const e of outOf(x, id)) if (!keep.has(e.dst)) { keep.add(e.dst); next.push(e.dst) }
+        for (const e of inTo(x, id)) if (!keep.has(e.src)) { keep.add(e.src); next.push(e.src) }
+      }
+      frontier = next
+    }
+  }
+  return {
+    ...graph,
+    nodes: graph.nodes.filter(n => keep.has(n.id)),
+    edges: graph.edges.filter(e => keep.has(e.src) && keep.has(e.dst)),
+  }
 }

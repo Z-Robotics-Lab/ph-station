@@ -2,12 +2,15 @@
 
 [English](README.md) | 中文
 
-技能库（Skill Vault）—— physical-harness 控制台封存知识之上的可浏览 wiki。一个 `conversation.view` 标签页，渲染 board vault 折叠（`board/vault.py`）产出的确定性类型化关系图，外加每个节点一页 wiki：
+技能库（Skill Library）—— physical-harness 技能图谱的唯一浏览页，view id `vault`（EVOLUTION 组里 RSI 旁边仅有的标签页；原 `ui-ph-ops` 的技能表与 `ui-ph-panels` 的能力卡网格都并入这里）。它以三列渲染 board vault 折叠（`board/vault.py`）产出的确定性五 kind 图（skill / class / benchmark / package / capability；边 IN_CLASS、DEPENDS_ON、BOUND_TO、EVIDENCED_ON 加旧关系），三列共享一个选中：
 
-- **关系图** —— 一块 `@xyflow/react` 画布，经**一次全局 dagre 左→右布局**：技能谱系（DESCENDS_FROM）读作水平链，各 kind 依边方向落入左→右的层级——package 与 skill 供给 capability（REQUIRES: skill→capability，PROVIDES: package→capability），capability 因此无需容器就沉到右侧。每个 kind 是独立色相下的独立 SVG 轮廓，靠形状与颜色即可分辨而不只靠标签：skill = 带左侧强调条的蓝色圆角卡片，package = 折角（缺口）的绿色方盒，capability = 紫色体育场药丸；各自携带 kind 图标（灯泡 / 盒子 / 插头），skill 状态（promoted / candidate / retired）以次级 chip 附随。Handle 位于左（target）右（source）两侧，边水平进出；边按关系着色并绘制在节点之下。关系标签只在光标下或聚焦节点的边集里出现，从不作为静置的弧中文本。React Flow 内置的 `fitView`、`MiniMap`、`Controls` 一并可用。九种折叠关系中只有五种绘制——GOVERNS、BINDS、EVIDENCED_BY、MOUNTED_IN 指向任务/campaign/证据，它们不是节点 kind，因此从不渲染，也从图例与 chips 中省略。**单击聚焦一个节点**（高亮其关联边、显示其标签、压暗其余）；两个七边家族（REQUIRES、PROVIDES）默认折叠，操作员按 chip 逐个开启。节点位置由所有节点间边播种，与 chips 无关，因此开关某个家族只是画上或藏起边，绝不重排整张图。可折叠图例标注 kind 的形状/色相与已绘关系的 `rendered/total` 计数；按 kind / 状态 / 关系过滤的 chips 和一个对 id/task/label 的客户端子串搜索并列其旁。
-- **节点页** —— 双击节点进入其 wiki 页：skill 页**逐字**引用封存证据（held-out governed 与基线率、p 值、n、消融阶梯、dev 判定），展示其谱系（DESCENDS_FROM）、治理的任务节点（GOVERNS）、类型化反链（CLAIMS / EVIDENCED_BY / MOUNTED_IN），以及一个 REQUIRES capability chip——当它触及特权（仅仿真）读取时标红：「无法迁移到真实机器人」。package 与 capability 页渲染各自的贡献、claims、flags 与反链。
+- **类树**（左）—— 每个 class 节点一行（名称 · 技能数），展开为其 IN_CLASS 技能，每行带 kind 标记（segment ▶ / verify ✓ / decide ⑂ / perceive ◉ / plan ☰）与汇总 k/n 证据；其上是基准过滤（只留有 EVIDENCED_ON 边指向所选基准的技能）、具身过滤（`skill.bindings` 的键）和子串搜索。旧节点（封存技能、机箱、能力）放在末尾的「卡片与能力」一节，什么都不会消失。
+- **wiki 图谱**（中）—— `@xyflow/react` 画布（一次全局 dagre 左→右布局、按 kind 的轮廓与色相、边按关系着色、标签只在光标下或选中节点的边上出现），画选中项的邻域：class → 自身、其技能及它们的 DEPENDS_ON / BOUND_TO / EVIDENCED_ON 邻居；库技能 → 直接邻居（派生的 DEPENDS_ON 家族很稠密，深度 2 会覆盖大半张图）；其它节点 → 深度 2 邻域；未选中 → 整图（隐藏稠密的 REQUIRES / PROVIDES 家族）。单击即选中，树与详情跟随。
+- **wiki 详情**（右）—— 技能：class chip、kind、描述；契约（requires / ensures / clobbers chips）；参数 · 限制；绑定与执行器（具身 · 执行器 · 传输 · 引用 · sha8）；证据（按具身的 k/n 与 by_executor 行）；依赖（DEPENDS_ON 出边 = 依赖于，入边 = 被依赖，每条是带边 rule 的链接）；带 n/k 的基准链接；失败模式；所在卡片。class：技能列表带证据与覆盖的基准。基准：具身、任务、臂、所在卡片、覆盖的技能。机箱：卡片的 manifest 字段（提供能力、任务/campaign 绑定、覆盖层、actuation、needs_sim、第三方标记、声明）加类型化链接。旧的封存技能与能力保留逐字证据页。
 
-纯消费者：图、每个状态、每个数字都逐字来自 board vault Remote；折叠层（`src/client/graph.ts`）只做过滤与布局（对幸存节点做一次全局 dagre 左→右布局），不做任何计算（宪章：TS 只渲染）。自定义节点轮廓与图例在 `src/client/VaultGraphCanvas.tsx`。vault 很小（个位数 store、九张卡、九个 capability），因此整图一次拉取加慢速后台刷新，节点页从同一份载荷客户端派生。
+两侧列可各自收起，宽度低于约 880px 时三列纵向堆叠。
+
+纯消费者：图、每个状态、每个数字都逐字来自 board vault Remote；`src/client/graph.ts` 在客户端建索引（按 kind、按关系的邻接）、折叠类树与选中邻域并布局（一次全局 dagre 左→右布局）——不算任何统计量（宪章：TS 只渲染）。自定义节点轮廓与图例在 `src/client/VaultGraphCanvas.tsx`。vault 很小，因此整图一次拉取（`board.vault`）加慢速后台刷新，三列都从同一份载荷派生；不读额外的 face。
 
 图渲染采用 `@xyflow/react`（React Flow v12，MIT）加 `@dagrejs/dagre`（MIT），与 `ui-ph-livegraph` 相同的组件组合。React Flow 的结构样式表 vendor 在 `src/client/xyflow-base.css`（MIT），经 `?inline` 通道注入并伴随插件整个生命周期，因为客户端打包器的 CSS 管线是包内局部的。
 

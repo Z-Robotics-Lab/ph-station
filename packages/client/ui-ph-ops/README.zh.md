@@ -5,7 +5,7 @@
 physical-harness 指挥员侧栏 + 任务驾驶舱 + RSI 页。若干浏览器面，通过 board Remote 读取 harness 证据层并只做渲染：
 
 - **任务驾驶舱** —— 一个 `conversation.view` 标签页（任务图）。运行中任务的 graph-first 视图：目标 → 任务节点 → 阶段流水线，加上 capability 接线扇形，一张可交互的 React Flow DAG（平移/缩放、minimap、点击选中）。运行历史条在已封存的任务尝试之间切换；点击节点在图旁打开其证据（阶段、故障、provider `ref`）。状态色沿用既定三色（绿过 / 红败 / 中性待定），与战报/演进/账本读作同一套系统。
-- **技能页** —— 一个 `conversation.view` 标签页（技能）：一张表覆盖 board 的 `skills` 折叠（记录名、具身绑定、执行器键、证据计数、限制、失败模式）；点开一行看按执行器的证据。
+- **技能库** —— 在 `ui-ph-vault`（view id `vault`，技能库）：类 / 技能 / 基准 / 机箱的唯一入口；本包不再注册技能标签页。
 - **RSI 页** —— `conversation.view` 标签页 `rsi`（RSI）：把轻量 evolve 循环（看 → 试 → 同种子再跑 → 变好才发布）当作唯一的 RSI 主面，按循环的样子排版。头部：任务选择（自由文本，配上机箱能力卡 `task_bindings` 的原生 datalist）、只列进化态会话、开始/继续（`submitBrief` 投 `{"kind":"evolve","task"}`，其它字段全走 runtime 缺省；已知任务从 campaign.json 的 cursor 继续）、停止（对打开的 brief 调 `cancelBrief`），以及一行状态 `第 r 轮 · best k/n · 状态`。其下是会话的 campaign 列表（对运行时事件流里见过认领的每个任务调 `rsiRun`，加上本页启动过的；点击选中），再按循环顺序展示选中的 campaign：① 进度（`rsiSeries` 成功计数折线，内联 SVG），② 每一轮（每轮一张卡：看到了什么 = `per_seed` 表，试了什么 = `tried` 写成一句话如「drop-can1 换用 pi05 执行器」，结果 = 前 → 后（最佳），发布 = 是/否，还缺什么 = 没试到东西时的 `needs`），③ 关键片段（所示轮次的 `rsiFrames` 路径 + 它的 `media_dropped` 原因），④ 日志（`runtimeEvents` 里属于该 brief 的行）。底部折叠着旧的重链「严格评测（prereg / 盲双胞胎 / held-out）」——可选的规则型纪律，只对 `plugins/rsi` 的 rule 型 RSI 有意义——按视图 id 经 owner 的 `renderView` 渲染 ui-ph-panels 的 `rsi-strict` 启动器及其 迭代记录 / 战报 / 账本 子标签。
 - **指挥员侧栏** —— 一个 `sidebar.section` 占位：常驻的扫视卡片栈（任务小地图、进度、运行时体征、RSI ticker——最新 evolve campaign 的 `任务 · 第 r 轮 · best k/n · 状态`，仅当存在旧式 store 时下面再加一行旧的晋升计数），不用点击就回答「任务到哪了 / 有没有在推进 / 机器健康吗 / 有没有变好」。侧栏收成图标条时折叠为状态点。
 

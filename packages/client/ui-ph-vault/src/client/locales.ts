@@ -1,4 +1,4 @@
-/** `phvault` namespace dictionaries: the 技能库 (Skill Vault) wiki view copy. */
+/** `phvault` namespace dictionaries: the 技能库 (Skill Library) wiki view copy. */
 
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'phvault'
@@ -10,18 +10,52 @@ export type PhVaultKey =
   | 'unavailable'
   | 'empty'
   | 'search.placeholder'
-  | 'back'
-  | 'filter.kind'
-  | 'filter.status'
-  | 'filter.rel'
+  | 'pane.tree'
+  | 'pane.detail'
+  | 'pane.collapse'
+  | 'pane.expand'
+  | 'tree.legacy'
+  | 'filter.benchmark'
+  | 'filter.embodiment'
+  | 'filter.all'
+  | 'detail.none'
   | 'kind.skill'
+  | 'kind.class'
+  | 'kind.benchmark'
   | 'kind.package'
   | 'kind.capability'
   | 'status.promoted'
   | 'status.candidate'
   | 'status.retired'
+  | 'status.library'
   | 'privileged'
   | 'wontTransfer'
+  | 'lib.contract'
+  | 'lib.requires'
+  | 'lib.ensures'
+  | 'lib.clobbers'
+  | 'lib.args'
+  | 'lib.limits'
+  | 'lib.bindings'
+  | 'bind.embodiment'
+  | 'bind.executor'
+  | 'bind.transport'
+  | 'bind.ref'
+  | 'bind.sha'
+  | 'lib.evidence'
+  | 'lib.deps'
+  | 'dep.out'
+  | 'dep.in'
+  | 'lib.benchmarks'
+  | 'lib.failureModes'
+  | 'lib.cards'
+  | 'class.skills'
+  | 'class.benchmarks'
+  | 'bench.embodiment'
+  | 'bench.tasks'
+  | 'bench.arms'
+  | 'bench.card'
+  | 'bench.skills'
   | 'node.trigger'
   | 'node.recovery'
   | 'node.evidence'
@@ -59,7 +93,7 @@ export type PhVaultKey =
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    /** The 技能库 skill-vault wiki view copy. */
+    /** The 技能库 skill-library wiki view copy. */
     'phvault': PhVaultKey
   }
 }
@@ -69,20 +103,54 @@ export const zh: Record<PhVaultKey, string> = {
   'view.vault': '技能库',
   'loading': '加载中…',
   'unavailable': '数据面不可用（board bridge 未挂载）',
-  'empty': '技能库为空——尚无封存技能或机箱',
-  'search.placeholder': '搜索技能 / 任务 / 机箱…',
-  'back': '← 返回图谱',
-  'filter.kind': '类型',
-  'filter.status': '状态',
-  'filter.rel': '关系',
+  'empty': '技能库为空——尚无技能记录或机箱',
+  'search.placeholder': '搜索技能 / 类 / 机箱…',
+  'pane.tree': '分类',
+  'pane.detail': '详情',
+  'pane.collapse': '收起',
+  'pane.expand': '展开',
+  'tree.legacy': '卡片与能力',
+  'filter.benchmark': '基准',
+  'filter.embodiment': '具身',
+  'filter.all': '全部',
+  'detail.none': '在左侧或图谱中选一个节点',
   'kind.skill': '技能',
+  'kind.class': '类',
+  'kind.benchmark': '基准',
   'kind.package': '机箱',
   'kind.capability': '能力',
   'status.promoted': '已通过 (promoted)',
   'status.candidate': '候选',
   'status.retired': '已退役',
+  'status.library': '技能库',
   'privileged': '特权',
   'wontTransfer': '依赖仿真特权读数——无法迁移到真实机器人',
+  'lib.contract': '契约',
+  'lib.requires': '前置',
+  'lib.ensures': '保证',
+  'lib.clobbers': '破坏',
+  'lib.args': '参数',
+  'lib.limits': '限制',
+  'lib.bindings': '绑定与执行器',
+  'bind.embodiment': '具身',
+  'bind.executor': '执行器',
+  'bind.transport': '传输',
+  'bind.ref': '引用',
+  'bind.sha': 'sha',
+  'lib.evidence': '证据',
+  'lib.deps': '依赖',
+  'dep.out': '依赖于',
+  'dep.in': '被依赖',
+  'lib.benchmarks': '基准',
+  'lib.failureModes': '失败模式',
+  'lib.cards': '所在卡片',
+  'class.skills': '技能',
+  'class.benchmarks': '覆盖的基准',
+  'bench.embodiment': '具身',
+  'bench.tasks': '任务',
+  'bench.arms': '臂',
+  'bench.card': '所在卡片',
+  'bench.skills': '覆盖的技能',
   'node.trigger': '触发条件（affordance）',
   'node.recovery': '恢复策略',
   'node.evidence': '证据（逐字取自封存记录）',
@@ -114,30 +182,64 @@ export const zh: Record<PhVaultKey, string> = {
   'legend.node': '节点',
   'legend.title': '图例',
   'legend.relations': '关系',
-  'graph.hint': '单击节点聚焦其连边 · 双击打开词条页',
+  'graph.hint': '单击节点选中——树与详情同步',
   'minimapShow': '显示缩略图',
   'minimapHide': '隐藏缩略图',
 }
 
 /** English dictionary. */
 export const en: Record<PhVaultKey, string> = {
-  'view.vault': 'Skill Vault',
+  'view.vault': 'Skill Library',
   'loading': 'Loading…',
   'unavailable': 'Data plane unavailable (board bridge not mounted)',
-  'empty': 'Vault empty — no sealed skills or cards yet',
-  'search.placeholder': 'Search skills / tasks / cards…',
-  'back': '← Back to graph',
-  'filter.kind': 'Kind',
-  'filter.status': 'Status',
-  'filter.rel': 'Relation',
+  'empty': 'Library empty — no skill records or cards yet',
+  'search.placeholder': 'Search skills / classes / cards…',
+  'pane.tree': 'Classes',
+  'pane.detail': 'Detail',
+  'pane.collapse': 'Collapse',
+  'pane.expand': 'Expand',
+  'tree.legacy': 'Cards & capabilities',
+  'filter.benchmark': 'Benchmark',
+  'filter.embodiment': 'Embodiment',
+  'filter.all': 'all',
+  'detail.none': 'Pick a node in the tree or the graph',
   'kind.skill': 'skill',
+  'kind.class': 'class',
+  'kind.benchmark': 'benchmark',
   'kind.package': 'card',
   'kind.capability': 'capability',
   'status.promoted': 'promoted',
   'status.candidate': 'candidate',
   'status.retired': 'retired',
+  'status.library': 'library',
   'privileged': 'privileged',
   'wontTransfer': 'Leans on a simulator-only privileged read — will not transfer to a real robot',
+  'lib.contract': 'Contract',
+  'lib.requires': 'requires',
+  'lib.ensures': 'ensures',
+  'lib.clobbers': 'clobbers',
+  'lib.args': 'Args',
+  'lib.limits': 'Limits',
+  'lib.bindings': 'Bindings & executors',
+  'bind.embodiment': 'embodiment',
+  'bind.executor': 'executor',
+  'bind.transport': 'transport',
+  'bind.ref': 'ref',
+  'bind.sha': 'sha',
+  'lib.evidence': 'Evidence',
+  'lib.deps': 'Dependencies',
+  'dep.out': 'depends on',
+  'dep.in': 'depended on by',
+  'lib.benchmarks': 'Benchmarks',
+  'lib.failureModes': 'Failure modes',
+  'lib.cards': 'Cards',
+  'class.skills': 'Skills',
+  'class.benchmarks': 'Benchmarks covered',
+  'bench.embodiment': 'embodiment',
+  'bench.tasks': 'Tasks',
+  'bench.arms': 'Arms',
+  'bench.card': 'Card',
+  'bench.skills': 'Skills covered',
   'node.trigger': 'Trigger (affordance)',
   'node.recovery': 'Recovery',
   'node.evidence': 'Evidence (verbatim from the sealed record)',
@@ -169,7 +271,7 @@ export const en: Record<PhVaultKey, string> = {
   'legend.node': 'node',
   'legend.title': 'Legend',
   'legend.relations': 'Relations',
-  'graph.hint': 'Click a node to focus its edges · double-click for its wiki page',
+  'graph.hint': 'Click a node to select it — the tree and detail follow',
   'minimapShow': 'Show minimap',
   'minimapHide': 'Hide minimap',
 }

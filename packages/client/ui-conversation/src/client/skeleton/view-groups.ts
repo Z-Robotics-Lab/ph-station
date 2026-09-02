@@ -26,5 +26,4 @@ export const VIEW_GROUP: Readonly<Record<string, ViewGroup>> = {
   viewport: 'exec',
   rsi: 'evo',
   vault: 'evo',
-  cards: 'evo',
 }

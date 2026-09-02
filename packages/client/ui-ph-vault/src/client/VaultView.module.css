@@ -612,3 +612,240 @@
   font-variant-numeric: tabular-nums;
   opacity: 0.5;
 }
+
+/* --- three-column library page: tree · graph · detail ---------------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 0;
+  font-size: 0.85rem;
+  container-type: inline-size;
+}
+
+.center {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.sideRight {
+  border-right: none;
+  border-left: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.sideLeft:not(.sideClosed) { width: 17rem; }
+.sideRight:not(.sideClosed) { width: 24rem; }
+
+.sideHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.3rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.75;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.sideBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.5rem 0.6rem;
+}
+
+.chev {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+
+.select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  color: inherit;
+  font-size: 0.74rem;
+}
+
+.tree {
+  margin-top: 0.6rem;
+}
+
+.treeSect {
+  margin-bottom: 0.2rem;
+}
+
+.classRow {
+  display: flex;
+  align-items: center;
+}
+
+.rowBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: none;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: inherit;
+  padding: 0.18rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.rowBtn:hover { background: color-mix(in srgb, currentColor 6%, transparent); }
+.rowStatic { cursor: default; opacity: 0.8; }
+.rowStatic:hover { background: transparent; }
+
+.rowOn {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #2f6fed) 14%, transparent);
+  font-weight: 600;
+}
+
+.skillRow {
+  width: calc(100% - 1.4rem);
+  margin-left: 1.4rem;
+  font-size: 0.76rem;
+}
+
+.rowName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowEv {
+  font-family: ui-monospace, monospace;
+  font-size: 0.66rem;
+  opacity: 0.6;
+}
+
+.kmark {
+  width: 0.9rem;
+  text-align: center;
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.badgeLink {
+  cursor: pointer;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.contractRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.none { opacity: 0.5; font-size: 0.74rem; }
+
+.kvGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.1rem 0.8rem;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.74rem;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.18rem 0.4rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+  vertical-align: top;
+  word-break: break-all;
+}
+
+.table th {
+  font-weight: 600;
+  opacity: 0.65;
+}
+
+.evBlock { margin-bottom: 0.35rem; }
+.evSub { padding-left: 1rem; font-size: 0.74rem; opacity: 0.85; }
+
+.depRule {
+  font-size: 0.62rem;
+  opacity: 0.55;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.list .skillRow {
+  width: 100%;
+  margin-left: 0;
+}
+
+.ls_class {
+  border-radius: 0.2rem;
+  border-style: dashed;
+}
+
+.ls_benchmark {
+  border-radius: 0.1rem;
+  clip-path: polygon(15% 0, 85% 0, 100% 50%, 85% 100%, 15% 100%, 0 50%);
+}
+
+/* Narrow pane: stack the columns; each side pane becomes a short scrolling band. */
+@container (max-width: 880px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .side,
+  .sideLeft:not(.sideClosed),
+  .sideRight:not(.sideClosed) {
+    width: auto;
+    max-height: 34%;
+    border: none;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  }
+
+  .sideRight {
+    border-bottom: none;
+    border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  }
+}

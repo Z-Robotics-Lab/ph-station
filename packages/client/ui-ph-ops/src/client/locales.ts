@@ -115,16 +115,8 @@ export type PhOpsKey =
   | 'brain.phase.failed'
   | 'brain.phase.flagged'
   // skills + RSI pages
-  | 'view.skills'
   | 'view.rsi'
-  | 'skills.name'
-  | 'skills.embodiments'
-  | 'skills.executors'
-  | 'skills.evidence'
-  | 'skills.limits'
   | 'skills.failureModes'
-  | 'skills.byExecutor'
-  | 'skills.empty'
   | 'evolve.task'
   | 'evolve.taskHint'
   | 'evolve.start'
@@ -285,16 +277,8 @@ export const zh: Record<PhOpsKey, string> = {
   'brain.phase.done': '完成',
   'brain.phase.failed': '失败',
   'brain.phase.flagged': '需人工',
-  'view.skills': '技能',
-  'view.rsi': 'RSI',
-  'skills.name': '技能',
-  'skills.embodiments': '具身绑定',
-  'skills.executors': '执行器',
-  'skills.evidence': '证据',
-  'skills.limits': '限制',
   'skills.failureModes': '失败模式',
-  'skills.byExecutor': '按执行器的证据',
-  'skills.empty': '暂无技能记录',
+  'view.rsi': 'RSI',
   'evolve.task': '任务',
   'evolve.taskHint': '例如 kitchen_thaw',
   'evolve.start': '开始 / 继续',
@@ -449,16 +433,8 @@ export const en: Record<PhOpsKey, string> = {
   'brain.phase.done': 'done',
   'brain.phase.failed': 'failed',
   'brain.phase.flagged': 'needs operator',
-  'view.skills': 'Skills',
-  'view.rsi': 'RSI',
-  'skills.name': 'Skill',
-  'skills.embodiments': 'Embodiments',
-  'skills.executors': 'Executors',
-  'skills.evidence': 'Evidence',
-  'skills.limits': 'Limits',
   'skills.failureModes': 'Failure modes',
-  'skills.byExecutor': 'Evidence by executor',
-  'skills.empty': 'No skill records',
+  'view.rsi': 'RSI',
   'evolve.task': 'Task',
   'evolve.taskHint': 'e.g. kitchen_thaw',
   'evolve.start': 'Start / resume',
