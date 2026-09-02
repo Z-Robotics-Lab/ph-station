@@ -69,6 +69,17 @@ export function SeriesChart({ series }: { series: SeriesPoint[] }) {
   )
 }
 
+/** Evolve briefs are accepted only by evolution-mode runtimes: offer those (a live one
+ * first); fall back to every session only when no row carries a mode at all. */
+export function evolveSessions(list: SessionSummary[]): SessionSummary[] {
+  const evo = list.filter(s => s.mode === 'evolution')
+  return evo.length > 0 ? evo : list
+}
+export function pickEvolveDefault(list: SessionSummary[]): string | null {
+  const pool = evolveSessions(list)
+  return (pool.find(s => s.runtime_alive === true) ?? pool[0])?.name ?? pickDefault(pool)
+}
+
 export function EvolveView({
   fetchSessions, fetchRuntimeEvents, fetchRsiRun, fetchRsiSeries, fetchRsiFrames, submitBrief, cancelBrief, t,
 }: ConvViewProps & InjectFace<EvolveInjected> & PropsLocale<'phops'>) {
@@ -93,7 +104,7 @@ export function EvolveView({
       setOnline(true)
       const list = s.value as SessionSummary[]
       setSessions(list)
-      const name = session ?? pickDefault(list)
+      const name = session ?? pickEvolveDefault(list)
       if (name === null) { setCampaigns([]); return }
       const ev = await fetchRuntimeEvents(name)
       const rows = ev.ok ? ((ev.value as RuntimeEventsPayload | null)?.events ?? []) : []
@@ -115,7 +126,7 @@ export function EvolveView({
   }, [fetchSessions, fetchRuntimeEvents, fetchRsiRun, fetchRsiSeries, session, known, task])
   usePolledLoad(load)
 
-  const sessionName = session ?? pickDefault(sessions)
+  const sessionName = session ?? pickEvolveDefault(sessions)
   const current = campaigns?.find(c => c.task === task) ?? null
   const shownRound = round ?? current?.latest?.round ?? null
   useEffect(() => {
@@ -168,7 +179,7 @@ export function EvolveView({
     <div className={css.page}>
       <div className={css.pageHead}>
         <label>{t('brain.session')} <select value={sessionName ?? ''} onChange={(e) => { setSession(e.target.value); setTask(null) }}>
-          {sessions.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+          {evolveSessions(sessions).map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
         </select></label>
         <label>{t('evolve.task')} <input value={draft} placeholder={t('evolve.taskHint')}
           onChange={(e) => { setDraft(e.target.value) }} /></label>

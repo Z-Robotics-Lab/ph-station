@@ -68,6 +68,9 @@ export interface SessionSummary {
   mtime?: number | null
   chain_ok?: boolean
   kinds?: Record<string, number>
+  /** runtime mode from runtime_status.json: 'execution' | 'evolution' | null before the first boot */
+  mode?: string | null
+  runtime_alive?: boolean
 }
 
 /** `sessionProgress({name})`: the Python-side mission-progress fold. */

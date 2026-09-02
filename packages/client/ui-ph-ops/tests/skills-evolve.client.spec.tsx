@@ -134,3 +134,17 @@ describe('EvolveView', () => {
     expect(p.cancelBrief).not.toHaveBeenCalled()
   })
 })
+
+describe('evolveSessions', () => {
+  it('offers only evolution-mode runtimes, a live one first, when modes are known', async () => {
+    const { evolveSessions, pickEvolveDefault } = await import('../src/client/EvolveView.tsx')
+    const list = [
+      { name: 'session-robocasa', mode: 'execution', runtime_alive: true },
+      { name: 'session-robocasa-evolution', mode: 'evolution', runtime_alive: false },
+      { name: 'session-robocasa-rsi', mode: 'evolution', runtime_alive: true },
+    ]
+    expect(evolveSessions(list).map(s => s.name)).toEqual(['session-robocasa-evolution', 'session-robocasa-rsi'])
+    expect(pickEvolveDefault(list)).toBe('session-robocasa-rsi')
+    expect(pickEvolveDefault([{ name: 'session-main', kinds: { 'runtime.boot': 1 } }])).toBe('session-main')
+  })
+})
