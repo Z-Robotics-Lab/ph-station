@@ -242,6 +242,16 @@ describe('the shipped Web composition', () => {
       }
       // Unlike `minimal`, the operator preset keeps context compaction.
       expect(ctx.agentPresets.serviceFor(handle.agent, 'compaction')).toBeDefined()
+      // The persona must state the real tool contract: run_task returns a
+      // handle at once, brief_status(wait_ms) is the one poll — not the old
+      // "blocks until sealed, cite chain_seq, never poll" story.
+      const persona = (await ctx.systemPrompt.assemble({ scope: handle.agent })).sections
+        .map(section => section.text).join('\n')
+      expect(persona).toContain('brief_status')
+      expect(persona).toContain('wait_ms')
+      expect(persona).toContain('stalled')
+      expect(persona).not.toContain('chain_seq')
+      expect(persona).not.toContain('不要手动轮询')
     } finally {
       await handle.dispose()
     }
