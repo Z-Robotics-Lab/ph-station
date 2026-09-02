@@ -253,6 +253,25 @@ export interface Campaign {
   status?: string
   latest?: CampaignRound | null
   live?: LiveState | null
+  /** The intake filename of the evolve brief still driving this task, or null. */
+  open_brief?: string | null
+}
+
+/** One `rsiCampaigns({name})` row: a campaign's headline off its campaign.json
+ * (so the list survives a restart), running first then newest `updated` first. */
+export interface CampaignSummary {
+  task?: string
+  status?: string
+  cursor?: number
+  /** Finished-round count. */
+  rounds?: number
+  best?: number
+  seeds?: [number, number]
+  arm?: string
+  /** campaign.json mtime, epoch seconds. */
+  updated?: number
+  live?: { phase?: string | null; message?: string | null } | null
+  open_brief?: string | null
 }
 
 /** `rsiSeries({name, task})`: one point per round, the line-chart feed. */

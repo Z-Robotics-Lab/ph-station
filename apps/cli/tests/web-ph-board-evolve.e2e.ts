@@ -175,6 +175,13 @@ describe.skipIf(!runnable)('board bridge over a real web boot', () => {
     expect(await board(base, 'rsiRun', { request: { session: 'session-main', task: 'nope' } })).toBeNull()
   })
 
+  it('lists the fixture campaign through rsiCampaigns, off disk', async () => {
+    expect(await board(base, 'rsiCampaigns', { request: { name: 'session-main' } })).toEqual([{
+      task: 'kitchen_thaw', status: 'running', cursor: 2, rounds: 2, best: 1, seeds: [1, 2], arm: 'auto',
+      updated: expect.any(Number), live: null, open_brief: null,
+    }])
+  })
+
   it('streams a kept clip through GET /api/board/media and refuses traversal', async () => {
     const hit = await fetch(`${base}/api/board/media/session-main/media/kitchen_thaw/1/grasp.gif`)
     expect(hit.status).toBe(200)

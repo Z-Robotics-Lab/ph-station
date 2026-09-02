@@ -33,7 +33,7 @@ function renderRail(wide: boolean, result: RemoteResult<unknown>, over: object =
     fetchRuntimeStatus: vi.fn(() => Promise.resolve(result)),
     fetchRuntimeEvents: vi.fn(() => Promise.resolve(result)),
     fetchStores: vi.fn(() => Promise.resolve(result)),
-    fetchRsiRun: vi.fn(() => Promise.resolve(result)),
+    fetchRsiCampaigns: vi.fn(() => Promise.resolve(result)),
     fetchHostVitals: vi.fn(() => Promise.resolve(result)),
     modelServer: vi.fn(() => Promise.resolve(result)),
     policyServer: vi.fn(() => Promise.resolve(result)),
@@ -61,31 +61,26 @@ describe('OperatorRail smoke', () => {
     expect(screen.getByText(en.noCampaign)).toBeTruthy()
   })
 
-  it('headlines the newest evolve campaign of the evolution session, legacy tally beneath', async () => {
+  it('headlines the evolution session\'s first rsiCampaigns row (running first, off disk), legacy tally beneath', async () => {
     const list = [
       { name: 'session-exec', mode: 'execution', runtime_alive: true, kinds: { 'runtime.boot': 1 } },
       { name: 'session-evo', mode: 'evolution', runtime_alive: true, kinds: { 'runtime.boot': 1 } },
     ]
-    const feeds: Record<string, unknown[]> = {
-      'session-exec': [],
-      'session-evo': [
-        { seq: 1, kind: 'task_claimed', brief: 'a', task: 'pack_lunch' },
-        { seq: 2, kind: 'task_claimed', brief: 'b', task: 'kitchen_thaw' },
-      ],
-    }
     const { props } = renderRail(true, ok(null), {
       fetchSessions: vi.fn(() => Promise.resolve(ok(list))),
-      fetchRuntimeEvents: vi.fn((name: string) => Promise.resolve(ok({ events: feeds[name], last_seq: 2 }))),
-      fetchRsiRun: vi.fn((_s: string, task: string) => Promise.resolve(ok(task === 'kitchen_thaw'
-        ? { task, seeds: [1, 4], best: 3, status: 'running', latest: { round: 5 } }
-        : null))),
+      // An empty per-boot feed (just restarted): the card still shows the campaign.
+      fetchRuntimeEvents: vi.fn(() => Promise.resolve(ok({ events: [], last_seq: 0 }))),
+      fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok([
+        { task: 'kitchen_thaw', seeds: [1, 4], best: 3, status: 'running', cursor: 5, rounds: 5, updated: 20, live: null, open_brief: 'b' },
+        { task: 'pack_lunch', seeds: [1, 2], best: 1, status: 'done', cursor: 1, rounds: 1, updated: 30, live: null, open_brief: null },
+      ]))),
       fetchStores: vi.fn(() => Promise.resolve(ok([{ name: 'rsi-kitchen', generations: 4, promoted: 1 }]))),
     })
     await waitFor(() => { expect(screen.getByText('Round 5 · best 3/4 · running')).toBeTruthy() })
     expect(screen.getByText('kitchen_thaw')).toBeTruthy()
-    // Newest claimed task first: one rsiRun hit ends the walk.
-    expect(props.fetchRsiRun).toHaveBeenCalledTimes(1)
-    expect(props.fetchRsiRun).toHaveBeenCalledWith('session-evo', 'kitchen_thaw')
+    expect(screen.queryByText('pack_lunch')).toBeNull()
+    expect(props.fetchRsiCampaigns).toHaveBeenCalledTimes(1)
+    expect(props.fetchRsiCampaigns).toHaveBeenCalledWith('session-evo')
     expect(screen.getByText('rsi-kitchen')).toBeTruthy()
     expect(screen.getByText(/1\/4/)).toBeTruthy()
   })

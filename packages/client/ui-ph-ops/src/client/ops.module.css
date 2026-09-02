@@ -509,7 +509,11 @@
 .rowBtn:hover { background: color-mix(in srgb, currentColor 5%, transparent); }
 .rowSelected { background: color-mix(in srgb, currentColor 9%, transparent); }
 .evidence { padding: 4px 8px 8px 24px; }
-.chart { width: 100%; max-width: 420px; height: auto; display: block; }
+.chart { width: 100%; height: auto; display: block; }
+/* 轮次 strip: the round chips and the chart share one width. */
+.roundStrip { max-width: 560px; display: flex; flex-direction: column; gap: 6px; }
+.headRight { margin-left: auto; font-size: 11px; color: var(--ph-dim); }
+.logBlock > summary { cursor: pointer; font-size: 12px; font-weight: 700; }
 .chartBefore { fill: none; stroke: color-mix(in srgb, currentColor 40%, transparent); stroke-width: 1.5; }
 .chartAfter { fill: none; stroke: #d97706; stroke-width: 1.5; }
 .chartBest { fill: none; stroke: #16a34a; stroke-width: 2; }

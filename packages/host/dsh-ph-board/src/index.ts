@@ -536,6 +536,20 @@ export class BoardBridge extends TypertRemoteService {
   }
 
   /**
+   * Every evolve campaign one session holds on disk (`storecli rsi_campaigns`,
+   * read off `campaigns/evolve-*\/campaign.json`, so it survives a restart the
+   * per-boot feed does not): `[{task, status, cursor, rounds, best, seeds, arm,
+   * updated, live: {phase, message} | null, open_brief}]`, running first then
+   * newest first.
+   * @param request - the session name (guarded by storecli's safe_child).
+   * @returns board.store.rsi_campaigns(...) verbatim ([] when none), or an {error} dict.
+   */
+  @Remote('rsiCampaigns')
+  rsiCampaigns(request: BoardSessionRequest): Promise<JsonValue> {
+    return this.run('rsi_campaigns', request.name)
+  }
+
+  /**
    * One evolve campaign's per-round {round, before, after, best} series (the line chart feed).
    * @param request - the session and the evolve task.
    * @returns board.store.rsi_series(...) verbatim ([] when no campaign exists), or an {error} dict.

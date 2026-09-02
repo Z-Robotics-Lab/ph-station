@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 /**
- * RSI page: it lists campaigns found through rsiRun,
- * draws the rsiSeries chart as inline SVG, tells one round in its four beats
- * (看到了什么 / 试了什么 / 结果 / 发布), filters the runtime feed to this brief's
- * lines, starts a campaign with a task-only brief, stops the open brief through
- * cancelBrief, and keeps the strict-evaluation block collapsed until asked.
+ * RSI page: it lists campaigns off rsiCampaigns (so the list survives a
+ * restart's empty feed), draws the rsiSeries chart as inline SVG, tells one
+ * round in its four beats (看到了什么 / 试了什么 / 结果 / 发布), filters the
+ * runtime feed to this brief's lines into a log folded unless the campaign
+ * failed, starts a campaign with a task-only brief, stops the campaign's
+ * open_brief through cancelBrief, and renders the strict-evaluation block only
+ * when legacy stores exist.
  * Board faces are mocked at the injected face.
  */
 
@@ -24,7 +26,7 @@ const sessions = ok([{ name: 'session-main', kinds: { 'runtime.boot': 1 } }])
 describe('RsiView', () => {
   const campaign = {
     task: 'kitchen_thaw', session: 'session-main', seeds: [1, 3], arm: 'auto', status: 'running',
-    best: 2, cursor: 2,
+    best: 2, cursor: 2, open_brief: 'b-evolve',
     rounds: [
       { round: 1, tried: { kind: 'executor', node: 'grasp-0', detail: { skill: 'grasp', from: 'scripted', to: 'pi05' } },
         before: 1, after: 2, best: 2, published: true, media: ['media/kitchen_thaw/1/grasp-0.mp4'],
@@ -35,6 +37,11 @@ describe('RsiView', () => {
     ],
     latest: { round: 2, tried: { kind: 'none', node: 'grasp-0', detail: { reason: 'no untried executor' } }, before: 2, after: 2, best: 2, media: [] },
   }
+  /** The `rsiCampaigns` rows: the running one first, a settled one after. */
+  const campaigns = [
+    { task: 'kitchen_thaw', status: 'running', cursor: 2, rounds: 2, best: 2, seeds: [1, 3], arm: 'auto', updated: 20, live: null, open_brief: 'b-evolve' },
+    { task: 'pack_lunch', status: 'done', cursor: 1, rounds: 1, best: 1, seeds: [1, 2], arm: 'auto', updated: 10, live: null, open_brief: null },
+  ]
   const events = [
     { seq: 1, kind: 'boot' },
     { seq: 2, kind: 'task_claimed', brief: 'b-evolve', task: 'kitchen_thaw' },
@@ -47,6 +54,8 @@ describe('RsiView', () => {
       fetchCards: vi.fn(() => Promise.resolve(ok([{ contributes: { task_bindings: ['kitchen_thaw', 'pack_lunch'] } }]))),
       fetchSessions: vi.fn(() => Promise.resolve(sessions)),
       fetchRuntimeEvents: vi.fn(() => Promise.resolve(ok({ events, last_seq: 5 }))),
+      fetchStores: vi.fn(() => Promise.resolve(ok([]))),
+      fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok(campaigns))),
       fetchRsiRun: vi.fn((_s: string, task: string) => Promise.resolve(ok(task === 'kitchen_thaw' ? campaign : null))),
       fetchRsiSeries: vi.fn(() => Promise.resolve(ok(
         campaign.rounds.map(({ round, before, after, best }) => ({ round, before, after, best })),
@@ -62,43 +71,41 @@ describe('RsiView', () => {
   }
   const mount = (p: ReturnType<typeof props>) =>
     render(<RsiView {...(p as unknown as Parameters<typeof RsiView>[0])} />)
-  /** The campaign row's task cell: the first table on the page is the campaign
-   * list, and the task name also shows in the status card once one is picked. */
-  const row = (container: HTMLElement, task: string) =>
-    within(container.querySelector('table') as HTMLElement).getByRole('cell', { name: task })
+  /** One campaign chip by task name. */
+  const chip = (task: string) => within(screen.getByTestId('rsi-campaigns')).getByRole('button', { name: new RegExp(`^${task} ·`) })
+  const roundChips = () => within(screen.getByTestId('rsi-rounds')).queryAllByRole('button')
+  const log = () => screen.getByTestId('rsi-log') as HTMLDetailsElement
 
-  it('lists campaigns, then tells the picked one in loop order: chart, round beats, clips, log', async () => {
+  it('lists campaigns off rsiCampaigns, then tells the picked one: strip, round beats, clips, folded log', async () => {
     const p = props()
     const { container } = mount(p)
-    await waitFor(() => { expect(row(container, 'kitchen_thaw')).toBeTruthy() })
-    expect(p.fetchRsiRun).toHaveBeenCalledWith('session-main', 'pack_lunch')
-    expect(screen.queryByText('pack_lunch')).toBeNull()
+    await waitFor(() => { expect(chip('kitchen_thaw')).toBeTruthy() })
+    expect(p.fetchRsiCampaigns).toHaveBeenCalledWith('session-main')
+    // Chips carry the headline; the settled campaign is listed too, unselected.
+    expect(chip('kitchen_thaw').textContent).toBe('kitchen_thaw · Round 2 · best 2/3 · running')
+    expect(chip('pack_lunch').getAttribute('aria-pressed')).toBe('false')
     // The task picker offers the cards' task_bindings as a native datalist.
     expect(container.querySelectorAll('datalist option')).toHaveLength(2)
-    // The running campaign auto-selects: its status card and an enabled Stop are
-    // up before any click, and its task is already in the input.
-    await waitFor(() => { expect(screen.getByTestId('rsi-status')).toBeTruthy() })
-    expect(screen.getByTestId('rsi-status').textContent).toContain('kitchen_thaw')
+    // The first row (running) auto-selects: its task is in the input, Stop is
+    // enabled off open_brief, and rsiRun is read for it alone.
+    await waitFor(() => { expect(chip('kitchen_thaw').getAttribute('aria-pressed')).toBe('true') })
     expect((screen.getByPlaceholderText(en['evolve.taskHint']) as HTMLInputElement).value).toBe('kitchen_thaw')
     expect((screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement).disabled).toBe(false)
-    fireEvent.click(row(container, 'kitchen_thaw'))
     await waitFor(() => { expect(container.querySelectorAll('polyline')).toHaveLength(3) })
+    expect(p.fetchRsiRun).toHaveBeenCalledWith('session-main', 'kitchen_thaw')
+    expect(p.fetchRsiRun).not.toHaveBeenCalledWith('session-main', 'pack_lunch')
     expect(p.fetchRsiSeries).toHaveBeenCalledWith('session-main', 'kitchen_thaw')
     // Chart: y ticks 0..3 (seed count), one x label per round, a three-entry legend.
     expect([...container.querySelectorAll('text[data-axis="y"]')].map(e => e.textContent)).toEqual(['0', '1', '2', '3'])
     expect([...container.querySelectorAll('text[data-axis="x"]')].map(e => e.textContent)).toEqual(['Round 1', 'Round 2'])
     expect(container.querySelectorAll('[data-legend]')).toHaveLength(3)
     expect(container.querySelector('polyline[data-series="best"]')?.getAttribute('points')).toMatch(/^26,[\d.]+ 312,[\d.]+$/)
-    // Status card: task, status chip, best; this campaign predates live progress.
+    // Status card: this running campaign predates live progress — it says so and nothing more (the chip has the rest).
     const status = screen.getByTestId('rsi-status')
-    expect(status.textContent).toContain('best 2/3')
-    expect(status.querySelector('[data-status="running"]')?.textContent).toBe(en['rsi.status.running'])
-    expect(screen.getByText(en['rsi.noLive'])).toBeTruthy()
+    expect(status.textContent).toBe(en['rsi.noLive'])
     expect(container.querySelector('[aria-current="step"]')).toBeNull()
-    // The selected campaign's task is prefilled for 继续.
-    expect((screen.getByPlaceholderText(en['evolve.taskHint']) as HTMLInputElement).value).toBe('kitchen_thaw')
-    // Timeline: one chip per finished round, none dashed; the latest is selected.
-    const chips = container.querySelectorAll('button[aria-pressed]')
+    // Round strip: one chip per finished round, none dashed; the latest is selected.
+    const chips = roundChips()
     expect(chips).toHaveLength(2)
     expect(container.querySelector('button[data-running="true"]')).toBeNull()
     expect(chips[1]?.getAttribute('aria-pressed')).toBe('true')
@@ -106,16 +113,19 @@ describe('RsiView', () => {
     expect(screen.getAllByText(en['rsi.saw'])).toHaveLength(1)
     expect(screen.getByText('tunables on grasp · proposal')).toBeTruthy()
     expect(screen.getByText('2 → 2 (best 2)')).toBeTruthy()
-    // Log: humanized lines filtered to the evolve brief; raw JSON behind the toggle.
+    // Log: folded (the campaign runs fine), humanized lines filtered to the evolve brief; raw JSON behind the toggle.
+    expect(log().open).toBe(false)
     expect(screen.getByText('claimed the evolve of kitchen_thaw b-evolve')).toBeTruthy()
     expect(screen.getByText('Round 1 · rsi_round')).toBeTruthy()
     expect(container.querySelector('time')?.textContent).toMatch(/^(\d\d:\d\d:\d\d|--:--:--)$/)
     expect(container.querySelector('pre')).toBeNull()
     fireEvent.click(screen.getByLabelText(en['rsi.log.raw']))
-    const log = container.querySelector('pre')?.textContent ?? ''
-    expect(log).toContain('"brief":"b-evolve"')
-    expect(log).not.toContain('b-other')
-    // Round 2 has no media; picking round 1 on the timeline shows its four beats, frames and dropped reasons.
+    const raw = container.querySelector('pre')?.textContent ?? ''
+    expect(raw).toContain('"brief":"b-evolve"')
+    expect(raw).not.toContain('b-other')
+    // No legacy stores: the strict block is not rendered at all.
+    expect(screen.queryByText(en['rsi.strict'])).toBeNull()
+    // Round 2 has no media; picking round 1 on the strip shows its four beats, frames and dropped reasons.
     expect(screen.getByText(en['evolve.noMedia'])).toBeTruthy()
     fireEvent.click(chips[0] as Element)
     expect(screen.getByText('reach_stall')).toBeTruthy()
@@ -132,9 +142,33 @@ describe('RsiView', () => {
     expect(container.querySelector('figcaption')?.textContent).toBe('grasp-0')
     expect(p.fetchRsiFrames).toHaveBeenCalledWith('session-main', 'kitchen_thaw', 1)
     expect(screen.getByText(/verify_failed/)).toBeTruthy()
-    // The brief is open (claimed, no terminal marker): Stop cancels it.
+    // Stop cancels the campaign's open_brief.
     fireEvent.click(screen.getByRole('button', { name: en['evolve.stop'] }))
     await waitFor(() => { expect(p.cancelBrief).toHaveBeenCalledWith('b-evolve', 'session-main') })
+  })
+
+  it('keeps the list (and Stop) after a restart emptied the runtime feed', async () => {
+    const p = props({ fetchRuntimeEvents: vi.fn(() => Promise.resolve(ok({ events: [], last_seq: 0 }))) })
+    mount(p)
+    await waitFor(() => { expect(chip('kitchen_thaw').getAttribute('aria-pressed')).toBe('true') })
+    expect(chip('pack_lunch')).toBeTruthy()
+    expect((screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.getByText(en['evolve.noLog'])).toBeTruthy()
+    expect(log().open).toBe(false)
+  })
+
+  it('opens the log on its own when the campaign failed or was cancelled; no status card once settled', async () => {
+    const p = props({
+      fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok([{ ...campaigns[0], status: 'cancelled', open_brief: null }]))),
+      fetchRsiRun: vi.fn(() => Promise.resolve(ok({ ...campaign, status: 'cancelled', open_brief: null }))),
+      fetchRuntimeEvents: vi.fn(() => Promise.resolve(ok({ events: [...events, { seq: 6, kind: 'task_failed', brief: 'b-evolve', error: 'boom' }], last_seq: 6 }))),
+    })
+    mount(p)
+    await waitFor(() => { expect(chip('kitchen_thaw').textContent).toContain('cancelled') })
+    await waitFor(() => { expect(log().open).toBe(true) })
+    expect(screen.getByText('failed: boom')).toBeTruthy()
+    expect(screen.queryByTestId('rsi-status')).toBeNull()
+    expect((screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('shows the live round: stepper phase, seed board, elapsed, the dashed running chip, the frame', async () => {
@@ -146,8 +180,6 @@ describe('RsiView', () => {
     }
     const p = props({ fetchRsiRun: vi.fn((_s: string, task: string) => Promise.resolve(ok(task === 'kitchen_thaw' ? { ...campaign, live } : null))) })
     const { container } = mount(p)
-    await waitFor(() => { expect(row(container, 'kitchen_thaw')).toBeTruthy() })
-    fireEvent.click(row(container, 'kitchen_thaw'))
     await waitFor(() => { expect(container.querySelector('[aria-current="step"]')).toBeTruthy() })
     expect(container.querySelector('[aria-current="step"]')?.getAttribute('data-phase')).toBe('retest')
     expect(screen.getByTestId('rsi-status').textContent).toContain('Round 3')
@@ -157,8 +189,8 @@ describe('RsiView', () => {
     // Seed board: seeds 1..3 → ✓ / running / queued.
     const states = [...container.querySelectorAll('[data-state]')].map(e => e.getAttribute('data-state'))
     expect(states).toEqual(['pass', 'running', 'queued'])
-    // Timeline: two finished rounds plus the dashed running one.
-    expect(container.querySelectorAll('button[aria-pressed]')).toHaveLength(3)
+    // Round strip: two finished rounds plus the dashed running one.
+    expect(roundChips()).toHaveLength(3)
     expect(container.querySelector('button[data-running="true"]')?.textContent).toContain('Round 3')
     // The live frame polls runtimeFrame and lands in the <img>.
     await waitFor(() => { expect(p.fetchRuntimeFrame).toHaveBeenCalledWith('session-main', 0) })
@@ -172,26 +204,24 @@ describe('RsiView', () => {
     }
     const p = props({ fetchRsiRun: vi.fn((_s: string, task: string) => Promise.resolve(ok(task === 'kitchen_thaw' ? { ...campaign, live } : null))) })
     const { container } = mount(p)
-    await waitFor(() => { expect(row(container, 'kitchen_thaw')).toBeTruthy() })
-    fireEvent.click(row(container, 'kitchen_thaw'))
     await waitFor(() => { expect(container.querySelector('[data-state="fail"]')).toBeTruthy() })
     expect(container.querySelector('[data-state="fail"]')?.textContent).toBe('1 ✗ died at grasp-0 (reach_stall)')
     expect(screen.getByTestId('rsi-elapsed').textContent).toContain(en['rsi.etaNone'])
   })
 
-  it('tells the operator how to begin when no campaign is picked', async () => {
-    mount(props({ fetchRuntimeEvents: vi.fn(() => Promise.resolve(ok({ events: [], last_seq: 0 }))) }))
+  it('tells the operator how to begin when the session holds no campaign', async () => {
+    mount(props({ fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok([]))) }))
     await waitFor(() => { expect(screen.getByText(en['rsi.guide'])).toBeTruthy() })
+    expect(screen.queryByTestId('rsi-campaigns')).toBeNull()
   })
 
-  it('keeps the strict-evaluation block collapsed, then renders the legacy views by id', async () => {
-    const p = props()
-    const { container } = mount(p)
-    await waitFor(() => { expect(row(container, 'kitchen_thaw')).toBeTruthy() })
-    const details = container.querySelector('details') as HTMLDetailsElement
+  it('renders the strict-evaluation block only when legacy stores exist, collapsed, then the legacy views by id', async () => {
+    const p = props({ fetchStores: vi.fn(() => Promise.resolve(ok([{ name: 'rsi-kitchen', generations: 4, promoted: 1 }]))) })
+    mount(p)
+    await waitFor(() => { expect(screen.getByText(en['rsi.strictNote'])).toBeTruthy() })
+    const details = screen.getByText(en['rsi.strictNote']).closest('details') as HTMLDetailsElement
     expect(details.open).toBe(false)
-    expect(screen.getByText(en['rsi.strictNote'])).toBeTruthy()
-    fireEvent.click(container.querySelector('summary') as HTMLElement)
+    fireEvent.click(details.querySelector('summary') as HTMLElement)
     expect(details.open).toBe(true)
     expect(screen.getByText('view:rsi-strict')).toBeTruthy()
     expect(screen.getByText('view:evolution')).toBeTruthy()
@@ -201,29 +231,28 @@ describe('RsiView', () => {
 
   it('needs a task to start, then submits the task-only evolve brief; stop is disabled with no open brief', async () => {
     const p = props({
-      fetchRuntimeEvents: vi.fn(() => Promise.resolve(ok({
-        events: [...events, { seq: 6, kind: 'task_cancelled', brief: 'b-evolve', task: 'kitchen_thaw' }], last_seq: 6,
-      }))),
+      fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok(campaigns.map(c => ({ ...c, open_brief: null }))))),
     })
-    const { container } = mount(p)
-    await waitFor(() => { expect(row(container, 'kitchen_thaw')).toBeTruthy() })
-    // The campaign auto-selected, but its brief was cancelled: nothing to stop.
+    mount(p)
+    await waitFor(() => { expect(chip('kitchen_thaw').getAttribute('aria-pressed')).toBe('true') })
+    // The campaign auto-selected, but no brief drives it: nothing to stop.
     expect((screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement).disabled).toBe(true)
     const input = screen.getByPlaceholderText(en['evolve.taskHint']) as HTMLInputElement
     expect(input.value).toBe('kitchen_thaw')
     const start = screen.getByRole('button', { name: en['evolve.start'] }) as HTMLButtonElement
-    // Clear it: Start needs a task name, whatever the table shows.
+    // Clear it: Start needs a task name, whatever the chips show.
     fireEvent.change(input, { target: { value: '' } })
     expect(start.disabled).toBe(true)
-    fireEvent.change(input, { target: { value: 'pack_lunch' } })
+    fireEvent.change(input, { target: { value: 'new_task' } })
     expect(start.disabled).toBe(false)
     fireEvent.click(start)
-    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"pack_lunch"}', 'session-main') })
-    // Resume = pick the campaign (prefills its task) and press the same button.
-    fireEvent.click(row(container, 'kitchen_thaw'))
+    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"new_task"}', 'session-main') })
+    // Resume = pick the campaign chip (prefills its task) and press the same button.
+    fireEvent.click(chip('pack_lunch'))
+    expect(input.value).toBe('pack_lunch')
     expect((screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: en['evolve.start'] }))
-    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"kitchen_thaw"}', 'session-main') })
+    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"pack_lunch"}', 'session-main') })
     expect(p.cancelBrief).not.toHaveBeenCalled()
   })
 })

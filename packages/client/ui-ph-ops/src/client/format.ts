@@ -3,7 +3,7 @@
  * it for display. */
 
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import type { Campaign } from './types.ts'
+import type { CampaignSummary } from './types.ts'
 
 /* jscpd:ignore-start */
 /**
@@ -51,9 +51,13 @@ export function formatAgo(secs: number): string {
 /* jscpd:ignore-end */
 
 /** Seed count of an evolve campaign: `seeds` is the inclusive [lo, hi] pair. */
-export const seedCount = (c: Campaign): number =>
+export const seedCount = (c: Pick<CampaignSummary, 'seeds'>): number =>
   (c.seeds?.length === 2 ? c.seeds[1] - c.seeds[0] + 1 : 0)
 
 /** The one-line status every RSI surface shows: 第 r 轮 · best k/n · status. */
-export const statusLine = (c: Campaign, t: PropsLocale<'phops'>['t']): string =>
-  t('rsi.statusLine', { r: c.latest?.round ?? c.cursor ?? 0, k: c.best ?? 0, n: seedCount(c), status: c.status ?? '' })
+export const statusLine = (c: CampaignSummary, t: PropsLocale<'phops'>['t']): string =>
+  t('rsi.statusLine', { r: c.cursor ?? 0, k: c.best ?? 0, n: seedCount(c), status: statusWord(c.status, t) })
+
+/** campaign.json's status word in the operator's language; unknown words verbatim. */
+export const statusWord = (status: string | undefined, t: PropsLocale<'phops'>['t']): string =>
+  (status === 'running' ? t('rsi.status.running') : status === 'done' ? t('rsi.status.done') : status === 'cancelled' ? t('rsi.status.cancelled') : status ?? '—')

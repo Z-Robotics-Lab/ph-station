@@ -18,7 +18,7 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 ### `ctx.board` — `BoardBridge`
 
-Remote over board.store via the storecli subprocess: read methods plus three writes (`submitBrief` / `cancelBrief`, storecli's atomic brief drop and cancel marker, and `modelServer`, the local model server's start/stop). The gateway auto-serves each @Remote method at POST /api/board/<name>.
+Remote over board.store via the storecli subprocess: read methods plus five writes (`submitBrief` / `cancelBrief`, storecli's atomic brief drop and cancel marker; `modelServer` / `policyServer`, the local model / pi0.5 policy server's start/stop; `restartServices`, the harness restart helper). The gateway auto-serves each @Remote method at POST /api/board/<name>.
 
 ```ts cordis-catalog
 /**
@@ -132,6 +132,37 @@ Remote over board.store via the storecli subprocess: read methods plus three wri
 @Remote('modelServer') modelServer(action: string): Promise<JsonValue>
 
 /**
+ * Read or switch the pi0.5 POLICY server (port 8000) — `{running, pid, port,
+ * serving, checkpoint_sha}` plus `error` when an action could not be carried
+ * out. `modelServer`'s contract one port over: `action` rides the same single
+ * positional slot, board.store accepts only `status`/`start`/`stop`, and the
+ * launcher is a constant there. Not started by default: it holds ~18 GB VRAM
+ * and cannot coexist with the local model.
+ * @param action - `status`, `start`, or `stop`.
+ * @returns board.store.policy_server(action, runsDir) verbatim.
+ */
+@Remote('policyServer') policyServer(action: string): Promise<JsonValue>
+
+/**
+ * Restart the harness services (`storecli restart_services [build]`): the
+ * board detaches its own restart helper and answers `{started, pid, log}`
+ * before going down, so the caller re-polls {@link health} until the console
+ * answers again. The single word `build` is the only argument and asks for a
+ * console rebuild first; nothing else from this process reaches the harness.
+ * @param build - rebuild the console before restarting.
+ * @returns board.store.restart_services(...) verbatim ({started, pid, log}).
+ */
+@Remote('restartServices') restartServices(build: boolean): Promise<JsonValue>
+
+/**
+ * Whole-pipeline health (`storecli health`): `{ok, problems, sessions,
+ * console, model, policy, restart, ts}` — `restart` is `{state, last}`, the
+ * last restart helper's outcome the rail shows once the console is back.
+ * @returns board.store.health(runsDir) verbatim.
+ */
+@Remote('health') health(): Promise<JsonValue>
+
+/**
  * One runtime session's LIVE viewport frame (`runs/<session>/frame.jpg`,
  * dumped offscreen by the harness frames overlay while a task runs):
  * `{jpeg_b64, ts, age_s}`, or `{error: 'no frame'}` when none exists. The
@@ -221,6 +252,17 @@ Remote over board.store via the storecli subprocess: read methods plus three wri
  * @returns board.store.rsi_run(...) verbatim (null when no campaign exists), or an {error} dict.
  */
 @Remote('rsiRun') rsiRun(request: BoardRsiRequest): Promise<JsonValue>
+
+/**
+ * Every evolve campaign one session holds on disk (`storecli rsi_campaigns`,
+ * read off `campaigns/evolve-*\/campaign.json`, so it survives a restart the
+ * per-boot feed does not): `[{task, status, cursor, rounds, best, seeds, arm,
+ * updated, live: {phase, message} | null, open_brief}]`, running first then
+ * newest first.
+ * @param request - the session name (guarded by storecli's safe_child).
+ * @returns board.store.rsi_campaigns(...) verbatim ([] when none), or an {error} dict.
+ */
+@Remote('rsiCampaigns') rsiCampaigns(request: BoardSessionRequest): Promise<JsonValue>
 
 /**
  * One evolve campaign's per-round {round, before, after, best} series (the line chart feed).

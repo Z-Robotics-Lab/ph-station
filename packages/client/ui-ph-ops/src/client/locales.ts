@@ -141,8 +141,6 @@ export type PhOpsKey =
   | 'no'
   | 'rsi.statusLine'
   | 'rsi.roundN'
-  | 'rsi.sec.progress'
-  | 'rsi.sec.rounds'
   | 'rsi.sec.frames'
   | 'rsi.sec.log'
   | 'rsi.saw'
@@ -182,7 +180,6 @@ export type PhOpsKey =
   | 'rsi.seed.running'
   | 'rsi.seed.died'
   | 'rsi.noFrame'
-  | 'rsi.sec.timeline'
   | 'rsi.roundRunning'
   | 'rsi.chartEmpty'
   | 'rsi.log.claimed'
@@ -330,10 +327,8 @@ export const zh: Record<PhOpsKey, string> = {
   'no': '否',
   'rsi.statusLine': '第 {r} 轮 · 最佳 {k}/{n} · {status}',
   'rsi.roundN': '第 {r} 轮',
-  'rsi.sec.progress': '① 进度',
-  'rsi.sec.rounds': '② 每一轮：看 → 试 → 同种子再跑 → 变好才发布',
-  'rsi.sec.frames': '③ 关键片段',
-  'rsi.sec.log': '④ 日志',
+  'rsi.sec.frames': '关键片段',
+  'rsi.sec.log': '日志',
   'rsi.saw': '看到了什么',
   'rsi.tried': '试了什么',
   'rsi.result': '结果',
@@ -352,7 +347,7 @@ export const zh: Record<PhOpsKey, string> = {
   'rsi.tab.evolution': '迭代记录',
   'rsi.tab.battle': '战报',
   'rsi.tab.ledger': '账本',
-  'rsi.guide': '输入任务名，按「开始 / 继续」，演化会在这里逐轮展示。',
+  'rsi.guide': '还没有演化：输入任务名，按「开始 / 继续」。',
   'rsi.noLive': '该运行早于实时进度功能，只有整轮结果',
   'rsi.status.running': '运行中',
   'rsi.status.done': '已完成',
@@ -371,7 +366,6 @@ export const zh: Record<PhOpsKey, string> = {
   'rsi.seed.running': '运行中',
   'rsi.seed.died': '首死 {node}',
   'rsi.noFrame': '暂无画面',
-  'rsi.sec.timeline': '轮次时间线',
   'rsi.roundRunning': '本轮进行中，完成后显示结果',
   'rsi.chartEmpty': '第一轮完成后出现折线',
   'rsi.log.claimed': '认领了 {task} 的演化 {brief}',
@@ -513,10 +507,8 @@ export const en: Record<PhOpsKey, string> = {
   'no': 'no',
   'rsi.statusLine': 'Round {r} · best {k}/{n} · {status}',
   'rsi.roundN': 'Round {r}',
-  'rsi.sec.progress': '① Progress',
-  'rsi.sec.rounds': '② Each round: look → try → rerun the same seeds → publish only when better',
-  'rsi.sec.frames': '③ Key clips',
-  'rsi.sec.log': '④ Log',
+  'rsi.sec.frames': 'Key clips',
+  'rsi.sec.log': 'Log',
   'rsi.saw': 'What it saw',
   'rsi.tried': 'What it tried',
   'rsi.result': 'Result',
@@ -535,7 +527,7 @@ export const en: Record<PhOpsKey, string> = {
   'rsi.tab.evolution': 'Generations',
   'rsi.tab.battle': 'Battle report',
   'rsi.tab.ledger': 'Ledger',
-  'rsi.guide': 'Type a task and press Start / resume; the evolve loop shows here round by round.',
+  'rsi.guide': 'No evolve yet: type a task and press Start / resume.',
   'rsi.noLive': 'This run predates live progress; only whole-round results are available',
   'rsi.status.running': 'running',
   'rsi.status.done': 'done',
@@ -554,7 +546,6 @@ export const en: Record<PhOpsKey, string> = {
   'rsi.seed.running': 'running',
   'rsi.seed.died': 'died at {node}',
   'rsi.noFrame': 'No frame yet',
-  'rsi.sec.timeline': 'Round timeline',
   'rsi.roundRunning': 'Round in progress; results show when it completes',
   'rsi.chartEmpty': 'The line appears after the first round completes',
   'rsi.log.claimed': 'claimed the evolve of {task} {brief}',

@@ -503,8 +503,8 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   },
   {
     key: 'board',
-    summary: 'Remote over board.store via the storecli subprocess: read methods plus three writes (`submitBrief` / `cancelBrief`, storecli\'s atomic brief drop and cancel marker, and `modelServer`, the local model server\'s start/stop).',
-    description: 'Remote over board.store via the storecli subprocess: read methods plus three writes (`submitBrief` / `cancelBrief`, storecli\'s atomic brief drop and cancel marker, and `modelServer`, the local model server\'s start/stop). The gateway auto-serves each @Remote method at POST /api/board/<name>.',
+    summary: 'Remote over board.store via the storecli subprocess: read methods plus five writes (`submitBrief` / `cancelBrief`, storecli\'s atomic brief drop and cancel marker; `modelServer` / `policyServer`, the local model / pi0.5 policy server\'s start/stop; `restartServices`, the harness restart helper).',
+    description: 'Remote over board.store via the storecli subprocess: read methods plus five writes (`submitBrief` / `cancelBrief`, storecli\'s atomic brief drop and cancel marker; `modelServer` / `policyServer`, the local model / pi0.5 policy server\'s start/stop; `restartServices`, the harness restart helper). The gateway auto-serves each @Remote method at POST /api/board/<name>.',
     methods: [
       {
         signature: '@Remote(\'stores\') stores(): Promise<JsonValue>',
@@ -585,6 +585,24 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'board.store.model_server(action, runsDir) verbatim.',
       },
       {
+        signature: '@Remote(\'policyServer\') policyServer(action: string): Promise<JsonValue>',
+        description: 'Read or switch the pi0.5 POLICY server (port 8000) — `{running, pid, port, serving, checkpoint_sha}` plus `error` when an action could not be carried out. `modelServer`\'s contract one port over: `action` rides the same single positional slot, board.store accepts only `status`/`start`/`stop`, and the launcher is a constant there. Not started by default: it holds ~18 GB VRAM and cannot coexist with the local model.',
+        parameters: [{ name: 'action', description: '`status`, `start`, or `stop`.' }],
+        returns: 'board.store.policy_server(action, runsDir) verbatim.',
+      },
+      {
+        signature: '@Remote(\'restartServices\') restartServices(build: boolean): Promise<JsonValue>',
+        description: 'Restart the harness services (`storecli restart_services [build]`): the board detaches its own restart helper and answers `{started, pid, log}` before going down, so the caller re-polls health until the console answers again. The single word `build` is the only argument and asks for a console rebuild first; nothing else from this process reaches the harness.',
+        parameters: [{ name: 'build', description: 'rebuild the console before restarting.' }],
+        returns: 'board.store.restart_services(...) verbatim ({started, pid, log}).',
+      },
+      {
+        signature: '@Remote(\'health\') health(): Promise<JsonValue>',
+        description: 'Whole-pipeline health (`storecli health`): `{ok, problems, sessions, console, model, policy, restart, ts}` — `restart` is `{state, last}`, the last restart helper\'s outcome the rail shows once the console is back.',
+        parameters: [],
+        returns: 'board.store.health(runsDir) verbatim.',
+      },
+      {
         signature: '@Remote(\'runtimeFrame\') runtimeFrame(request: BoardRuntimeFrameRequest): Promise<JsonValue>',
         description: 'One runtime session\'s LIVE viewport frame (`runs/<session>/frame.jpg`, dumped offscreen by the harness frames overlay while a task runs): `{jpeg_b64, ts, age_s}`, or `{error: \'no frame\'}` when none exists. The base64 is encoded harness-side; this panel-facing face only forwards it. `afterTs` is the poller\'s cursor: an unchanged file returns the short `{unchanged, ts, age_s}` reply with no image bytes. `waitMs` long-polls: storecli blocks up to that long (capped board-side at 2s) for the frame to change past the cursor before answering, so the 取景窗 re-issues the call on reply and its to-hand fps tracks the writer\'s dump rate.',
         parameters: [{ name: 'request', description: 'session name (guarded by storecli\'s safe_child) + cursors.' }],
@@ -631,6 +649,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'One evolve campaign\'s state (`storecli rsi_run`): campaign.json plus `latest`.',
         parameters: [{ name: 'request', description: 'the session and the evolve task.' }],
         returns: 'board.store.rsi_run(...) verbatim (null when no campaign exists), or an {error} dict.',
+      },
+      {
+        signature: '@Remote(\'rsiCampaigns\') rsiCampaigns(request: BoardSessionRequest): Promise<JsonValue>',
+        description: 'Every evolve campaign one session holds on disk (`storecli rsi_campaigns`, read off `campaigns/evolve-*\\/campaign.json`, so it survives a restart the per-boot feed does not): `[{task, status, cursor, rounds, best, seeds, arm, updated, live: {phase, message} | null, open_brief}]`, running first then newest first.',
+        parameters: [{ name: 'request', description: 'the session name (guarded by storecli\'s safe_child).' }],
+        returns: 'board.store.rsi_campaigns(...) verbatim ([] when none), or an {error} dict.',
       },
       {
         signature: '@Remote(\'rsiSeries\') rsiSeries(request: BoardRsiRequest): Promise<JsonValue>',
