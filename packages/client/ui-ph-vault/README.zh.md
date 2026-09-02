@@ -4,8 +4,8 @@
 
 技能库（Skill Library）—— physical-harness 技能图谱的唯一浏览页，view id `vault`（EVOLUTION 组里 RSI 旁边仅有的标签页；原 `ui-ph-ops` 的技能表与 `ui-ph-panels` 的能力卡网格都并入这里）。它以三列渲染 board vault 折叠（`board/vault.py`）产出的确定性五 kind 图（skill / class / benchmark / package / capability；边 IN_CLASS、DEPENDS_ON、BOUND_TO、EVIDENCED_ON 加旧关系），三列共享一个选中：
 
-- **类树**（左）—— 每个 class 节点一行（名称 · 技能数），展开为其 IN_CLASS 技能，每行带 kind 标记（segment ▶ / verify ✓ / decide ⑂ / perceive ◉ / plan ☰）与汇总 k/n 证据；其上是基准过滤（只留有 EVIDENCED_ON 边指向所选基准的技能）、具身过滤（`skill.bindings` 的键）和子串搜索。旧节点（封存技能、机箱、能力）放在末尾的「卡片与能力」一节，什么都不会消失。
-- **wiki 图谱**（中）—— `@xyflow/react` 画布（一次全局 dagre 左→右布局、按 kind 的轮廓与色相、边按关系着色、标签只在光标下或选中节点的边上出现），画选中项的邻域：class → 自身、其技能及它们的 DEPENDS_ON / BOUND_TO / EVIDENCED_ON 邻居；库技能 → 直接邻居（派生的 DEPENDS_ON 家族很稠密，深度 2 会覆盖大半张图）；其它节点 → 深度 2 邻域；未选中 → 整图（隐藏稠密的 REQUIRES / PROVIDES 家族）。单击即选中，树与详情跟随。
+- **类树**（左）—— 每个 class 节点一行（名称 · 技能数），展开为其 IN_CLASS 技能（实例折叠在泛型下的 `+n` 开关后；计数仍是全部成员），每行带 kind 标记（segment ▶ / verify ✓ / decide ⑂ / perceive ◉ / plan ☰）与汇总 k/n 证据；其上是基准过滤（只留有 EVIDENCED_ON 边指向所选基准的技能）、具身过滤（`skill.bindings` 的键）和子串搜索。旧节点（封存技能、机箱、能力）放在末尾的「卡片与能力」一节，什么都不会消失。
+- **wiki 图谱**（中）—— `@xyflow/react` 画布（一次全局 dagre 左→右布局、按 kind 的轮廓与色相、边按关系着色、标签只在光标下或选中节点的边上出现），画选中项的邻域，每次变化后重新适配视口：未选中 → 类总览（class 节点大小随技能数、标签形如 `grasp · 14`，class 触及的 benchmark / package 节点，以及每对 class 之间各一条聚合的 DEPENDS_ON / BOUND_TO / EVIDENCED_ON 边、标签为折叠边数——不画技能节点）；class → 自身、其泛型技能（无 INSTANCE_OF 出边）及它们的 DEPENDS_ON / BOUND_TO / EVIDENCED_ON 邻居，实例折叠在泛型下的 `+n` 徽标后，点击展开；库技能 → 深度 1 邻居，「深一层」开关切到深度 2；其它节点 → 深度 2 邻域（绝不经 IN_CLASS 展开某个 class 的成员）。单击即选中，树与详情跟随。
 - **wiki 详情**（右）—— 技能：class chip、kind、描述；契约（requires / ensures / clobbers chips）；参数 · 限制；绑定与执行器（具身 · 执行器 · 传输 · 引用 · sha8）；证据（按具身的 k/n 与 by_executor 行）；依赖（DEPENDS_ON 出边 = 依赖于，入边 = 被依赖，每条是带边 rule 的链接）；带 n/k 的基准链接；失败模式；所在卡片。class：技能列表带证据与覆盖的基准。基准：具身、任务、臂、所在卡片、覆盖的技能。机箱：卡片的 manifest 字段（提供能力、任务/campaign 绑定、覆盖层、actuation、needs_sim、第三方标记、声明）加类型化链接。旧的封存技能与能力保留逐字证据页。
 
 两侧列可各自收起，宽度低于约 880px 时三列纵向堆叠。

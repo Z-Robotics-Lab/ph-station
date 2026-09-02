@@ -16,7 +16,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Background, Controls, Handle, MiniMap, Position, ReactFlow, useStore } from '@xyflow/react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  ALL_KINDS, KIND_COLOR, layout, NODE_SIZE, REL_COLOR, relTallies,
+  ALL_KINDS, KIND_COLOR, layout, NODE_SIZE, nodeSize, REL_COLOR, relTallies,
 } from './graph.ts'
 import type {
   BenchmarkNode, CapabilityNode, ClassNode, PackageNode, RelTally, SkillNode,
@@ -200,7 +200,16 @@ function FarGlyph({ kind }: { kind: VaultKind }) {
   return <div className={css.gfar}><KindGlyph kind={kind} size={22} /></div>
 }
 
-function SkillGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }) {
+/** Node data: the vault body plus the instance-collapse state and its toggle. */
+interface NodeData {
+  node: VaultNode
+  dimmed: boolean
+  expanded?: boolean
+  onToggle?: ((id: string) => void) | undefined
+  instancesTitle?: string
+}
+
+function SkillGraphNode({ data }: { data: NodeData }) {
   const n = data.node as SkillNode
   const lod = useLod()
   if (n.status === 'library') {
@@ -212,6 +221,14 @@ function SkillGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }
             <div className={css.gsub}>
               <span className={css.gstatus}>{n.skill_kind ?? 'segment'}</span>
               {lod === 'near' && n.class ? <span className={css.gstatus}>{n.class}</span> : null}
+              {(n.instances ?? 0) > 0 ? (
+                <button
+                  type="button" className={`${css.gstatus} ${css.gbadge}`} title={data.instancesTitle}
+                  onClick={(e) => { e.stopPropagation(); data.onToggle?.(n.id) }}
+                >
+                  {data.expanded ? '−' : '+'}{n.instances}
+                </button>
+              ) : null}
             </div>
           </>
         )}
@@ -266,8 +283,7 @@ function ClassGraphNode({ data }: { data: { node: VaultNode; dimmed: boolean } }
   return (
     <ShapeFrame kind="class" dimmed={data.dimmed}>
       {lod === 'far' ? <FarGlyph kind="class" /> : (
-        <div className={css.gtitle}><KindGlyph kind="class" /><span>{n.name ?? n.id}</span>
-          <span className={css.gstatus}>{n.skills ?? n.count ?? 0}</span></div>
+        <div className={css.gtitle}><KindGlyph kind="class" /><span>{n.name ?? n.id} · {n.skills ?? n.count ?? 0}</span></div>
       )}
     </ShapeFrame>
   )
@@ -357,11 +373,21 @@ interface Focus { edges: ReadonlySet<string>; nodes: ReadonlySet<string> }
  * @param filters - the live kind/status/relation/search selection.
  * @param selected - the selected node id: its incident edges are highlighted.
  * @param onSelect - select a node (single click; the tree and detail follow).
+ * @param expanded - generic skills whose instances draw (their badge reads −n).
+ * @param onToggle - flip one generic's instance collapse (the badge click).
  * @param t - the bound `phvault` locale reader.
  */
 export function VaultGraphCanvas({
-  graph, filters, selected = null, onSelect, t,
-}: { graph: VaultGraph; filters: VaultFilters; selected?: string | null; onSelect: (id: string) => void; t: Tr }) {
+  graph, filters, selected = null, onSelect, expanded, onToggle, t,
+}: {
+  graph: VaultGraph
+  filters: VaultFilters
+  selected?: string | null
+  onSelect: (id: string) => void
+  expanded?: ReadonlySet<string> | undefined
+  onToggle?: ((id: string) => void) | undefined
+  t: Tr
+}) {
   const flow = useMemo(() => layout(graph, filters), [graph, filters])
   const tallies = useMemo(() => relTallies(graph), [graph])
 
@@ -390,6 +416,13 @@ export function VaultGraphCanvas({
     return () => { cancelAnimationFrame(raf); ro.disconnect() }
   }, [])
   /* jscpd:ignore-end */
+
+  // Refit on every graph change: a selection swaps the drawn subgraph, and the
+  // old viewport (framed for the previous one) would leave it off-frame.
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => { fitRef.current?.() })
+    return () => { cancelAnimationFrame(raf) }
+  }, [flow])
 
   // MiniMap collapse: operator preference wins; absent it, the pane width picks
   // the default (collapsed when narrow), so a small pane isn't covered on load.
@@ -423,15 +456,17 @@ export function VaultGraphCanvas({
     package: PackageGraphNode, capability: CapabilityGraphNode,
   }), [])
 
+  const instancesTitle = t('graph.instances')
   const rfNodes = useMemo(() => flow.nodes.map(n => ({
-    id: n.id, type: n.type, position: n.position, data: n.data,
+    id: n.id, type: n.type, position: n.position,
+    data: { ...n.data, expanded: expanded?.has(n.id) ?? false, onToggle, instancesTitle } satisfies NodeData,
     // Fixed dimensions so React Flow routes edges without waiting on its
     // ResizeObserver (which never fires in a headless/backgrounded tab).
-    width: NODE_SIZE[n.type].width, height: NODE_SIZE[n.type].height,
+    ...nodeSize(n.data.node),
     draggable: false, connectable: false, selectable: true, zIndex: 10,
     // Fade every node outside the focused node's neighborhood.
     ...(focus !== null && !focus.nodes.has(n.id) ? { style: { opacity: 0.22 } } : {}),
-  })), [flow, focus])
+  })), [flow, focus, expanded, onToggle, instancesTitle])
 
   const rfEdges = useMemo(() => flow.edges.map((e) => {
     const incident = focus?.edges.has(e.id) ?? false

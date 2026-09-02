@@ -88,6 +88,8 @@ export type PhVaultKey =
   | 'legend.title'
   | 'legend.relations'
   | 'graph.hint'
+  | 'graph.deeper'
+  | 'graph.instances'
   | 'minimapShow'
   | 'minimapHide'
 
@@ -183,6 +185,8 @@ export const zh: Record<PhVaultKey, string> = {
   'legend.title': '图例',
   'legend.relations': '关系',
   'graph.hint': '单击节点选中——树与详情同步',
+  'graph.deeper': '深一层',
+  'graph.instances': '实例',
   'minimapShow': '显示缩略图',
   'minimapHide': '隐藏缩略图',
 }
@@ -272,6 +276,8 @@ export const en: Record<PhVaultKey, string> = {
   'legend.title': 'Legend',
   'legend.relations': 'Relations',
   'graph.hint': 'Click a node to select it — the tree and detail follow',
+  'graph.deeper': 'One level deeper',
+  'graph.instances': 'instances',
   'minimapShow': 'Show minimap',
   'minimapHide': 'Hide minimap',
 }

@@ -19,7 +19,7 @@ import dagre from '@dagrejs/dagre'
 export type VaultRel =
   | 'DESCENDS_FROM' | 'GOVERNS' | 'REQUIRES' | 'PROVIDES' | 'BINDS'
   | 'EVIDENCED_BY' | 'CLAIMS' | 'SUPERSEDES' | 'MOUNTED_IN'
-  | 'IN_CLASS' | 'DEPENDS_ON' | 'BOUND_TO' | 'EVIDENCED_ON'
+  | 'IN_CLASS' | 'DEPENDS_ON' | 'BOUND_TO' | 'EVIDENCED_ON' | 'INSTANCE_OF'
 
 /** The five node kinds the fold emits (class / benchmark group the skill library). */
 export type VaultKind = 'skill' | 'class' | 'benchmark' | 'package' | 'capability'
@@ -71,6 +71,8 @@ export interface LibrarySkillNode {
   readonly failure_modes?: string[]
   readonly bindings?: Record<string, Record<string, SkillBinding>>
   readonly evidence?: Record<string, LibEvidence>
+  /** Generic skills only: how many INSTANCE_OF records collapse under this one. */
+  readonly instances?: number
   readonly annotations?: VaultAnnotation | null
 }
 
@@ -177,6 +179,8 @@ export interface VaultEdge {
   /** EVIDENCED_ON only: the skill's n/k on the benchmark's embodiment. */
   readonly n?: number | null
   readonly k?: number | null
+  /** Overview only: how many fold edges this class-level edge aggregates. */
+  readonly count?: number
 }
 
 /** The whole fold output (board/vault.py build_graph). */
@@ -199,7 +203,7 @@ export interface VaultFilters {
 export const ALL_RELS: readonly VaultRel[] = [
   'DESCENDS_FROM', 'GOVERNS', 'REQUIRES', 'PROVIDES', 'BINDS',
   'EVIDENCED_BY', 'CLAIMS', 'SUPERSEDES', 'MOUNTED_IN',
-  'IN_CLASS', 'DEPENDS_ON', 'BOUND_TO', 'EVIDENCED_ON',
+  'IN_CLASS', 'DEPENDS_ON', 'BOUND_TO', 'EVIDENCED_ON', 'INSTANCE_OF',
 ]
 
 /** The kinds, in reading order. */
@@ -266,6 +270,7 @@ export const REL_COLOR: Record<VaultRel, string> = {
   DEPENDS_ON: 'var(--dsw-alias-state-error-primary, #d94040)',
   BOUND_TO: 'var(--dsw-alias-state-success-primary, #2e9e5b)',
   EVIDENCED_ON: 'var(--dsw-alias-state-purple-primary, #8b5cf6)',
+  INSTANCE_OF: 'var(--dsw-alias-label-tertiary, #9aa1ac)',
 }
 
 /** Primary hue per node kind, orthogonal to skill status: skill=blue,
@@ -333,6 +338,14 @@ export const NODE_SIZE: Record<VaultKind, { width: number; height: number }> = {
   capability: { width: 180, height: 52 },
 }
 
+/** A node's footprint: fixed per kind, except a class grows with its skill
+ * count so the overview reads size ∝ membership (capped at 40 skills). */
+export function nodeSize(node: VaultNode): { width: number; height: number } {
+  if (node.kind !== 'class') return NODE_SIZE[node.kind]
+  const s = Math.min(node.skills ?? node.count ?? 0, 40)
+  return { width: NODE_SIZE.class.width + 3 * s, height: NODE_SIZE.class.height + s }
+}
+
 /** Global dagre LR spacing (px). `ranksep` is the left→right gap between ranks
  * (roomy so a lineage chain reads as a clear horizontal run); `nodesep` is the
  * vertical gap between nodes sharing a rank (tight so parallel rows stack
@@ -373,7 +386,7 @@ export function layout(graph: VaultGraph, f: VaultFilters): VaultLayout {
   const g = new dagre.graphlib.Graph()
   g.setGraph({ ...DAGRE_GRAPH })
   g.setDefaultEdgeLabel(() => ({}))
-  for (const [id, node] of kindPass) g.setNode(id, { ...NODE_SIZE[node.kind] })
+  for (const [id, node] of kindPass) g.setNode(id, { ...nodeSize(node) })
   for (const e of nodeEdges) g.setEdge(e.src, e.dst)
   dagre.layout(g)
 
@@ -390,7 +403,7 @@ export function layout(graph: VaultGraph, f: VaultFilters): VaultLayout {
   const relOk = (rel: VaultRel): boolean => f.rels.size === 0 || f.rels.has(rel)
   const edges: LaidOutEdge[] = nodeEdges.filter(e => relOk(e.rel)).map(e => ({
     id: `${e.rel}:${e.src}->${e.dst}`,
-    source: e.src, target: e.dst, rel: e.rel, label: e.rel,
+    source: e.src, target: e.dst, rel: e.rel, label: e.count === undefined ? e.rel : `${e.rel} ×${e.count}`,
   }))
   return { nodes, edges }
 }
@@ -474,8 +487,15 @@ export interface TreeFilters {
   readonly search: string
 }
 
-/** One class row of the tree with its (filtered) member skills. */
-export interface ClassRow { readonly node: ClassNode; readonly skills: LibrarySkillNode[] }
+/** One generic skill with the instances that nest under it in the tree. */
+export interface SkillGroup { readonly node: LibrarySkillNode; readonly instances: LibrarySkillNode[] }
+
+/** One class row of the tree: every (filtered) member in `skills` (the count)
+ * and the same members nested as generic → instances in `roots`. */
+export interface ClassRow { readonly node: ClassNode; readonly skills: LibrarySkillNode[]; readonly roots: SkillGroup[] }
+
+/** The generic a skill is an INSTANCE_OF, or undefined for a generic skill. */
+export const genericOf = (x: VaultIndex, id: string): string | undefined => outOf(x, id, 'INSTANCE_OF')[0]?.dst
 
 /** The left column: class rows (IN_CLASS members, filtered) plus the legacy
  * nodes (packages, capabilities, sealed skills) under one trailing section. */
@@ -500,7 +520,17 @@ export function classTree(x: VaultIndex, f: TreeFilters): ClassTree {
   for (const c of (x.byKind.get('class') ?? []) as ClassNode[]) {
     const skills = inTo(x, c.id, 'IN_CLASS').map(e => x.byId.get(e.src))
       .filter((n): n is LibrarySkillNode => isLibrary(n) && skillPasses(x, n, f))
-    if (skills.length > 0) classes.push({ node: c, skills })
+    if (skills.length === 0) continue
+    // Nest an instance under its generic only when the generic also passes;
+    // otherwise it stays a root so the filter never hides a survivor.
+    const ids = new Set(skills.map(s => s.id))
+    const under = (s: LibrarySkillNode): string | undefined => {
+      const g = genericOf(x, s.id)
+      return g !== undefined && ids.has(g) ? g : undefined
+    }
+    // ponytail: O(n²) per class; index by generic if a class passes ~1k skills.
+    const roots = skills.filter(s => under(s) === undefined).map(node => ({ node, instances: skills.filter(s => under(s) === node.id) }))
+    classes.push({ node: c, skills, roots })
   }
   const legacy = [...(x.byKind.get('skill') ?? []).filter(n => !isLibrary(n)),
     ...(x.byKind.get('package') ?? []), ...(x.byKind.get('capability') ?? [])]
@@ -515,36 +545,82 @@ export function embodiments(x: VaultIndex): string[] {
   return [...keys].sort()
 }
 
+/** The skill-level relations the overview aggregates to class level. */
+const AGG_RELS: readonly VaultRel[] = ['DEPENDS_ON', 'BOUND_TO', 'EVIDENCED_ON']
+
 /**
- * The subgraph the canvas draws for a selection: a class → itself, its skills,
- * and their DEPENDS_ON / BOUND_TO / EVIDENCED_ON neighbors; a library skill →
- * its direct neighbors (the derived DEPENDS_ON family is dense enough that
- * depth 2 reaches most of the fold); any other node → its depth-2 neighborhood
- * over every relation; no selection → the whole fold.
+ * The no-selection canvas: every class node, the benchmark / package nodes at
+ * least one class edge touches, and one aggregated edge per (relation, class,
+ * target) pair carrying the fold-edge `count` — no skill nodes at all, so 100+
+ * skills and their dense DEPENDS_ON family read as a dozen classes.
+ * @param graph - the folded vault graph.
+ * @param x - its index.
+ * @returns the class overview as a graph.
+ */
+export function overview(graph: VaultGraph, x: VaultIndex): VaultGraph {
+  const classOf = (id: string): string | undefined => outOf(x, id, 'IN_CLASS')[0]?.dst
+  const agg = new Map<string, VaultEdge>()
+  for (const e of graph.edges) {
+    if (!AGG_RELS.includes(e.rel)) continue
+    const src = classOf(e.src)
+    const dst = e.rel === 'DEPENDS_ON' ? classOf(e.dst) : e.dst
+    if (src === undefined || dst === undefined || src === dst) continue
+    const key = `${e.rel}:${src}->${dst}`
+    const prev = agg.get(key)
+    agg.set(key, prev === undefined
+      ? { rel: e.rel, src, dst, rule: e.rule, via: 'overview', count: 1 }
+      : { ...prev, count: (prev.count ?? 0) + 1 })
+  }
+  const edges = [...agg.values()]
+  const touched = new Set(edges.flatMap(e => [e.src, e.dst]))
+  const nodes = graph.nodes.filter(n => n.kind === 'class' || ((n.kind === 'benchmark' || n.kind === 'package') && touched.has(n.id)))
+  return { ...graph, nodes, edges }
+}
+
+/** What the selection's neighborhood unfolds: the generic skills whose
+ * instances draw, and whether a library skill reaches depth 2. */
+export interface NeighborhoodOpts { readonly expanded: ReadonlySet<string>; readonly deep: boolean }
+
+const COLLAPSED: NeighborhoodOpts = { expanded: new Set(), deep: false }
+
+/**
+ * The subgraph the canvas draws for a selection: a class → itself, its generic
+ * skills (no INSTANCE_OF out-edge), and their DEPENDS_ON / BOUND_TO /
+ * EVIDENCED_ON neighbors; a library skill → its depth-1 neighbors (depth 2 with
+ * `deep`); any other node → its depth-2 neighborhood; no selection → the class
+ * {@link overview}. Instances stay collapsed under their generic (the node
+ * badge shows `+n`) until the generic is in `expanded`; a class's members never
+ * unfold through a depth-2 IN_CLASS hop.
  * Node and edge order follow the fold (deterministic layout input).
  * @param graph - the folded vault graph.
  * @param x - its index.
  * @param selected - the selected node id, or null.
+ * @param opts - expanded generics and the depth toggle.
  * @returns the neighborhood as a graph.
  */
-export function neighborhood(graph: VaultGraph, x: VaultIndex, selected: string | null): VaultGraph {
+export function neighborhood(graph: VaultGraph, x: VaultIndex, selected: string | null, opts: NeighborhoodOpts = COLLAPSED): VaultGraph {
   const sel = selected === null ? undefined : x.byId.get(selected)
-  if (selected === null || sel === undefined) return graph
+  if (selected === null || sel === undefined) return overview(graph, x)
   const keep = new Set<string>([selected])
   if (sel.kind === 'class') {
     for (const e of inTo(x, selected, 'IN_CLASS')) {
+      if (genericOf(x, e.src) !== undefined) continue
       keep.add(e.src)
       for (const out of outOf(x, e.src)) if (out.rel !== 'IN_CLASS') keep.add(out.dst)
-      for (const inn of inTo(x, e.src, 'DEPENDS_ON')) keep.add(inn.src)
+      for (const inn of inTo(x, e.src)) if (inn.rel === 'DEPENDS_ON' || (inn.rel === 'INSTANCE_OF' && opts.expanded.has(e.src))) keep.add(inn.src)
     }
   } else {
+    // In-edges to follow: never a class's members (IN_CLASS), a generic's
+    // instances (INSTANCE_OF) only once it is expanded.
+    const follow = (e: VaultEdge, into: string): boolean =>
+      e.rel !== 'IN_CLASS' && (e.rel !== 'INSTANCE_OF' || opts.expanded.has(into))
     let frontier = [selected]
-    const depths = isLibrary(sel) ? 1 : 2
+    const depths = isLibrary(sel) && !opts.deep ? 1 : 2
     for (let depth = 0; depth < depths; depth++) {
       const next: string[] = []
       for (const id of frontier) {
         for (const e of outOf(x, id)) if (!keep.has(e.dst)) { keep.add(e.dst); next.push(e.dst) }
-        for (const e of inTo(x, id)) if (!keep.has(e.src)) { keep.add(e.src); next.push(e.src) }
+        for (const e of inTo(x, id)) if (follow(e, id) && !keep.has(e.src)) { keep.add(e.src); next.push(e.src) }
       }
       frontier = next
     }

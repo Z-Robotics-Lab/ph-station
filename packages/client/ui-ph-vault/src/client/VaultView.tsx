@@ -17,7 +17,7 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  classTree, DENSE_RELS, embodiments, evidenceSummary, indexGraph, inTo, isLibrary,
+  classTree, DENSE_RELS, embodiments, evidenceSummary, genericOf, indexGraph, inTo, isLibrary,
   neighborhood, outOf, REL_COLOR, renderableRels,
 } from './graph.ts'
 import type {
@@ -216,10 +216,10 @@ function LibrarySkillPage({ node, idx, open, t }: { node: LibrarySkillNode; idx:
 }
 
 /** A tree/list row for one library skill: kind mark · name · k/n. */
-function SkillRow({ node, on, open }: { node: LibrarySkillNode; on: boolean; open: Open }) {
+function SkillRow({ node, on, open, nested }: { node: LibrarySkillNode; on: boolean; open: Open; nested?: boolean }) {
   const ev = evidenceSummary(node)
   return (
-    <button type="button" className={`${css.rowBtn} ${css.skillRow} ${on ? css.rowOn : ''}`} onClick={() => { open(node.id) }} title={node.description ?? node.id}>
+    <button type="button" className={`${css.rowBtn} ${css.skillRow} ${nested ? css.instRow : ''} ${on ? css.rowOn : ''}`} onClick={() => { open(node.id) }} title={node.description ?? node.id}>
       <span className={css.kmark} title={node.skill_kind ?? 'segment'}>{KIND_MARK[node.skill_kind ?? 'segment'] ?? '·'}</span>
       <span className={css.rowName}>{node.name}</span>
       <span className={css.rowEv}>{ev.k}/{ev.n}</span>
@@ -504,6 +504,9 @@ export function VaultView({
   const [search, setSearch] = useState('')
   const [rels, setRels] = useState<ReadonlySet<VaultRel>>(new Set())
   const [openClasses, setOpenClasses] = useState<ReadonlySet<string>>(new Set())
+  // Generic skills whose instances unfold — one state for the tree and the canvas badge.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  const [deep, setDeep] = useState(false)
   const [legacyOpen, setLegacyOpen] = useState(false)
   const [leftOpen, setLeftOpen] = useState(true)
   const [rightOpen, setRightOpen] = useState(true)
@@ -560,15 +563,22 @@ export function VaultView({
   const idx = useMemo(() => indexGraph(graph ?? { schema_version: 0, nodes: [], edges: [] }), [graph])
   const tree = useMemo(() => classTree(idx, { benchmark, embodiment, search }), [idx, benchmark, embodiment, search])
   const embs = useMemo(() => embodiments(idx), [idx])
-  const sub = useMemo(() => graph === null ? null : neighborhood(graph, idx, selected), [graph, idx, selected])
+  const sub = useMemo(() => graph === null ? null : neighborhood(graph, idx, selected, { expanded, deep }),
+    [graph, idx, selected, expanded, deep])
   const filters: VaultFilters = useMemo(() => ({
     kinds: new Set<VaultKind>(), statuses: new Set(), rels: selected === null ? rels : new Set(), search,
   }), [rels, search, selected])
+
+  const toggleExpanded = useCallback((id: string) => {
+    setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  }, [])
 
   const open: Open = useCallback((id) => {
     setSelected(id)
     const n = idx.byId.get(id)
     if (isLibrary(n) && n.class) setOpenClasses(s => new Set(s).add(`class:${n.class}`))
+    const g = genericOf(idx, id)
+    if (g !== undefined) setExpanded(s => new Set(s).add(g))
     if (n !== undefined && !isLibrary(n) && n.kind !== 'class' && n.kind !== 'benchmark') setLegacyOpen(true)
   }, [idx])
 
@@ -598,7 +608,7 @@ export function VaultView({
           </select>
         </label>
         <div className={css.tree}>
-          {tree.classes.map(({ node, skills }) => {
+          {tree.classes.map(({ node, skills, roots }) => {
             const isOpen = openClasses.has(node.id)
             return (
               <div key={node.id} className={css.treeSect}>
@@ -612,7 +622,21 @@ export function VaultView({
                     <span className={css.rowEv}>· {skills.length}</span>
                   </button>
                 </div>
-                {isOpen ? skills.map(s => <SkillRow key={s.id} node={s} on={selected === s.id} open={open} />) : null}
+                {isOpen ? roots.map(({ node: s, instances }) => (
+                  <div key={s.id}>
+                    <div className={css.classRow}>
+                      <SkillRow node={s} on={selected === s.id} open={open} />
+                      {instances.length > 0 ? (
+                        <button type="button" className={css.chev} onClick={() => { toggleExpanded(s.id) }} title={t('graph.instances')} aria-label={`${s.name}: ${t(expanded.has(s.id) ? 'pane.collapse' : 'pane.expand')}`}>
+                          {expanded.has(s.id) ? '−' : '+'}{instances.length}
+                        </button>
+                      ) : null}
+                    </div>
+                    {expanded.has(s.id)
+                      ? instances.map(i => <SkillRow key={i.id} node={i} on={selected === i.id} open={open} nested />)
+                      : null}
+                  </div>
+                )) : null}
               </div>
             )
           })}
@@ -634,7 +658,16 @@ export function VaultView({
         </div>
       </Side>
       <div className={css.center}>
-        <VaultGraphCanvas graph={sub} filters={filters} selected={selected} onSelect={open} t={t} />
+        {isLibrary(current) ? (
+          <label className={css.deepToggle}>
+            <input type="checkbox" checked={deep} onChange={(e) => { setDeep(e.target.checked) }} />
+            {t('graph.deeper')}
+          </label>
+        ) : null}
+        <VaultGraphCanvas
+          graph={sub} filters={filters} selected={selected} onSelect={open}
+          expanded={expanded} onToggle={toggleExpanded} t={t}
+        />
       </div>
       <Side title={t('pane.detail')} side="right" open={rightOpen} setOpen={setRightOpen} t={t}>
         <Detail node={current} idx={idx} open={open} t={t} />

@@ -217,6 +217,30 @@
   color: var(--dsw-alias-label-secondary, inherit);
 }
 
+.gbadge {
+  border: none;
+  cursor: pointer;
+  font-family: ui-monospace, monospace;
+  font-weight: 600;
+}
+
+.deepToggle {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.6rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  opacity: 0.8;
+}
+
+.instRow {
+  width: calc(100% - 2.6rem);
+  margin-left: 2.6rem;
+}
+
 .gpriv {
   color: #dc2626;
   background: color-mix(in srgb, #dc2626 18%, transparent);
@@ -625,6 +649,7 @@
 }
 
 .center {
+  position: relative;
   display: flex;
   min-width: 0;
   min-height: 0;
