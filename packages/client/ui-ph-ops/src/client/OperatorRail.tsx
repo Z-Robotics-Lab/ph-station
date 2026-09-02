@@ -20,8 +20,8 @@ import { agoSeconds, finite, formatAgo, pct } from './format.ts'
 import { Term } from './chrome.tsx'
 import { usePolledLoad } from './poll.ts'
 import type {
-  BootRow, GpuVitals, HostVitals, ModelServerState, PlanComplete, RuntimeEvent,
-  RuntimeEventsPayload, RuntimeStatus, SessionDetail, SessionProgress, SessionSummary,
+  BootRow, GpuVitals, Health, HostVitals, ModelServerState, PlanComplete, PolicyServerState,
+  RuntimeEvent, RuntimeEventsPayload, RuntimeStatus, SessionDetail, SessionProgress, SessionSummary,
 } from './types.ts'
 import css from './ops.module.css'
 
@@ -39,6 +39,13 @@ export interface RailInjected {
    * argument the board takes, and the board whitelists it — the rail passes a
    * literal, never anything assembled here. */
   modelServer: (action: string) => Promise<RemoteResult<unknown>>
+  /** Same contract one port over: the pi0.5 policy server. */
+  policyServer: (action: string) => Promise<RemoteResult<unknown>>
+  /** Restart the harness services; `build` rebuilds the console first. The
+   * console goes down after answering, so the rail re-polls `fetchHealth`. */
+  restartServices: (build: boolean) => Promise<RemoteResult<unknown>>
+  /** Whole-pipeline health; the rail reads its `restart` row after a restart. */
+  fetchHealth: () => Promise<RemoteResult<unknown>>
 }
 
 interface StoreSummary { name?: string; task?: string | null; generations?: number; promoted?: number }
@@ -86,17 +93,71 @@ const VITALS_POLL_MS = 5000
  * button is held down until a poll confirms the process actually changed. */
 type PendingAction = 'start' | 'stop'
 
+/** What the two switchable server states share. */
+type ProcessState = ModelServerState | PolicyServerState
+
 /** Whether an observed status ends {@link PendingAction}'s window. An `error`
  * ends it too — a launcher that could not run must hand the button back rather
  * than leave it disabled forever. */
-function settled(pending: PendingAction, state: ModelServerState): boolean {
+function settled(pending: PendingAction, state: ProcessState): boolean {
   if (state.error !== undefined) return true
   return pending === 'start' ? state.running === true : state.running !== true
 }
 
+/** One switchable service process (the local model server, the pi0.5 policy
+ * server): its last observed status on the vitals cadence — the process starts,
+ * loads for a minute or two, and dies with no board write to follow — and a
+ * click's optimistic window. The board owns the whitelist, the launcher path,
+ * and the kill guard; `act` hands it a literal action word and holds the
+ * button until a poll (or the reply) confirms the process actually changed.
+ * A failed read folds to null, never flips the rail offline. */
+function useProcessSwitch(
+  call: (action: string) => Promise<RemoteResult<unknown>>,
+): { state: ProcessState | null; pending: PendingAction | null; act: (action: PendingAction) => void } {
+  const [state, setState] = useState<ProcessState | null>(null)
+  const [pending, setPending] = useState<PendingAction | null>(null)
+  const load = useCallback(async () => {
+    try {
+      const r = await call('status')
+      const next = r.ok ? (r.value as ProcessState) : null
+      setState(next)
+      setPending(p => (p !== null && next !== null && settled(p, next) ? null : p))
+    } catch {
+      setState(null)
+    }
+  }, [call])
+  const act = useCallback((action: PendingAction): void => {
+    setPending(action)                          // out of reach for the whole round trip
+    void (async () => {
+      try {
+        const r = await call(action)
+        const next = r.ok ? (r.value as ProcessState) : null
+        if (next === null) return               // keep the button held; the poll settles it
+        setState(next)
+        if (settled(action, next)) setPending(null)
+      } catch {
+        setPending(null)                        // assembly fault: hand the button back
+      }
+    })()
+  }, [call])
+  usePolledLoad(load, VITALS_POLL_MS)
+  return { state, pending, act }
+}
+
+/** Restart control phases: `armed` is the in-widget second-click confirm (it
+ * disarms itself after {@link ARM_MS}); `restarting` polls health until the
+ * console answers again; `back` shows the restart row it answered with. */
+type RestartPhase = 'idle' | 'armed' | 'restarting' | 'back'
+const ARM_MS = 8000
+/** ponytail: the helper answers BEFORE the console goes down, so the first
+ * health poll waits out a grace window rather than reading the old process as
+ * "back"; tune if the harness's restart takes longer to drop the port. */
+const RESTART_GRACE_MS = 4000
+const RESTART_POLL_MS = 2000
+
 export function OperatorRail({
   wide, fetchSessions, fetchSession, fetchSessionProgress, fetchRuntimeStatus, fetchRuntimeEvents,
-  fetchStores, fetchRounds, fetchHostVitals, modelServer, t,
+  fetchStores, fetchRounds, fetchHostVitals, modelServer, policyServer, restartServices, fetchHealth, t,
 }: SidebarSectionProps & InjectFace<RailInjected> & PropsLocale<'phops'>) {
   const [latest, setLatest] = useState<SessionSummary | null>(null)
   const [detail, setDetail] = useState<SessionDetail | null>(null)
@@ -107,9 +168,12 @@ export function OperatorRail({
   const [rounds, setRounds] = useState<Round[]>([])
   const [online, setOnline] = useState<boolean | null>(null)
   const [host, setHost] = useState<HostVitals | null>(null)
-  const [model, setModel] = useState<ModelServerState | null>(null)
-  const [pending, setPending] = useState<PendingAction | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  const model = useProcessSwitch(modelServer)
+  const policy = useProcessSwitch(policyServer)
+  const [restart, setRestart] = useState<RestartPhase>('idle')
+  const [build, setBuild] = useState(false)
+  const [health, setHealth] = useState<Health | null>(null)
 
   /* jscpd:ignore-start */
   const load = useCallback(async () => {
@@ -153,46 +217,41 @@ export function OperatorRail({
     }
   }, [fetchHostVitals])
 
-  // The model server rides the vitals cadence for the same reason — the process
-  // starts, loads for a minute or two, and dies with no board write to follow —
-  // and folds its own failure the same way.
-  const loadModel = useCallback(async () => {
-    try {
-      const r = await modelServer('status')
-      const next = r.ok ? (r.value as ModelServerState) : null
-      setModel(next)
-      setPending(p => (p !== null && next !== null && settled(p, next) ? null : p))
-    } catch {
-      setModel(null)
-    }
-  }, [modelServer])
-
-  const runModelAction = useCallback(async (action: PendingAction) => {
-    try {
-      const r = await modelServer(action)
-      const next = r.ok ? (r.value as ModelServerState) : null
-      if (next === null) return                 // keep the button held; the poll settles it
-      setModel(next)
-      if (settled(action, next)) setPending(null)
-    } catch {
-      setPending(null)                          // assembly fault: hand the button back
-    }
-  }, [modelServer])
-
-  // Switching the SERVICE PROCESS: the direction comes from the last observed
-  // status and the action word is a literal. The board owns the whitelist, the
-  // launcher path, and the kill guard; nothing here assembles a command. The
-  // pending flag is set before the call so the button is out of reach for the
-  // whole round trip, not just after the reply.
+  // Switching the model SERVICE PROCESS: the direction comes from the last
+  // observed status and the action word is a literal.
   const toggleModel = useCallback((): void => {
-    const action: PendingAction = model?.running === true ? 'stop' : 'start'
-    setPending(action)
-    void runModelAction(action)
-  }, [model, runModelAction])
+    model.act(model.state?.running === true ? 'stop' : 'start')
+  }, [model])
+
+  // Restart: first click arms, second click (within ARM_MS, same widget) fires.
+  // The reply is not awaited for state — the console is about to go down — the
+  // health poll below is what ends the restarting phase.
+  const clickRestart = useCallback((): void => {
+    if (restart !== 'armed') { setRestart('armed'); return }
+    setRestart('restarting')
+    setHealth(null)
+    void restartServices(build).catch(() => {})
+  }, [restart, build, restartServices])
+  useEffect(() => {
+    if (restart === 'armed') {
+      const timer = setTimeout(() => { setRestart('idle') }, ARM_MS)
+      return () => { clearTimeout(timer) }
+    }
+    if (restart !== 'restarting') return
+    let live = true
+    const tick = async () => {
+      try {
+        const r = await fetchHealth()
+        if (live && r.ok) { setHealth(r.value as Health); setRestart('back') }
+      } catch { /* console still down: keep polling */ }
+    }
+    let timer: ReturnType<typeof setInterval> | undefined
+    const grace = setTimeout(() => { void tick(); timer = setInterval(() => { void tick() }, RESTART_POLL_MS) }, RESTART_GRACE_MS)
+    return () => { live = false; clearTimeout(grace); if (timer !== undefined) clearInterval(timer) }
+  }, [restart, fetchHealth])
 
   usePolledLoad(load)
   usePolledLoad(loadHost, VITALS_POLL_MS)
-  usePolledLoad(loadModel, VITALS_POLL_MS)
   // Local clock so the heartbeat age counts up between polls (no network).
   useEffect(() => {
     const tick = setInterval(() => { setNow(Date.now()) }, 1000)
@@ -214,7 +273,9 @@ export function OperatorRail({
       <ProgressCard progress={progress} t={t} />
       <VitalsCard
         boot={boot} rtStatus={rtStatus} host={host} secs={secs} online={online}
-        model={model} pending={pending} onToggleModel={toggleModel} t={t}
+        model={model.state} pending={model.pending} onToggleModel={toggleModel}
+        policy={policy.state} policyPending={policy.pending} onPolicy={policy.act}
+        restart={restart} build={build} onBuild={setBuild} onRestart={clickRestart} health={health} t={t}
       />
       <EvolutionCard stores={stores} rounds={rounds} t={t} />
     </div>
@@ -530,6 +591,85 @@ function ModelServerRow({
   )
 }
 
+/** The pi0.5 policy server: badge (stopped / running-not-serving / serving),
+ * the checkpoint sha it loaded, and explicit Start / Stop buttons — explicit
+ * because it is NOT started by default and holds ~18 GB VRAM the local model
+ * also needs; the note says so under the buttons. */
+function PolicyServerRow({
+  state, pending, onAct, t,
+}: {
+  state: PolicyServerState | null
+  pending: PendingAction | null
+  onAct: (action: PendingAction) => void
+} & { t: T }) {
+  const running = state?.running === true
+  const badge = pending === 'stop' ? { key: 'model.stopping', css: css.stAmber } as const
+    : pending === 'start' || (running && state.serving !== true) ? { key: 'policy.running', css: css.stAmber } as const
+      : running ? { key: 'policy.serving', css: css.stPass } as const
+        : { key: 'policy.off', css: css.stPend } as const
+  const held = pending !== null || state === null
+  return (
+    <div className={css.resMeter}>
+      <div className={css.meterLabel}>
+        <span><Term label={t('policyServer')} tip={t('policyServer.tip')} /></span>
+        <span className={`${css.modelBadge} ${badge.css ?? ''}`}>{t(badge.key)}</span>
+      </div>
+      <div className={css.modelLine}>
+        <span>
+          <button type="button" className={css.modelBtn} onClick={() => { onAct('start') }} disabled={held || running}>
+            {t('policyStart')}
+          </button>
+          {' '}
+          <button type="button" className={css.modelBtn} onClick={() => { onAct('stop') }} disabled={held || !running}>
+            {t('policyStop')}
+          </button>
+        </span>
+        {state?.checkpoint_sha == null
+          ? null
+          : <span className={css.resDetail} title={state.checkpoint_sha}>{state.checkpoint_sha.slice(0, 8)}</span>}
+      </div>
+      <div className={css.modelNote}>{t('policyServer.note')}</div>
+      {state?.error === undefined
+        ? null
+        : <div className={css.resDetail} title={state.error}>{state.error}</div>}
+    </div>
+  )
+}
+
+/** Restart services: one button that arms on the first click and fires on the
+ * second (the whole confirm lives in this widget — no window.confirm), a
+ * rebuild-first checkbox, then the restarting line until health answers again
+ * and the restart row it answered with. */
+function RestartControl({
+  phase, build, onBuild, onClick, health, t,
+}: {
+  phase: RestartPhase
+  build: boolean
+  onBuild: (build: boolean) => void
+  onClick: () => void
+  health: Health | null
+} & { t: T }) {
+  const restarting = phase === 'restarting'
+  const last = health?.restart
+  return (
+    <div className={css.resMeter}>
+      <div className={css.modelLine}>
+        <button type="button" className={css.modelBtn} onClick={onClick} disabled={restarting}>
+          {phase === 'armed' ? t('restart.confirm') : t('restart')}
+        </button>
+        <label className={css.modelNote}>
+          <input type="checkbox" checked={build} disabled={restarting} onChange={(e) => { onBuild(e.target.checked) }} />
+          {' '}{t('restart.build')}
+        </label>
+      </div>
+      {restarting ? <div className={css.resDetail}>{t('restart.restarting')}</div> : null}
+      {phase === 'back' && last !== undefined
+        ? <div className={css.resDetail} title={last.last ?? undefined}>{t('restart.last')}: {last.state ?? '?'} · {last.last ?? ''}</div>
+        : null}
+    </div>
+  )
+}
+
 /** Runtime vitals: MODE badge, heartbeat age with a freshness dot, skills,
  * mount sha, viewfinder — each row led by its own glyph — then the host's own
  * headroom (VRAM per card, RAM, free disk) as warning-coloured meters, with the
@@ -537,7 +677,8 @@ function ModelServerRow({
  * there. The switch keeps its own row set: a hostVitals outage must not take
  * away the operator's only way to free the card. */
 function VitalsCard({
-  boot, rtStatus, host, secs, online, model, pending, onToggleModel, t,
+  boot, rtStatus, host, secs, online, model, pending, onToggleModel,
+  policy, policyPending, onPolicy, restart, build, onBuild, onRestart, health, t,
 }: {
   boot?: BootRow | undefined
   rtStatus: RuntimeStatus | null
@@ -547,6 +688,14 @@ function VitalsCard({
   model: ModelServerState | null
   pending: PendingAction | null
   onToggleModel: () => void
+  policy: PolicyServerState | null
+  policyPending: PendingAction | null
+  onPolicy: (action: PendingAction) => void
+  restart: RestartPhase
+  build: boolean
+  onBuild: (build: boolean) => void
+  onRestart: () => void
+  health: Health | null
 } & { t: T }) {
   const sha = boot?.mount_plan_sha
   const gpus = host?.gpu ?? []
@@ -588,6 +737,8 @@ function VitalsCard({
           ? <div className={css.cardEmpty}>{t('noGpu')}</div>
           : gpus.map((g, i) => <GpuMeter key={g.index ?? i} gpu={g} multi={gpus.length > 1} t={t} />)}
       <ModelServerRow state={model} pending={pending} onToggle={onToggleModel} t={t} />
+      <PolicyServerRow state={policy} pending={policyPending} onAct={onPolicy} t={t} />
+      <RestartControl phase={restart} build={build} onBuild={onBuild} onClick={onRestart} health={health} t={t} />
       {host === null
         ? null
         : (

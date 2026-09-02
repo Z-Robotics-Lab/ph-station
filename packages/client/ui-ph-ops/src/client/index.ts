@@ -50,6 +50,9 @@ export function apply(ctx: Context): void {
       fetchRounds: () => board.rounds(),
       fetchHostVitals: () => board.hostVitals(),
       modelServer: (action: string) => board.modelServer(action),
+      policyServer: (action: string) => board.policyServer(action),
+      restartServices: (build: boolean) => board.restartServices(build),
+      fetchHealth: () => board.health(),
     }),
   }, OperatorRail))
 

@@ -136,6 +136,25 @@ export interface ModelServerState {
   error?: string
 }
 
+/** `policyServer(action)`: the pi0.5 policy server process (port 8000).
+ * `running` without `serving` is its load window; `checkpoint_sha` names the
+ * weights it serves. `error` reports a refused or failed action. */
+export interface PolicyServerState {
+  running?: boolean
+  pid?: number | null
+  port?: number
+  serving?: boolean
+  checkpoint_sha?: string | null
+  error?: string
+}
+
+/** `health()`: the rail reads only the `restart` row — the last restart
+ * helper's `{state, last}` — once the console answers again. */
+export interface Health {
+  ok?: boolean
+  restart?: { state?: string | null; last?: string | null }
+}
+
 /** One line of the operational event feed (harness.opstream): its sequence and
  * kind are all the rail reads — `task_claimed` opens a run, `task_done` /
  * `task_failed` seal it (the board's terminal markers, read verbatim). */

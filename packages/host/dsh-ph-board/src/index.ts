@@ -11,12 +11,14 @@
  * dispatch and the same dicts, just without the per-frame interpreter spawn.)
  * `execFile`/`spawn` (not a shell) plus the fixed fn per method (never user
  * input) plus storecli's own `safe_child` guard on the name argument leave no
- * injection surface. Three methods write: `submitBrief`, the same storecli
+ * injection surface. Five methods write: `submitBrief`, the same storecli
  * face's atomic brief drop, forwarded with zero client-side validation because
  * the resident runtime is the only authority over what a brief means;
  * `cancelBrief`, the matching cancel marker the runtime acts on at its next
- * boundary; and `modelServer`, which starts or stops the box's local model
- * server through board.store's own action whitelist and constant launcher path.
+ * boundary; `modelServer` / `policyServer`, which start or stop the box's local
+ * model server / pi0.5 policy server through board.store's own action whitelist
+ * and constant launcher paths; and `restartServices`, the harness's own
+ * restart helper (optionally rebuilding the console first).
  *
  * @module @deepseek-ai/dsh-ph-board
  */
@@ -63,9 +65,10 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /**
- * Remote over board.store via the storecli subprocess: read methods plus three
+ * Remote over board.store via the storecli subprocess: read methods plus five
  * writes (`submitBrief` / `cancelBrief`, storecli's atomic brief drop and cancel
- * marker, and `modelServer`, the local model server's start/stop). The gateway
+ * marker; `modelServer` / `policyServer`, the local model / pi0.5 policy
+ * server's start/stop; `restartServices`, the harness restart helper). The gateway
  * auto-serves each @Remote method at POST /api/board/<name>.
  */
 export class BoardBridge extends TypertRemoteService {
@@ -248,6 +251,46 @@ export class BoardBridge extends TypertRemoteService {
   @Remote('modelServer')
   modelServer(action: string): Promise<JsonValue> {
     return this.run('model_server', action)
+  }
+
+  /**
+   * Read or switch the pi0.5 POLICY server (port 8000) — `{running, pid, port,
+   * serving, checkpoint_sha}` plus `error` when an action could not be carried
+   * out. `modelServer`'s contract one port over: `action` rides the same single
+   * positional slot, board.store accepts only `status`/`start`/`stop`, and the
+   * launcher is a constant there. Not started by default: it holds ~18 GB VRAM
+   * and cannot coexist with the local model.
+   * @param action - `status`, `start`, or `stop`.
+   * @returns board.store.policy_server(action, runsDir) verbatim.
+   */
+  @Remote('policyServer')
+  policyServer(action: string): Promise<JsonValue> {
+    return this.run('policy_server', action)
+  }
+
+  /**
+   * Restart the harness services (`storecli restart_services [build]`): the
+   * board detaches its own restart helper and answers `{started, pid, log}`
+   * before going down, so the caller re-polls {@link health} until the console
+   * answers again. The single word `build` is the only argument and asks for a
+   * console rebuild first; nothing else from this process reaches the harness.
+   * @param build - rebuild the console before restarting.
+   * @returns board.store.restart_services(...) verbatim ({started, pid, log}).
+   */
+  @Remote('restartServices')
+  restartServices(build: boolean): Promise<JsonValue> {
+    return this.run('restart_services', build ? 'build' : undefined)
+  }
+
+  /**
+   * Whole-pipeline health (`storecli health`): `{ok, problems, sessions,
+   * console, model, policy, restart, ts}` — `restart` is `{state, last}`, the
+   * last restart helper's outcome the rail shows once the console is back.
+   * @returns board.store.health(runsDir) verbatim.
+   */
+  @Remote('health')
+  health(): Promise<JsonValue> {
+    return this.run('health')
   }
 
   /**

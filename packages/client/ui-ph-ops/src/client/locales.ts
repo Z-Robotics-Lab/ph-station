@@ -66,6 +66,18 @@ export type PhOpsKey =
   | 'model.on'
   | 'modelStart'
   | 'modelStop'
+  | 'policyServer'
+  | 'policyServer.note'
+  | 'policy.off'
+  | 'policy.running'
+  | 'policy.serving'
+  | 'policyStart'
+  | 'policyStop'
+  | 'restart'
+  | 'restart.confirm'
+  | 'restart.build'
+  | 'restart.restarting'
+  | 'restart.last'
   | 'on'
   | 'off'
   | 'pid'
@@ -82,6 +94,7 @@ export type PhOpsKey =
   | 'viewfinder.tip'
   | 'vram.tip'
   | 'modelServer.tip'
+  | 'policyServer.tip'
   // brain console
   | 'brain.title'
   | 'brain.session'
@@ -202,6 +215,18 @@ export const zh: Record<PhOpsKey, string> = {
   'model.on': '运行中',
   'modelStart': '启动本地模型',
   'modelStop': '停止',
+  'policyServer': 'pi0.5 策略',
+  'policyServer.note': '默认不启动；约占 18 GB 显存，不能与本地模型共存。',
+  'policy.off': '未启动',
+  'policy.running': '运行中（未就绪）',
+  'policy.serving': '服务中',
+  'policyStart': '启动 pi0.5',
+  'policyStop': '停止 pi0.5',
+  'restart': '重启服务',
+  'restart.confirm': '再点一次确认重启',
+  'restart.build': '重建控制台后重启',
+  'restart.restarting': '重启中，等待控制台恢复…',
+  'restart.last': '上次重启',
   'on': '开',
   'off': '关',
   'pid': 'pid',
@@ -217,6 +242,7 @@ export const zh: Record<PhOpsKey, string> = {
   'viewfinder.tip': '取景窗：机器人相机的实时画面渲染开关；开＝正在出图，关＝未渲染。',
   'vram.tip': '显存：GPU 上已占用/总量，下方是占得最多的进程。打满会直接打爆常驻 runtime，所以超过 90% 会变红。',
   'modelServer.tip': '本地模型：本机上跑的模型服务进程（llama.cpp，127.0.0.1:30001）。这个开关只启停这个进程，不决定请求发给谁——用云端还是本地，在模型选择器里选。停掉它能把上面那条显存还给仿真。加载要 1–2 分钟，期间显示“加载中”。',
+  'policyServer.tip': 'pi0.5 策略：端口 8000 上的 VLA 策略服务进程，旁边是它加载的 checkpoint sha。默认不启动；约占 18 GB 显存，和本地模型不能同时跑。',
   'brain.title': '大脑',
   'brain.session': '会话',
   'brain.mission': '任务',
@@ -329,6 +355,18 @@ export const en: Record<PhOpsKey, string> = {
   'model.on': 'running',
   'modelStart': 'Start local model',
   'modelStop': 'Stop',
+  'policyServer': 'pi0.5 policy',
+  'policyServer.note': 'Not started by default; ~18 GB VRAM, cannot coexist with the local model.',
+  'policy.off': 'not started',
+  'policy.running': 'running (not serving)',
+  'policy.serving': 'serving',
+  'policyStart': 'Start pi0.5',
+  'policyStop': 'Stop pi0.5',
+  'restart': 'Restart services',
+  'restart.confirm': 'Click again to confirm restart',
+  'restart.build': 'rebuild console first',
+  'restart.restarting': 'restarting, waiting for the console…',
+  'restart.last': 'last restart',
   'on': 'on',
   'off': 'off',
   'pid': 'pid',
@@ -344,6 +382,7 @@ export const en: Record<PhOpsKey, string> = {
   'viewfinder.tip': "Viewfinder: the robot camera's live render toggle; on = rendering frames, off = not.",
   'vram.tip': 'VRAM: used/total on the GPU, with the biggest consumer below. A full card kills the resident runtime, so above 90% turns red.',
   'modelServer.tip': 'Local model: the model service process on this box (llama.cpp, 127.0.0.1:30001). This switch only starts and stops that process — whether a request goes to the cloud or to local is the model selector’s choice. Stopping it returns the VRAM above to the simulator. Loading takes 1-2 minutes, shown as "loading".',
+  'policyServer.tip': 'pi0.5 policy: the VLA policy server process on port 8000, with the checkpoint sha it loaded. Not started by default; it holds ~18 GB VRAM and cannot run beside the local model.',
   'brain.title': 'Brain',
   'brain.session': 'Session',
   'brain.mission': 'Mission',

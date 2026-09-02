@@ -35,6 +35,9 @@ function renderRail(wide: boolean, result: RemoteResult<unknown>, over: object =
     fetchRounds: vi.fn(() => Promise.resolve(result)),
     fetchHostVitals: vi.fn(() => Promise.resolve(result)),
     modelServer: vi.fn(() => Promise.resolve(result)),
+    policyServer: vi.fn(() => Promise.resolve(result)),
+    restartServices: vi.fn(() => Promise.resolve(result)),
+    fetchHealth: vi.fn(() => Promise.resolve(result)),
     t: (key: keyof typeof en) => en[key],
     ...over,
   }
@@ -156,6 +159,44 @@ describe('OperatorRail smoke', () => {
     await waitFor(() => { expect(screen.getByText(en['model.on'])).toBeTruthy() })
     expect(screen.getByText(en['modelServer.note'])).toBeTruthy()
     expect(screen.queryByText(en.noGpu)).toBeNull()
+  })
+
+  it('policy Start calls policyServer("start"), Stop calls "stop", sha short beside the badge', async () => {
+    const policyServer = vi.fn(() => Promise.resolve(ok({ running: false, serving: false })))
+    renderRail(true, ok([]), { policyServer })
+    await waitFor(() => { expect(policyServer).toHaveBeenCalledWith('status') })
+    expect(screen.getByText(en['policyServer.note'])).toBeTruthy()
+    await waitFor(() => { expect(screen.getByRole('button', { name: en.policyStart }).hasAttribute('disabled')).toBe(false) })
+    expect(screen.getByRole('button', { name: en.policyStop }).hasAttribute('disabled')).toBe(true)
+
+    screen.getByRole('button', { name: en.policyStart }).click()
+    await waitFor(() => { expect(policyServer).toHaveBeenCalledWith('start') })
+    cleanup()
+
+    const serving = vi.fn(() => Promise.resolve(ok({ running: true, serving: true, checkpoint_sha: 'deadbeefcafe0123' })))
+    renderRail(true, ok([]), { policyServer: serving })
+    await waitFor(() => { expect(screen.getByText(en['policy.serving'])).toBeTruthy() })
+    expect(screen.getByText('deadbeef')).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.policyStart }).hasAttribute('disabled')).toBe(true)
+    screen.getByRole('button', { name: en.policyStop }).click()
+    await waitFor(() => { expect(serving).toHaveBeenCalledWith('stop') })
+  })
+
+  it('restart needs two clicks in the widget and passes the build flag', async () => {
+    const restartServices = vi.fn(() => Promise.resolve(ok({ started: true, pid: 1, log: '/l' })))
+    renderRail(true, ok([]), { restartServices })
+    const first = screen.getByRole('button', { name: en.restart })
+    first.click()
+    // Armed: the same button now reads as the confirm; nothing fired yet.
+    await waitFor(() => { expect(screen.getByRole('button', { name: en['restart.confirm'] })).toBeTruthy() })
+    expect(restartServices).not.toHaveBeenCalled()
+
+    screen.getByRole('checkbox').click()
+    screen.getByRole('button', { name: en['restart.confirm'] }).click()
+    await waitFor(() => { expect(restartServices).toHaveBeenCalledWith(true) })
+    expect(restartServices).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(en['restart.restarting'])).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.restart }).hasAttribute('disabled')).toBe(true)
   })
 
   it('renders the collapsed 56px rail when the column is an icon rail', () => {

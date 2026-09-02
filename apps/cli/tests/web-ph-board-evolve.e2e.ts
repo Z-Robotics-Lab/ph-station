@@ -160,12 +160,19 @@ describe.skipIf(!runnable)('board bridge over a real web boot', () => {
     expect(run).toEqual({ ...CAMPAIGN, latest: CAMPAIGN.rounds[1] })
     const series = await board(base, 'rsiSeries', { request: { session: 'session-main', task: 'kitchen_thaw' } })
     expect(series).toEqual([
-      { round: 1, before: 0, after: 1, best: 1 },
-      { round: 2, before: 1, after: 1, best: 1 },
+      { round: 1, before: 0, after: 1, best: 1, per_seed: null, needs: null },
+      { round: 2, before: 1, after: 1, best: 1, per_seed: null, needs: null },
     ])
     expect(await board(base, 'rsiFrames', { request: { session: 'session-main', task: 'kitchen_thaw', round: 1 } }))
       .toEqual(['media/kitchen_thaw/1/grasp.gif'])
     expect(await board(base, 'rsiRun', { request: { session: 'session-main', task: 'nope' } })).toBeNull()
+  })
+
+  it('policyServer status is a read: a dict with running/serving keys', async () => {
+    // `status` only — start/stop would touch the live pi0.5 server on :8000.
+    const state = await board(base, 'policyServer', { action: 'status' }) as Record<string, unknown>
+    expect(typeof state.running).toBe('boolean')
+    expect(typeof state.serving).toBe('boolean')
   })
 
   it('submitBrief lands the brief JSON verbatim in the session inbox; cancelBrief marks it', async () => {
