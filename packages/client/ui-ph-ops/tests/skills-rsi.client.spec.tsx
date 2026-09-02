@@ -94,7 +94,13 @@ describe('RsiView', () => {
     // Round 2 (latest) has no media; picking round 1 fetches its frames and shows its dropped reasons.
     expect(screen.getByText(en['evolve.noMedia'])).toBeTruthy()
     fireEvent.click(screen.getByText('Round 1'))
-    await waitFor(() => { expect(screen.getByText(/media\/kitchen_thaw\/1\/grasp-0\.mp4/)).toBeTruthy() })
+    // An .mp4 path becomes a muted, metadata-only <video> off the board's byte route, captioned by node.
+    await waitFor(() => { expect(container.querySelector('video')).toBeTruthy() })
+    const video = container.querySelector('video') as HTMLVideoElement
+    expect(video.getAttribute('src')).toBe('/api/board/media/session-main/media/kitchen_thaw/1/grasp-0.mp4')
+    expect(video.hasAttribute('controls')).toBe(true)
+    expect(video.getAttribute('preload')).toBe('metadata')
+    expect(container.querySelector('figcaption')?.textContent).toBe('grasp-0')
     expect(p.fetchRsiFrames).toHaveBeenCalledWith('session-main', 'kitchen_thaw', 1)
     expect(screen.getByText(/verify_failed/)).toBeTruthy()
     // The brief is open (claimed, no terminal marker): Stop cancels it.

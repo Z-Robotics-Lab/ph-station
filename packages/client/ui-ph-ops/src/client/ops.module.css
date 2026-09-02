@@ -520,12 +520,13 @@
   background: var(--ph-surface, color-mix(in srgb, currentColor 5%, transparent)); border-radius: 8px;
   white-space: pre-wrap; word-break: break-all;
 }
-.media { display: flex; flex-wrap: wrap; gap: 6px; }
-.mediaItem {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
-  padding: 2px 6px; border-radius: 6px;
+.media { display: flex; flex-wrap: wrap; gap: 8px; }
+.mediaCard {
+  margin: 0; width: 180px; font-size: 11px; border-radius: 6px; overflow: hidden;
   border: 1px solid var(--ph-line, color-mix(in srgb, currentColor 14%, transparent));
 }
+.mediaCard video, .mediaCard img { display: block; width: 100%; max-height: 140px; object-fit: contain; background: #000; }
+.mediaCard figcaption { padding: 2px 6px; }
 
 /* ── RSI page: loop-order section titles, per-round beat rows, the collapsed strict block ── */
 .secTitle { margin: 6px 0 0; font-size: 12px; font-weight: 700; letter-spacing: 0.03em; }

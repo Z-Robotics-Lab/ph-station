@@ -26,10 +26,17 @@
 import { execFile, spawn } from 'node:child_process'
 import type { Readable, Writable } from 'node:stream'
 import type { ChildProcessByStdio } from 'node:child_process'
+import { createReadStream } from 'node:fs'
+import { realpath, stat } from 'node:fs/promises'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import { extname, resolve, sep } from 'node:path'
 import { createInterface } from 'node:readline'
 import { promisify } from 'node:util'
 import type { Context } from '@deepseek-ai/cordis'
 import s from '@deepseek-ai/schemastery'
+import { isTrustedApiRequest } from '@deepseek-ai/dsh-client-connection'
+// Type-only: resolves `ctx.webServer` for the media byte route.
+import type {} from '@deepseek-ai/dsh-host-webserver'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 // The Typert-generated ./typert and ./remote artifacts import Zod at runtime.
@@ -43,6 +50,46 @@ import type {
 export type * from './types.ts'
 
 const execFileAsync = promisify(execFile)
+
+/** The one byte route this package serves: `GET /api/board/media/<session>/media/<...>`. */
+export const MEDIA_PATH = '/api/board/media'
+
+/** Content types by extension for the kept-media files an evolve round records. */
+const MEDIA_TYPES: Record<string, string> = {
+  mp4: 'video/mp4', gif: 'image/gif', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', json: 'application/json',
+}
+
+/**
+ * Resolve the `<session>/<relpath>` tail of a media URL to a file under
+ * `runs/<session>/media/`, or undefined for anything else: a missing or dotted
+ * session segment, a relpath outside `media/`, any `.`/`..`/empty segment
+ * (so `..`, `//`, and percent-encoded traversal all fail), an unknown
+ * extension, a resolved or symlink-followed path that leaves the session
+ * directory, or a path that is not an existing regular file.
+ * @param runsDir - the campaign runs/ directory.
+ * @param tail - the URL path after {@link MEDIA_PATH}/ (still percent-encoded).
+ * @returns the real file path and its content type, or undefined (→ 404).
+ */
+export async function mediaFile(runsDir: string, tail: string): Promise<{ file: string; type: string } | undefined> {
+  let decoded: string
+  try { decoded = decodeURIComponent(tail) } catch { return undefined }
+  const [session, ...rest] = decoded.split('/')
+  const rel = rest.join('/')
+  if (session === undefined || !rel.startsWith('media/')) return undefined
+  if ([session, ...rest].some(seg => seg === '' || seg === '.' || seg === '..')) return undefined
+  const type = MEDIA_TYPES[extname(rel).slice(1).toLowerCase()]
+  if (type === undefined) return undefined
+  const sessionDir = resolve(runsDir, session)
+  const file = resolve(sessionDir, rel)
+  if (!file.startsWith(sessionDir + sep)) return undefined
+  try {
+    const [real, realSession] = await Promise.all([realpath(file), realpath(sessionDir)])
+    if (!real.startsWith(realSession + sep) || !(await stat(real)).isFile()) return undefined
+    return { file: real, type }
+  } catch {
+    return undefined
+  }
+}
 
 /**
  * Box-specific spawn paths (dsh: no hardcoded tunables). The cockpit exports
@@ -102,6 +149,33 @@ export class BoardBridge extends TypertRemoteService {
     this.config = config
     ctx.effect(() => () => { this.frameWorkerDown(new Error('board bridge disposed')) },
       'ph-board: frame worker reaper')
+    // The one non-RPC face: kept-media bytes for the RSI page's ③ 关键片段.
+    // A longer prefix than the gateway's /api, so the webserver routes it here
+    // first and the handler re-applies the same trusted-host fence itself.
+    ctx.inject(['webServer'], (webCtx) => {
+      webCtx.effect(() => webCtx.webServer.register({
+        kind: 'prefix', path: MEDIA_PATH, handler: (req, res) => this.serveMedia(req, res),
+      }), 'ph-board: media byte route')
+    })
+  }
+
+  /**
+   * `GET /api/board/media/<session>/media/<...>`: stream one kept clip or still
+   * (`runs/<session>/media/<task>/<seed>/<node>.mp4|.gif|...`) with its content
+   * type, 403 outside the trusted-host fence, 404 for anything {@link mediaFile}
+   * refuses, 405 for other methods. Read-only; no query, no range.
+   * ponytail: no Range support — clips are seconds long; add it when scrubbing matters.
+   */
+  private async serveMedia(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const trusted = (this.ctx.get('webRuntime') as { trustedHosts?: string[] } | undefined)?.trustedHosts ?? []
+    if (!isTrustedApiRequest(req, trusted)) { res.writeHead(403); res.end('forbidden'); return }
+    if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return }
+    const pathname = new URL(req.url ?? '/', 'http://x').pathname
+    const hit = await mediaFile(this.config.runsDir, pathname.slice(MEDIA_PATH.length + 1))
+    if (hit === undefined) { res.writeHead(404); res.end('not found'); return }
+    res.writeHead(200, { 'content-type': hit.type, 'content-length': (await stat(hit.file)).size, 'cache-control': 'no-cache' })
+    if (req.method === 'HEAD') { res.end(); return }
+    createReadStream(hit.file).pipe(res)
   }
 
   /**

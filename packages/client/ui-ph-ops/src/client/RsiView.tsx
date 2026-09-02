@@ -263,7 +263,7 @@ export function RsiView({
             <h3 className={css.secTitle}>{t('rsi.sec.frames')}{shownRound !== null ? ` · ${t('rsi.roundN', { r: shownRound })}` : ''}</h3>
             {frames.length === 0
               ? <div className={css.dim}>{t('evolve.noMedia')}</div>
-              : <div className={css.media}>{frames.map(p => <span key={p} className={css.mediaItem} title={p}>{p.endsWith('.mp4') ? '▶' : '▣'} {p}</span>)}</div>}
+              : <div className={css.media}>{frames.map(p => <MediaCard key={p} session={sessionName ?? ''} path={p} />)}</div>}
             {Object.entries(shown?.media_dropped ?? {}).map(([k, why]) => (
               <div key={k} className={css.dim}><span className={css.mono}>{k}</span> · {t('rsi.dropped')}: {why}</div>
             ))}
@@ -288,6 +288,23 @@ export function RsiView({
         {renderView?.(strictTab)}
       </details>
     </div>
+  )
+}
+
+/** One kept clip or still, served by the board's byte route
+ * (`GET /api/board/media/<session>/<relpath>`): a muted metadata-only
+ * `<video>` for .mp4, an `<img>` otherwise; the caption is the node name the
+ * harness put in the filename (`media/<task>/<seed>/<node>.mp4`). */
+function MediaCard({ session, path }: { session: string; path: string }) {
+  const src = `/api/board/media/${encodeURIComponent(session)}/${path.split('/').map(encodeURIComponent).join('/')}`
+  const node = (path.split('/').pop() ?? path).replace(/\.[^.]+$/, '')
+  return (
+    <figure className={css.mediaCard} title={path}>
+      {path.endsWith('.mp4')
+        ? <video src={src} controls muted preload="metadata" />
+        : <img src={src} alt={node} loading="lazy" />}
+      <figcaption className={css.mono}>{node}</figcaption>
+    </figure>
   )
 }
 

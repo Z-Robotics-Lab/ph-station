@@ -58,8 +58,14 @@ async function fixtureRuns(root: string): Promise<string> {
   const campaign = join(session, 'campaigns', 'evolve-kitchen_thaw')
   await mkdir(campaign, { recursive: true })
   await writeFile(join(campaign, 'campaign.json'), JSON.stringify(CAMPAIGN))
+  const clip = join(session, 'media', 'kitchen_thaw', '1')
+  await mkdir(clip, { recursive: true })
+  await writeFile(join(clip, 'grasp.gif'), GIF)
   return runs
 }
+
+/** The fixture clip's bytes (a GIF header is enough: the route streams, never decodes). */
+const GIF = Buffer.from('GIF89a\0\0\0\0\0\0;', 'latin1')
 
 async function bootWeb(home: string, runsDir: string): Promise<Context> {
   const settingsFile = join(home, 'settings.yaml')
@@ -166,6 +172,18 @@ describe.skipIf(!runnable)('board bridge over a real web boot', () => {
     expect(await board(base, 'rsiFrames', { request: { session: 'session-main', task: 'kitchen_thaw', round: 1 } }))
       .toEqual(['media/kitchen_thaw/1/grasp.gif'])
     expect(await board(base, 'rsiRun', { request: { session: 'session-main', task: 'nope' } })).toBeNull()
+  })
+
+  it('streams a kept clip through GET /api/board/media and refuses traversal', async () => {
+    const hit = await fetch(`${base}/api/board/media/session-main/media/kitchen_thaw/1/grasp.gif`)
+    expect(hit.status).toBe(200)
+    expect(hit.headers.get('content-type')).toBe('image/gif')
+    expect(Buffer.from(await hit.arrayBuffer())).toEqual(GIF)
+    // Encoded-slash traversal (the URL parser leaves %2F alone, the route decodes it) and a
+    // real file outside media/ both read as 404 -- the guard, not the filesystem, answers.
+    const traversal = await fetch(`${base}/api/board/media/session-main/media/..%2F..%2Fsession-main/campaigns/evolve-kitchen_thaw/campaign.json`)
+    expect(traversal.status).toBe(404)
+    expect((await fetch(`${base}/api/board/media/session-main/campaigns/evolve-kitchen_thaw/campaign.json`)).status).toBe(404)
   })
 
   it('policyServer status is a read: a dict with running/serving keys', async () => {
