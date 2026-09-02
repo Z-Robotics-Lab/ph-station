@@ -1,23 +1,27 @@
 /** RSI page: the lightweight evolve loop (look → try → rerun the same seeds →
  * publish when better) as the one RSI surface, structured the way the loop
- * works. Head = task + evolution-mode session + 开始/继续 / 停止 + a one-line
- * status; then the session's campaigns (`rsiRun` per task the operational feed
- * saw claimed); then the picked campaign in loop order — ① 进度 (`rsiSeries`
- * chart), ② 每一轮 (per_seed / tried / result / published / needs), ③ 关键片段
- * (`rsiFrames` of the shown round + its dropped reasons), ④ 日志 (this brief's
- * runtime feed). The legacy heavy chain (prereg / blind twin / held-out) sits
- * collapsed at the bottom, rendered by view id through the owner's renderView.
- * Renders only — every count is campaign.json's, written by scripts/evolve.py. */
+ * works. Head = task + evolution-mode session + 开始/继续 / 停止; then the
+ * session's campaigns (`rsiRun` per task the operational feed saw claimed);
+ * then the picked campaign top-down: 状态卡 (status chip, the 看→试→复测→发布
+ * stepper on `live.phase`, seed / node / elapsed / ETA), 实时 (the running
+ * episode's `runtimeFrame` beside a per-seed board off `live.per_seed_partial`),
+ * 轮次时间线 (one chip per round, the running one dashed; click selects), then
+ * the selected round — ① 进度 (`rsiSeries` chart), ② 每一轮 (per_seed / tried /
+ * result / published / needs), ③ 关键片段 (`rsiFrames` + dropped reasons),
+ * ④ 日志 (this brief's runtime feed, humanized; raw JSON behind a toggle). The
+ * legacy heavy chain (prereg / blind twin / held-out) sits collapsed at the
+ * bottom, rendered by view id through the owner's renderView. Renders only —
+ * every count is campaign.json's, written by scripts/evolve.py. */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { seedCount, statusLine } from './format.ts'
+import { formatAgo, seedCount } from './format.ts'
 import { evolveSessions, pickEvolveDefault } from './OperatorRail.tsx'
 import { usePolledLoad } from './poll.ts'
 import type {
-  Campaign, CampaignRound, RuntimeEvent, RuntimeEventsPayload, SeriesPoint, SessionSummary,
+  Campaign, CampaignRound, LiveState, RuntimeEvent, RuntimeEventsPayload, SeriesPoint, SessionSummary,
 } from './types.ts'
 import css from './ops.module.css'
 
@@ -27,12 +31,15 @@ export interface RsiInjected {
   fetchCards: () => Promise<RemoteResult<unknown>>
   fetchSessions: () => Promise<RemoteResult<unknown>>
   fetchRuntimeEvents: (session: string) => Promise<RemoteResult<unknown>>
-  /** POST /api/board/rsi_run: campaign.json + latest, or null when none. */
+  /** POST /api/board/rsi_run: campaign.json + latest + live, or null when none. */
   fetchRsiRun: (session: string, task: string) => Promise<RemoteResult<unknown>>
   /** POST /api/board/rsi_series: per-round {round, before, after, best}. */
   fetchRsiSeries: (session: string, task: string) => Promise<RemoteResult<unknown>>
   /** POST /api/board/rsi_frames: kept media paths of one round. */
   fetchRsiFrames: (session: string, task: string, round: number) => Promise<RemoteResult<unknown>>
+  /** POST /api/board/runtime_frame: the running episode's JPEG past `afterTs`
+   * (`{jpeg_b64, ts}`), `{unchanged}` when not, `{error}` when none exists. */
+  fetchRuntimeFrame: (session: string, afterTs: number) => Promise<RemoteResult<unknown>>
   /** POST /api/board/submit_brief: the brief JSON, verbatim. */
   submitBrief: (briefJson: string, session: string) => Promise<RemoteResult<unknown>>
   /** POST /api/board/cancel_brief: drop the cancel marker for one brief. */
@@ -43,6 +50,11 @@ type T = PropsLocale<'phops'>['t']
 interface Card { contributes?: { task_bindings?: string[] } }
 
 const TERMINAL = new Set(['task_done', 'task_failed', 'task_cancelled'])
+/** The four beats of one round, in loop order; `live.phase` names one of them. */
+const PHASES = ['baseline', 'propose', 'retest', 'publish'] as const
+/** Poll cadence: seconds while a campaign runs, slower once it settled. */
+const POLL_RUNNING_MS = 2000
+const POLL_IDLE_MS = 10000
 
 /** The legacy panels the strict section swaps between, by conversation.view id. */
 const STRICT_TABS = [
@@ -65,17 +77,42 @@ function briefsOf(events: RuntimeEvent[], task: string): { ids: Set<string>; ope
   return { ids, open }
 }
 
-/** Inline SVG line chart of the series: x = round, y = success count. Three
- * polylines (before / after / best) over one axis; no chart library. */
-export function SeriesChart({ series }: { series: SeriesPoint[] }) {
-  const W = 320; const H = 120; const PAD = 10
-  const top = Math.max(1, ...series.flatMap(p => [p.before ?? 0, p.after ?? 0, p.best ?? 0]))
-  const x = (i: number) => PAD + (series.length < 2 ? 0 : (i * (W - 2 * PAD)) / (series.length - 1))
-  const y = (v: number) => H - PAD - (v / top) * (H - 2 * PAD)
+/** Inline SVG line chart of the series: x = round, y = success count out of
+ * `n` seeds. Three polylines (before / after / best) over labelled axes, y
+ * ticks 0..n, x labels 第1轮…; no chart library. */
+export function SeriesChart({ series, n, t }: { series: SeriesPoint[]; n: number; t: T }) {
+  const W = 320; const H = 130; const L = 26; const R = 8; const TOP = 8; const B = 26
+  if (series.length === 0) return <div className={css.dim}>{t('rsi.chartEmpty')}</div>
+  const top = Math.max(1, n, ...series.flatMap(p => [p.before ?? 0, p.after ?? 0, p.best ?? 0]))
+  const step = Math.max(1, Math.ceil(top / 6))
+  const ticks: number[] = []
+  for (let v = 0; v <= top; v += step) ticks.push(v)
+  const x = (i: number) => L + (series.length < 2 ? 0 : (i * (W - L - R)) / (series.length - 1))
+  const y = (v: number) => H - B - (v / top) * (H - B - TOP)
   const line = (k: 'before' | 'after' | 'best') => series.map((p, i) => `${x(i)},${y(p[k] ?? 0)}`).join(' ')
+  const legend: Array<[string, 'before' | 'after' | 'best']> = [[t('evolve.before'), 'before'], [t('evolve.after'), 'after'], [t('evolve.best'), 'best']]
+  const cls = { before: css.chartBefore, after: css.chartAfter, best: css.chartBest }
   return (
-    <svg className={css.chart} viewBox={`0 0 ${W} ${H}`} role="img">
-      <line className={css.chartAxis} x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} />
+    <svg className={css.chart} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t('evolve.chart')}>
+      <line className={css.chartAxis} x1={L} y1={TOP} x2={L} y2={H - B} />
+      <line className={css.chartAxis} x1={L} y1={H - B} x2={W - R} y2={H - B} />
+      {ticks.map(v => (
+        <g key={v}>
+          <line className={css.chartGrid} x1={L} y1={y(v)} x2={W - R} y2={y(v)} />
+          <text className={css.chartLabel} x={L - 4} y={y(v) + 3} textAnchor="end" data-axis="y">{v}</text>
+        </g>
+      ))}
+      {series.map((p, i) => (
+        <text key={p.round ?? i} className={css.chartLabel} x={x(i)} y={H - B + 11} textAnchor="middle" data-axis="x">
+          {t('rsi.roundN', { r: p.round ?? i + 1 })}
+        </text>
+      ))}
+      {legend.map(([label, k], i) => (
+        <g key={k} data-legend={k}>
+          <line className={cls[k]} x1={L + i * 70} y1={H - 4} x2={L + i * 70 + 14} y2={H - 4} />
+          <text className={css.chartLabel} x={L + i * 70 + 18} y={H - 1}>{label}</text>
+        </g>
+      ))}
       <polyline className={css.chartBefore} data-series="before" points={line('before')} />
       <polyline className={css.chartAfter} data-series="after" points={line('after')} />
       <polyline className={css.chartBest} data-series="best" points={line('best')} />
@@ -101,8 +138,32 @@ export function describeTried(tried: CampaignRound['tried'], t: T): string {
   return typeof d.error === 'string' ? `${out} · ${d.error}` : out
 }
 
+/** One runtime event as an operator sentence: the board's task_claimed /
+ * task_done / task_failed / task_cancelled markers get their own words; a
+ * round-bearing row (rsi_step) leads with 第 r 轮; anything else shows its
+ * kind verbatim plus `message` when the runtime wrote one. */
+export function describeEvent(e: RuntimeEvent, t: T): string {
+  const msg = typeof e.message === 'string' ? ` ${e.message}` : ''
+  switch (e.kind) {
+    case 'task_claimed': return t('rsi.log.claimed', { task: e.task ?? '—', brief: e.brief ?? '' })
+    case 'task_done': return t('rsi.log.done')
+    case 'task_failed': return t('rsi.log.failed', { error: e.error ?? '—' })
+    case 'task_cancelled': return t('rsi.log.cancelled')
+    default: return typeof e.round === 'number' ? `${t('rsi.roundN', { r: e.round })} · ${e.kind ?? ''}${msg}` : `${e.kind ?? '—'}${msg}`
+  }
+}
+
+/** Epoch seconds → local HH:MM:SS; `--:--:--` when the row carries no ts. */
+const clock = (ts?: number) => (typeof ts === 'number'
+  ? new Date(ts * 1000).toTimeString().slice(0, 8)
+  : '--:--:--')
+
+/** True while `live` describes a round in flight (one of the four beats). */
+const inFlight = (live: LiveState | null | undefined): live is LiveState =>
+  live != null && (PHASES as readonly string[]).includes(live.phase ?? '')
+
 export function RsiView({
-  fetchCards, fetchSessions, fetchRuntimeEvents, fetchRsiRun, fetchRsiSeries, fetchRsiFrames,
+  fetchCards, fetchSessions, fetchRuntimeEvents, fetchRsiRun, fetchRsiSeries, fetchRsiFrames, fetchRuntimeFrame,
   submitBrief, cancelBrief, renderView, t,
 }: ConvViewProps & InjectFace<RsiInjected> & PropsLocale<'phops'>) {
   const [taskNames, setTaskNames] = useState<string[]>([])
@@ -120,6 +181,11 @@ export function RsiView({
   const [error, setError] = useState<string | null>(null)
   const [online, setOnline] = useState<boolean | null>(null)
   const [strictTab, setStrictTab] = useState<string>(STRICT_TABS[0].id)
+  const [raw, setRaw] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+  const [hasFrame, setHasFrame] = useState(false)
+  const imgRef = useRef<HTMLImageElement>(null)
+  const frameTs = useRef(0)
 
   const load = useCallback(async () => {
     try {
@@ -153,23 +219,50 @@ export function RsiView({
       setOnline(false)
     }
   }, [fetchCards, fetchSessions, fetchRuntimeEvents, fetchRsiRun, fetchRsiSeries, session, known, task])
-  usePolledLoad(load)
 
   const sessionName = session ?? pickEvolveDefault(sessions)
   const current = campaigns?.find(c => c.task === task) ?? null
+  const running = current?.status === 'running'
+  usePolledLoad(load, running ? POLL_RUNNING_MS : POLL_IDLE_MS)
+  const live = inFlight(current?.live) ? current.live : null
   const shownRound = round ?? current?.latest?.round ?? null
   const shown = current?.rounds?.find(r => r.round === shownRound) ?? null
+
   useEffect(() => {
     if (sessionName === null || task === null || shownRound === null) { setFrames([]); return }
-    let live = true
+    let alive = true
     fetchRsiFrames(sessionName, task, shownRound)
-      .then((r) => { if (live && r.ok) setFrames(Array.isArray(r.value) ? r.value as string[] : []) })
-      .catch(() => { if (live) setFrames([]) })
-    return () => { live = false }
+      .then((r) => { if (alive && r.ok) setFrames(Array.isArray(r.value) ? r.value as string[] : []) })
+      .catch(() => { if (alive) setFrames([]) })
+    return () => { alive = false }
   }, [fetchRsiFrames, sessionName, task, shownRound])
 
+  // One 1s tick while running: the elapsed clock and the live frame (src swapped
+  // through the ref so the JPEG never rides a React re-render).
+  useEffect(() => {
+    frameTs.current = 0; setHasFrame(false)
+    if (!running || sessionName === null) return
+    let alive = true
+    const tick = async () => {
+      setNow(Date.now())
+      if (document.hidden) return
+      try {
+        const r = await fetchRuntimeFrame(sessionName, frameTs.current)
+        const p = r.ok ? r.value as { jpeg_b64?: string; ts?: number } | null : null
+        if (alive && p?.jpeg_b64 !== undefined) {
+          frameTs.current = p.ts ?? 0
+          if (imgRef.current) imgRef.current.src = `data:image/jpeg;base64,${p.jpeg_b64}`
+          setHasFrame(true)
+        }
+      } catch { /* the last frame stays; the next tick retries */ }
+    }
+    void tick()
+    const timer = setInterval(() => { void tick() }, 1000)
+    return () => { alive = false; clearInterval(timer) }
+  }, [fetchRuntimeFrame, running, sessionName])
+
   const { ids, open } = task === null ? { ids: new Set<string>(), open: null } : briefsOf(events, task)
-  const log = events.filter(e => typeof e.brief === 'string' && ids.has(e.brief))
+  const log = events.filter(e => (typeof e.brief === 'string' ? ids.has(e.brief) : e.task === task))
 
   /** Start or resume: the brief is `{kind:"evolve", task}` and nothing else;
    * the runtime continues a known task from campaign.json's cursor. */
@@ -209,6 +302,9 @@ export function RsiView({
 
   if (online === false) return <div className={css.state}>{t('unavailable')}</div>
   if (campaigns === null) return <div className={css.state}>{t('loading')}</div>
+  const n = current === null ? 0 : seedCount(current)
+  const rounds = current?.rounds ?? []
+  const liveRound = live?.round ?? (rounds.length + 1)
   return (
     <div className={css.page}>
       <div className={css.pageHead}>
@@ -222,43 +318,100 @@ export function RsiView({
           {busy ? t('evolve.starting') : t('evolve.start')}
         </button>
         <button type="button" disabled={busy || open === null} onClick={() => { void stop() }}>{t('evolve.stop')}</button>
-        {current !== null && <span className={css.dim}>{statusLine(current, t)}</span>}
         {error !== null && <span className={css.brainError}>{error}</span>}
       </div>
 
-      {campaigns.length === 0
-        ? <div className={css.state}>{t('evolve.empty')}</div>
-        : (
-          <table className={css.table}>
-            <thead><tr>
-              <th>{t('evolve.task')}</th><th>{t('evolve.status')}</th><th>{t('evolve.rounds')}</th>
-              <th>{t('evolve.best')}</th><th>{t('evolve.tried')}</th>
-            </tr></thead>
-            <tbody>
-              {campaigns.map(c => (
-                <tr key={c.task} className={`${css.rowBtn} ${c.task === task ? css.rowSelected : ''}`} onClick={() => { pick(c) }}>
-                  <td className={css.mono}>{c.task}</td>
-                  <td>{c.status}</td>
-                  <td className={css.mono}>{c.rounds?.length ?? 0}</td>
-                  <td className={css.mono}>{c.best}/{seedCount(c)}</td>
-                  <td>{c.latest ? describeTried(c.latest.tried, t) : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      {campaigns.length > 0 && (
+        <table className={css.table}>
+          <thead><tr>
+            <th>{t('evolve.task')}</th><th>{t('evolve.status')}</th><th>{t('evolve.rounds')}</th>
+            <th>{t('evolve.best')}</th><th>{t('evolve.tried')}</th>
+          </tr></thead>
+          <tbody>
+            {campaigns.map(c => (
+              <tr key={c.task} className={`${css.rowBtn} ${c.task === task ? css.rowSelected : ''}`} onClick={() => { pick(c) }}>
+                <td className={css.mono}>{c.task}</td>
+                <td>{c.status}</td>
+                <td className={css.mono}>{c.rounds?.length ?? 0}</td>
+                <td className={css.mono}>{c.best}/{seedCount(c)}</td>
+                <td>{c.latest ? describeTried(c.latest.tried, t) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
 
       {current === null
-        ? campaigns.length > 0 && <div className={css.state}>{t('evolve.select')}</div>
+        ? <div className={css.state}>{t('rsi.guide')}</div>
         : (
           <>
+            <div className={`${css.card} ${css.statusCard}`} data-testid="rsi-status">
+              <div className={css.statusRow}>
+                <b className={css.mono}>{current.task}</b>
+                <span className={`${css.dim} ${css.mono}`}>{current.session ?? sessionName}</span>
+                <StatusChip status={current.status} t={t} />
+                <span className={css.mono}>{t('evolve.best')} {current.best ?? 0}/{n}</span>
+              </div>
+              {live !== null
+                ? (
+                  <>
+                    <div className={css.statusRow}>
+                      <span>{t('rsi.roundN', { r: liveRound })}</span>
+                      <div className={css.stepper}>
+                        {PHASES.map((ph, i) => (
+                          <span key={ph}>
+                            {i > 0 && <span className={css.stepArrow}> → </span>}
+                            <span className={css.step} data-phase={ph} aria-current={live.phase === ph ? 'step' : undefined}>{t(`rsi.phase.${ph}`)}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className={css.statusRow}>
+                      <span>{t('rsi.seedLine', { i: live.seed_index ?? 0, n: live.seeds_total ?? n, seed: live.seed ?? '—', node: live.node ?? '—' })}</span>
+                      <Elapsed live={live} now={now} t={t} />
+                    </div>
+                    {typeof live.message === 'string' && live.message !== '' && <div className={css.dim}>{live.message}</div>}
+                  </>
+                )
+                : running && <div className={css.dim}>{t('rsi.noLive')}</div>}
+            </div>
+
+            {running && (
+              <>
+                <h3 className={css.secTitle}>{t('rsi.sec.live')}</h3>
+                <div className={css.liveGrid}>
+                  <div>
+                    <img ref={imgRef} className={css.liveFrame} alt={t('rsi.sec.live')} hidden={!hasFrame} />
+                    {!hasFrame && <div className={css.dim}>{t('rsi.noFrame')}</div>}
+                  </div>
+                  {live !== null && <SeedBoard live={live} seeds={current.seeds} t={t} />}
+                </div>
+              </>
+            )}
+
+            <h3 className={css.secTitle}>{t('rsi.sec.timeline')}</h3>
+            <div className={css.timeline}>
+              {rounds.map(r => (
+                <button key={r.round} type="button" className={css.tlChip} aria-pressed={r.round === shownRound} onClick={() => { setRound(r.round ?? null) }}>
+                  <span><b>{t('rsi.roundN', { r: r.round ?? 0 })}</b> <span className={css.mono}>{r.before} → {r.after}</span> · {r.published === true ? '✓' : '–'}</span>
+                  <span className={css.tlTried}>{describeTried(r.tried, t)}</span>
+                </button>
+              ))}
+              {live !== null && (
+                <button type="button" className={css.tlChip} data-running="true" aria-pressed={liveRound === shownRound} onClick={() => { setRound(liveRound) }}>
+                  <span><b>{t('rsi.roundN', { r: liveRound })}</b> · {t(`rsi.phase.${live.phase as typeof PHASES[number]}`)}</span>
+                  <span className={css.tlTried}>{live.tried ? describeTried(live.tried, t) : t('rsi.seed.running')}</span>
+                </button>
+              )}
+            </div>
+
             <h3 className={css.secTitle}>{t('rsi.sec.progress')} <span className={css.dim}>{t('evolve.chart')}</span></h3>
-            <SeriesChart series={series} />
+            <SeriesChart series={series} n={n} t={t} />
 
             <h3 className={css.secTitle}>{t('rsi.sec.rounds')}</h3>
-            {(current.rounds ?? []).map(r => (
-              <RoundCard key={r.round} r={r} selected={r.round === shownRound} onPick={() => { setRound(r.round ?? null) }} t={t} />
-            ))}
+            {shown !== null
+              ? <RoundCard r={shown} t={t} />
+              : <div className={css.dim}>{t('rsi.roundRunning')}</div>}
 
             <h3 className={css.secTitle}>{t('rsi.sec.frames')}{shownRound !== null ? ` · ${t('rsi.roundN', { r: shownRound })}` : ''}</h3>
             {frames.length === 0
@@ -268,10 +421,16 @@ export function RsiView({
               <div key={k} className={css.dim}><span className={css.mono}>{k}</span> · {t('rsi.dropped')}: {why}</div>
             ))}
 
-            <h3 className={css.secTitle}>{t('rsi.sec.log')}</h3>
+            <h3 className={css.secTitle}>{t('rsi.sec.log')}
+              <label className={css.dim}><input type="checkbox" checked={raw} onChange={(e) => { setRaw(e.target.checked) }} /> {t('rsi.log.raw')}</label>
+            </h3>
             {log.length === 0
               ? <div className={css.dim}>{t('evolve.noLog')}</div>
-              : <pre className={css.log}>{log.map(e => JSON.stringify(e)).join('\n')}</pre>}
+              : raw
+                ? <pre className={css.log}>{log.map(e => JSON.stringify(e)).join('\n')}</pre>
+                : log.map((e, i) => (
+                  <div key={e.seq ?? i} className={css.logLine}><time>{clock(e.ts)}</time><span>{describeEvent(e, t)}</span></div>
+                ))}
           </>
         )}
 
@@ -287,6 +446,50 @@ export function RsiView({
         </div>
         {renderView?.(strictTab)}
       </details>
+    </div>
+  )
+}
+
+/** campaign.json's status word as a chip: the three known words get copy,
+ * anything else shows verbatim. */
+function StatusChip({ status, t }: { status: string | undefined; t: T }) {
+  const word = status === 'running' ? t('rsi.status.running') : status === 'done' ? t('rsi.status.done') : status === 'cancelled' ? t('rsi.status.cancelled') : status ?? '—'
+  return <span className={css.statusChip} data-status={status ?? ''}>{word}</span>
+}
+
+/** 已用时 since the round started, and 预计剩余 from the previous round's wall
+ * time (none on the first round). Both are clock arithmetic on the live block,
+ * never a projection. */
+function Elapsed({ live, now, t }: { live: LiveState; now: number; t: T }) {
+  const since = live.round_started_at ?? live.started_at
+  const elapsed = typeof since === 'number' ? Math.max(0, Math.floor(now / 1000 - since)) : null
+  const last = live.last_round_s
+  return (
+    <span className={css.dim} data-testid="rsi-elapsed">
+      {elapsed !== null && `${t('rsi.elapsed', { t: formatAgo(elapsed) })} · `}
+      {typeof last === 'number' && elapsed !== null ? t('rsi.eta', { t: formatAgo(Math.max(0, Math.floor(last - elapsed))) }) : t('rsi.etaNone')}
+    </span>
+  )
+}
+
+/** One chip per seed of the current pass: ✓ / ✗ (first death + failure mode)
+ * from `per_seed_partial`, 运行中 for `live.seed`, 排队 for the rest. */
+function SeedBoard({ live, seeds, t }: { live: LiveState; seeds: [number, number] | undefined; t: T }) {
+  const [lo, hi] = seeds?.length === 2 ? seeds : [1, live.seeds_total ?? 0]
+  const done = new Map((live.per_seed_partial ?? []).map(s => [s.seed, s]))
+  const chips = []
+  for (let seed = lo; seed <= hi; seed++) {
+    const s = done.get(seed)
+    const state = s?.success === true ? 'pass' : s?.success === false ? 'fail' : seed === live.seed ? 'running' : 'queued'
+    const text = state === 'pass' ? '✓'
+      : state === 'fail' ? `✗ ${t('rsi.seed.died', { node: s?.first_death ?? '—' })}${s?.failure_mode ? ` (${s.failure_mode})` : ''}`
+        : t(state === 'running' ? 'rsi.seed.running' : 'rsi.seed.queued')
+    chips.push(<span key={seed} className={css.seedChip} data-state={state}><span className={css.mono}>{seed}</span> {text}</span>)
+  }
+  return (
+    <div>
+      <div className={css.paneLabel}>{t('rsi.seedBoard')}</div>
+      <div className={css.seedChips}>{chips}</div>
     </div>
   )
 }
@@ -311,10 +514,10 @@ function MediaCard({ session, path }: { session: string; path: string }) {
 /** One round of the loop, in its four teaching beats: 看到了什么 (per_seed) →
  * 试了什么 (tried) → 结果 (before → after, best) → 发布 (published), plus
  * 还缺什么 (needs) when the proposer had nothing to try. */
-function RoundCard({ r, selected, onPick, t }: { r: CampaignRound; selected: boolean; onPick: () => void; t: T }) {
+function RoundCard({ r, t }: { r: CampaignRound; t: T }) {
   const seeds = r.per_seed ?? []
   return (
-    <div className={`${css.card} ${css.rowBtn} ${selected ? css.rowSelected : ''}`} onClick={onPick}>
+    <div className={css.card}>
       <div className={css.cardHead}><span className={css.cardHeadTitle}>{t('rsi.roundN', { r: r.round ?? 0 })}</span></div>
       <div className={css.beat}><span className={css.beatLabel}>{t('rsi.saw')}</span><div>
         {seeds.length === 0

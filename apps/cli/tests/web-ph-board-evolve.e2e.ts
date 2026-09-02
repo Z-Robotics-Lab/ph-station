@@ -163,7 +163,8 @@ describe.skipIf(!runnable)('board bridge over a real web boot', () => {
 
   it('serves rsiRun and rsiSeries verbatim from the fixture campaign', async () => {
     const run = await board(base, 'rsiRun', { request: { session: 'session-main', task: 'kitchen_thaw' } }) as Record<string, unknown>
-    expect(run).toEqual({ ...CAMPAIGN, latest: CAMPAIGN.rounds[1] })
+    // toMatchObject: the harness adds a `live` progress block the fixture does not write.
+    expect(run).toMatchObject({ ...CAMPAIGN, latest: CAMPAIGN.rounds[1] })
     const series = await board(base, 'rsiSeries', { request: { session: 'session-main', task: 'kitchen_thaw' } })
     expect(series).toEqual([
       { round: 1, before: 0, after: 1, best: 1, per_seed: null, needs: null },

@@ -536,3 +536,31 @@
 .strict { margin-top: 12px; border-top: 1px solid var(--ph-line, color-mix(in srgb, currentColor 14%, transparent)); padding-top: 8px; }
 .strict > summary { cursor: pointer; font-weight: 600; }
 .strict [role="tab"][aria-selected="true"] { font-weight: 700; text-decoration: underline; }
+
+/* ── RSI page: status card, stepper, live pane, seed chips, round timeline ── */
+.statusCard { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.statusRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.statusChip { padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid var(--ph-line); color: var(--ph-dim); }
+.statusChip[data-status="running"] { color: #d97706; border-color: color-mix(in srgb, #d97706 55%, transparent); background: color-mix(in srgb, #d97706 12%, transparent); }
+.statusChip[data-status="done"] { color: var(--ph-pass); border-color: color-mix(in srgb, var(--ph-pass) 55%, transparent); }
+.stepper { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.step { padding: 2px 9px; border-radius: 999px; border: 1px solid var(--ph-line); color: var(--ph-dim); }
+.step[aria-current="step"] { color: var(--ph-ink); font-weight: 700; border-color: currentColor; animation: pulse 1.2s ease-in-out infinite; }
+.stepArrow { color: var(--ph-dim); }
+.liveGrid { display: grid; grid-template-columns: minmax(200px, 360px) 1fr; gap: 10px; align-items: start; }
+.liveFrame { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #000; border-radius: 8px; }
+.seedChips { display: flex; flex-wrap: wrap; gap: 6px; }
+.seedChip { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--ph-line); font-size: 11px; color: var(--ph-dim); }
+.seedChip[data-state="running"] { color: var(--ph-ink); border-color: currentColor; animation: pulse 1.2s ease-in-out infinite; }
+.seedChip[data-state="pass"] { color: var(--ph-pass); border-color: color-mix(in srgb, var(--ph-pass) 55%, transparent); }
+.seedChip[data-state="fail"] { color: var(--ph-fail); border-color: color-mix(in srgb, var(--ph-fail) 55%, transparent); }
+.timeline { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.tlChip { flex: none; display: flex; flex-direction: column; gap: 1px; padding: 4px 9px; border-radius: 8px; border: 1px solid var(--ph-line); background: var(--ph-surface); color: inherit; font: inherit; font-size: 11px; text-align: left; cursor: pointer; max-width: 220px; }
+.tlChip[aria-pressed="true"] { border-color: currentColor; font-weight: 600; }
+.tlChip[data-running="true"] { border-style: dashed; animation: pulse 1.2s ease-in-out infinite; }
+.tlTried { color: var(--ph-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chartLabel { font-size: 9px; fill: currentColor; opacity: 0.6; }
+.chartGrid { stroke: color-mix(in srgb, currentColor 8%, transparent); }
+.logLine { display: flex; gap: 8px; font-size: 12px; }
+.logLine time { color: var(--ph-dim); font-variant-numeric: tabular-nums; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }

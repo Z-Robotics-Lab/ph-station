@@ -166,6 +166,10 @@ export interface RuntimeEvent {
   brief?: string
   task?: string
   ts?: number
+  /** rsi_step rows name their round; task_failed carries the runtime's error. */
+  round?: number
+  error?: string
+  message?: string
 }
 
 /** `runtimeEvents({name})`: events past the cursor plus the newest seq. */
@@ -216,6 +220,26 @@ export interface CampaignRound {
   ts?: number
 }
 
+/** The in-flight round, as scripts/evolve.py rewrites campaign.json's `live`
+ * between checkpoints; null on a campaign written before live progress existed. */
+export interface LiveState {
+  /** 'baseline' | 'propose' | 'retest' | 'publish' | 'done' | 'cancelled' | 'idle' */
+  phase?: string
+  round?: number
+  seeds_total?: number
+  seed_index?: number
+  seed?: number | null
+  node?: string | null
+  started_at?: number
+  round_started_at?: number
+  phase_started_at?: number
+  /** Wall seconds of the previous round; null on the first. */
+  last_round_s?: number | null
+  per_seed_partial?: SeedRow[] | null
+  tried?: CampaignRound['tried']
+  message?: string | null
+}
+
 /** `rsiRun({name, task})`: campaign.json plus `latest` (newest round or null). */
 export interface Campaign {
   task?: string
@@ -228,6 +252,7 @@ export interface Campaign {
   /** 'running' | 'cancelled' | 'done' (campaign.json's word, shown verbatim). */
   status?: string
   latest?: CampaignRound | null
+  live?: LiveState | null
 }
 
 /** `rsiSeries({name, task})`: one point per round, the line-chart feed. */

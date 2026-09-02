@@ -86,6 +86,7 @@ export function apply(ctx: Context): void {
       fetchRsiRun: (name: string, task: string) => board.rsiRun({ session: name, task }),
       fetchRsiSeries: (name: string, task: string) => board.rsiSeries({ session: name, task }),
       fetchRsiFrames: (name: string, task: string, round: number) => board.rsiFrames({ session: name, task, round }),
+      fetchRuntimeFrame: (name: string, afterTs: number) => board.runtimeFrame({ name, afterTs, waitMs: 0 }),
       submitBrief: (briefJson: string, session: string) => board.submitBrief(briefJson, session),
       cancelBrief: (briefId: string, session: string) => board.cancelBrief(briefId, session),
     }),

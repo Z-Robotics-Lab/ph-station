@@ -163,6 +163,33 @@ export type PhOpsKey =
   | 'rsi.tab.evolution'
   | 'rsi.tab.battle'
   | 'rsi.tab.ledger'
+  | 'rsi.guide'
+  | 'rsi.noLive'
+  | 'rsi.status.running'
+  | 'rsi.status.done'
+  | 'rsi.status.cancelled'
+  | 'rsi.phase.baseline'
+  | 'rsi.phase.propose'
+  | 'rsi.phase.retest'
+  | 'rsi.phase.publish'
+  | 'rsi.seedLine'
+  | 'rsi.elapsed'
+  | 'rsi.eta'
+  | 'rsi.etaNone'
+  | 'rsi.sec.live'
+  | 'rsi.seedBoard'
+  | 'rsi.seed.queued'
+  | 'rsi.seed.running'
+  | 'rsi.seed.died'
+  | 'rsi.noFrame'
+  | 'rsi.sec.timeline'
+  | 'rsi.roundRunning'
+  | 'rsi.chartEmpty'
+  | 'rsi.log.claimed'
+  | 'rsi.log.done'
+  | 'rsi.log.failed'
+  | 'rsi.log.cancelled'
+  | 'rsi.log.raw'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -325,6 +352,33 @@ export const zh: Record<PhOpsKey, string> = {
   'rsi.tab.evolution': '迭代记录',
   'rsi.tab.battle': '战报',
   'rsi.tab.ledger': '账本',
+  'rsi.guide': '输入任务名，按「开始 / 继续」，演化会在这里逐轮展示。',
+  'rsi.noLive': '该运行早于实时进度功能，只有整轮结果',
+  'rsi.status.running': '运行中',
+  'rsi.status.done': '已完成',
+  'rsi.status.cancelled': '已取消',
+  'rsi.phase.baseline': '看（基线评测）',
+  'rsi.phase.propose': '试（提议）',
+  'rsi.phase.retest': '复测',
+  'rsi.phase.publish': '发布',
+  'rsi.seedLine': '种子 {i}/{n} · 当前 seed {seed} · 节点 {node}',
+  'rsi.elapsed': '已用时 {t}',
+  'rsi.eta': '预计剩余 {t}',
+  'rsi.etaNone': '首轮无估计',
+  'rsi.sec.live': '实时',
+  'rsi.seedBoard': '本轮种子',
+  'rsi.seed.queued': '排队',
+  'rsi.seed.running': '运行中',
+  'rsi.seed.died': '首死 {node}',
+  'rsi.noFrame': '暂无画面',
+  'rsi.sec.timeline': '轮次时间线',
+  'rsi.roundRunning': '本轮进行中，完成后显示结果',
+  'rsi.chartEmpty': '第一轮完成后出现折线',
+  'rsi.log.claimed': '认领了 {task} 的演化 {brief}',
+  'rsi.log.done': '完成',
+  'rsi.log.failed': '失败：{error}',
+  'rsi.log.cancelled': '已取消',
+  'rsi.log.raw': '原始',
 }
 
 /** English dictionary. */
@@ -481,4 +535,31 @@ export const en: Record<PhOpsKey, string> = {
   'rsi.tab.evolution': 'Generations',
   'rsi.tab.battle': 'Battle report',
   'rsi.tab.ledger': 'Ledger',
+  'rsi.guide': 'Type a task and press Start / resume; the evolve loop shows here round by round.',
+  'rsi.noLive': 'This run predates live progress; only whole-round results are available',
+  'rsi.status.running': 'running',
+  'rsi.status.done': 'done',
+  'rsi.status.cancelled': 'cancelled',
+  'rsi.phase.baseline': 'Look (baseline)',
+  'rsi.phase.propose': 'Try (propose)',
+  'rsi.phase.retest': 'Retest',
+  'rsi.phase.publish': 'Publish',
+  'rsi.seedLine': 'Seed {i}/{n} · seed {seed} · node {node}',
+  'rsi.elapsed': 'Elapsed {t}',
+  'rsi.eta': 'ETA {t}',
+  'rsi.etaNone': 'no estimate on the first round',
+  'rsi.sec.live': 'Live',
+  'rsi.seedBoard': 'Seeds this round',
+  'rsi.seed.queued': 'queued',
+  'rsi.seed.running': 'running',
+  'rsi.seed.died': 'died at {node}',
+  'rsi.noFrame': 'No frame yet',
+  'rsi.sec.timeline': 'Round timeline',
+  'rsi.roundRunning': 'Round in progress; results show when it completes',
+  'rsi.chartEmpty': 'The line appears after the first round completes',
+  'rsi.log.claimed': 'claimed the evolve of {task} {brief}',
+  'rsi.log.done': 'done',
+  'rsi.log.failed': 'failed: {error}',
+  'rsi.log.cancelled': 'cancelled',
+  'rsi.log.raw': 'raw',
 }
