@@ -223,6 +223,14 @@ export function RsiView({
   const sessionName = session ?? pickEvolveDefault(sessions)
   const current = campaigns?.find(c => c.task === task) ?? null
   const running = current?.status === 'running'
+  // Auto-select: the running campaign (else the first) so the status card shows
+  // without a click — a page that says "running" but nothing else is what the
+  // operator complained about. Explicit picks (row click / session change) still win.
+  useEffect(() => {
+    if (task !== null || !campaigns?.length) return
+    const c = campaigns.find(x => x.status === 'running') ?? campaigns[0]
+    if (typeof c?.task === 'string') { setTask(c.task); setDraft(c.task) }
+  }, [campaigns, task])
   usePolledLoad(load, running ? POLL_RUNNING_MS : POLL_IDLE_MS)
   const live = inFlight(current?.live) ? current.live : null
   const shownRound = round ?? current?.latest?.round ?? null

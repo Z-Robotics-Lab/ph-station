@@ -8,7 +8,7 @@
  * Board faces are mocked at the injected face.
  */
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { RsiView, describeEvent, describeTried } from '../src/client/RsiView.tsx'
@@ -62,16 +62,26 @@ describe('RsiView', () => {
   }
   const mount = (p: ReturnType<typeof props>) =>
     render(<RsiView {...(p as unknown as Parameters<typeof RsiView>[0])} />)
+  /** The campaign row's task cell: the first table on the page is the campaign
+   * list, and the task name also shows in the status card once one is picked. */
+  const row = (container: HTMLElement, task: string) =>
+    within(container.querySelector('table') as HTMLElement).getByRole('cell', { name: task })
 
   it('lists campaigns, then tells the picked one in loop order: chart, round beats, clips, log', async () => {
     const p = props()
     const { container } = mount(p)
-    await waitFor(() => { expect(screen.getByText('kitchen_thaw')).toBeTruthy() })
+    await waitFor(() => { expect(row(container, 'kitchen_thaw')).toBeTruthy() })
     expect(p.fetchRsiRun).toHaveBeenCalledWith('session-main', 'pack_lunch')
     expect(screen.queryByText('pack_lunch')).toBeNull()
     // The task picker offers the cards' task_bindings as a native datalist.
     expect(container.querySelectorAll('datalist option')).toHaveLength(2)
-    fireEvent.click(screen.getByText('kitchen_thaw'))
+    // The running campaign auto-selects: its status card and an enabled Stop are
+    // up before any click, and its task is already in the input.
+    await waitFor(() => { expect(screen.getByTestId('rsi-status')).toBeTruthy() })
+    expect(screen.getByTestId('rsi-status').textContent).toContain('kitchen_thaw')
+    expect((screen.getByPlaceholderText(en['evolve.taskHint']) as HTMLInputElement).value).toBe('kitchen_thaw')
+    expect((screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(row(container, 'kitchen_thaw'))
     await waitFor(() => { expect(container.querySelectorAll('polyline')).toHaveLength(3) })
     expect(p.fetchRsiSeries).toHaveBeenCalledWith('session-main', 'kitchen_thaw')
     // Chart: y ticks 0..3 (seed count), one x label per round, a three-entry legend.
@@ -136,8 +146,8 @@ describe('RsiView', () => {
     }
     const p = props({ fetchRsiRun: vi.fn((_s: string, task: string) => Promise.resolve(ok(task === 'kitchen_thaw' ? { ...campaign, live } : null))) })
     const { container } = mount(p)
-    await waitFor(() => { expect(screen.getByText('kitchen_thaw')).toBeTruthy() })
-    fireEvent.click(screen.getByText('kitchen_thaw'))
+    await waitFor(() => { expect(row(container, 'kitchen_thaw')).toBeTruthy() })
+    fireEvent.click(row(container, 'kitchen_thaw'))
     await waitFor(() => { expect(container.querySelector('[aria-current="step"]')).toBeTruthy() })
     expect(container.querySelector('[aria-current="step"]')?.getAttribute('data-phase')).toBe('retest')
     expect(screen.getByTestId('rsi-status').textContent).toContain('Round 3')
@@ -162,8 +172,8 @@ describe('RsiView', () => {
     }
     const p = props({ fetchRsiRun: vi.fn((_s: string, task: string) => Promise.resolve(ok(task === 'kitchen_thaw' ? { ...campaign, live } : null))) })
     const { container } = mount(p)
-    await waitFor(() => { expect(screen.getByText('kitchen_thaw')).toBeTruthy() })
-    fireEvent.click(screen.getByText('kitchen_thaw'))
+    await waitFor(() => { expect(row(container, 'kitchen_thaw')).toBeTruthy() })
+    fireEvent.click(row(container, 'kitchen_thaw'))
     await waitFor(() => { expect(container.querySelector('[data-state="fail"]')).toBeTruthy() })
     expect(container.querySelector('[data-state="fail"]')?.textContent).toBe('1 ✗ died at grasp-0 (reach_stall)')
     expect(screen.getByTestId('rsi-elapsed').textContent).toContain(en['rsi.etaNone'])
@@ -177,7 +187,7 @@ describe('RsiView', () => {
   it('keeps the strict-evaluation block collapsed, then renders the legacy views by id', async () => {
     const p = props()
     const { container } = mount(p)
-    await waitFor(() => { expect(screen.getByText('kitchen_thaw')).toBeTruthy() })
+    await waitFor(() => { expect(row(container, 'kitchen_thaw')).toBeTruthy() })
     const details = container.querySelector('details') as HTMLDetailsElement
     expect(details.open).toBe(false)
     expect(screen.getByText(en['rsi.strictNote'])).toBeTruthy()
@@ -195,16 +205,22 @@ describe('RsiView', () => {
         events: [...events, { seq: 6, kind: 'task_cancelled', brief: 'b-evolve', task: 'kitchen_thaw' }], last_seq: 6,
       }))),
     })
-    mount(p)
-    await waitFor(() => { expect(screen.getByText('kitchen_thaw')).toBeTruthy() })
+    const { container } = mount(p)
+    await waitFor(() => { expect(row(container, 'kitchen_thaw')).toBeTruthy() })
+    // The campaign auto-selected, but its brief was cancelled: nothing to stop.
+    expect((screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement).disabled).toBe(true)
+    const input = screen.getByPlaceholderText(en['evolve.taskHint']) as HTMLInputElement
+    expect(input.value).toBe('kitchen_thaw')
     const start = screen.getByRole('button', { name: en['evolve.start'] }) as HTMLButtonElement
+    // Clear it: Start needs a task name, whatever the table shows.
+    fireEvent.change(input, { target: { value: '' } })
     expect(start.disabled).toBe(true)
-    fireEvent.change(screen.getByPlaceholderText(en['evolve.taskHint']), { target: { value: 'pack_lunch' } })
+    fireEvent.change(input, { target: { value: 'pack_lunch' } })
     expect(start.disabled).toBe(false)
     fireEvent.click(start)
     await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"pack_lunch"}', 'session-main') })
     // Resume = pick the campaign (prefills its task) and press the same button.
-    fireEvent.click(screen.getByText('kitchen_thaw'))
+    fireEvent.click(row(container, 'kitchen_thaw'))
     expect((screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: en['evolve.start'] }))
     await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"kitchen_thaw"}', 'session-main') })
