@@ -139,10 +139,66 @@ export interface ModelServerState {
 export interface RuntimeEvent {
   seq?: number
   kind?: string
+  /** The brief this line belongs to (opstream's `brief=` detail) — the evolve
+   * page filters its log by it; `task` is what task_claimed names. */
+  brief?: string
+  task?: string
+  ts?: number
 }
 
 /** `runtimeEvents({name})`: events past the cursor plus the newest seq. */
 export interface RuntimeEventsPayload {
   events?: RuntimeEvent[]
   last_seq?: number
+}
+
+/** One `skills({name})` row: a record's overview (Python `board.store.skills`).
+ * `bindings` maps embodiment → executor keys; `evidence` maps embodiment →
+ * `{n, k, by_executor: {key: {n, k}}}` (n tries, k successes), shown verbatim. */
+export interface SkillEvidence {
+  n?: number
+  k?: number
+  by_executor?: Record<string, { n?: number; k?: number }>
+}
+export interface SkillRow {
+  name?: string
+  bindings?: Record<string, string[]>
+  evidence?: Record<string, SkillEvidence>
+  limits?: Record<string, unknown> | null
+  failure_modes?: string[]
+}
+
+/** One round of an evolve campaign (`campaign.json` rounds[]). */
+export interface CampaignRound {
+  round?: number
+  tried?: { kind?: string; node?: string; detail?: unknown } | null
+  before?: number
+  after?: number
+  best?: number
+  suite_sha?: string
+  published?: boolean
+  media?: string[]
+  ts?: number
+}
+
+/** `rsiRun({name, task})`: campaign.json plus `latest` (newest round or null). */
+export interface Campaign {
+  task?: string
+  session?: string
+  seeds?: [number, number]
+  arm?: string
+  rounds?: CampaignRound[]
+  best?: number
+  cursor?: number
+  /** 'running' | 'cancelled' | 'done' (campaign.json's word, shown verbatim). */
+  status?: string
+  latest?: CampaignRound | null
+}
+
+/** `rsiSeries({name, task})`: one point per round, the line-chart feed. */
+export interface SeriesPoint {
+  round?: number
+  before?: number
+  after?: number
+  best?: number
 }

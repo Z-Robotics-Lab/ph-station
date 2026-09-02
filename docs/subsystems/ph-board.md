@@ -18,7 +18,7 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 ### `ctx.board` — `BoardBridge`
 
-Remote over board.store via the storecli subprocess: read methods plus two writes (`submitBrief`, storecli's atomic brief drop, and `modelServer`, the local model server's start/stop). The gateway auto-serves each @Remote method at POST /api/board/<name>.
+Remote over board.store via the storecli subprocess: read methods plus three writes (`submitBrief` / `cancelBrief`, storecli's atomic brief drop and cancel marker, and `modelServer`, the local model server's start/stop). The gateway auto-serves each @Remote method at POST /api/board/<name>.
 
 ```ts cordis-catalog
 /**
@@ -192,6 +192,49 @@ Remote over board.store via the storecli subprocess: read methods plus two write
  * mcp_server.submit_brief returns), or an {error} dict.
  */
 @Remote('submitBrief') submitBrief(briefJson: string, session: string): Promise<JsonValue>
+
+/**
+ * Ask the resident runtime to stop one brief (`storecli cancel_brief`): drops
+ * the `<session>/cancel/<briefId>` marker the runtime honours at its next
+ * node/round boundary and files the brief under cancelled/. The second brief
+ * write, as narrow as the first: two verbatim strings, and board.store refuses
+ * an unknown or already-terminal brief with an `error` beside the state.
+ * @param briefId - the brief id `submitBrief` returned, forwarded as the name argument.
+ * @param session - runtime session directory name, forwarded as --session.
+ * @returns board.store.cancel_brief(...) verbatim ({brief_id, session, state, requested, error?}).
+ */
+@Remote('cancelBrief') cancelBrief(briefId: string, session: string): Promise<JsonValue>
+
+/**
+ * One session's records overview (`storecli skills`): per skill its name,
+ * embodiment -> executor keys, embodiment -> {n, k, by_executor} evidence,
+ * limits and failure_modes, the library record overlaid by the session's
+ * published copy. The 技能 page's table.
+ * @param request - the session name (guarded by storecli's safe_child).
+ * @returns board.store.skills(...) verbatim, or an {error} dict.
+ */
+@Remote('skills') skills(request: BoardSessionRequest): Promise<JsonValue>
+
+/**
+ * One evolve campaign's state (`storecli rsi_run`): campaign.json plus `latest`.
+ * @param request - the session and the evolve task.
+ * @returns board.store.rsi_run(...) verbatim (null when no campaign exists), or an {error} dict.
+ */
+@Remote('rsiRun') rsiRun(request: BoardRsiRequest): Promise<JsonValue>
+
+/**
+ * One evolve campaign's per-round {round, before, after, best} series (the line chart feed).
+ * @param request - the session and the evolve task.
+ * @returns board.store.rsi_series(...) verbatim ([] when no campaign exists), or an {error} dict.
+ */
+@Remote('rsiSeries') rsiSeries(request: BoardRsiRequest): Promise<JsonValue>
+
+/**
+ * The kept keyframe/video paths one evolve round recorded (session-relative).
+ * @param request - the session, the evolve task and the round.
+ * @returns board.store.rsi_frames(...) verbatim ([] when absent), or an {error} dict.
+ */
+@Remote('rsiFrames') rsiFrames(request: BoardRsiFramesRequest): Promise<JsonValue>
 
 /**
  * Where one brief is and what it did (`storecli brief_status`): the same

@@ -11,11 +11,12 @@
  * dispatch and the same dicts, just without the per-frame interpreter spawn.)
  * `execFile`/`spawn` (not a shell) plus the fixed fn per method (never user
  * input) plus storecli's own `safe_child` guard on the name argument leave no
- * injection surface. Two methods write: `submitBrief`, the same storecli face's
- * atomic brief drop, forwarded with zero client-side validation because the
- * resident runtime is the only authority over what a brief means; and
- * `modelServer`, which starts or stops the box's local model server through
- * board.store's own action whitelist and constant launcher path.
+ * injection surface. Three methods write: `submitBrief`, the same storecli
+ * face's atomic brief drop, forwarded with zero client-side validation because
+ * the resident runtime is the only authority over what a brief means;
+ * `cancelBrief`, the matching cancel marker the runtime acts on at its next
+ * boundary; and `modelServer`, which starts or stops the box's local model
+ * server through board.store's own action whitelist and constant launcher path.
  *
  * @module @deepseek-ai/dsh-ph-board
  */
@@ -32,8 +33,9 @@ import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 // The Typert-generated ./typert and ./remote artifacts import Zod at runtime.
 import type {} from 'zod'
 import type {
-  BoardBriefStatusRequest, BoardRuntimeEventsRequest, BoardRuntimeFrameRequest, BoardRuntimeKeyframeRequest,
-  BoardSessionRequest, BoardStoreRequest, BoardVaultNeighborsRequest, BoardVaultNodeRequest,
+  BoardBriefStatusRequest, BoardRsiFramesRequest, BoardRsiRequest, BoardRuntimeEventsRequest,
+  BoardRuntimeFrameRequest, BoardRuntimeKeyframeRequest, BoardSessionRequest, BoardStoreRequest,
+  BoardVaultNeighborsRequest, BoardVaultNodeRequest,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -61,10 +63,10 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /**
- * Remote over board.store via the storecli subprocess: read methods plus two
- * writes (`submitBrief`, storecli's atomic brief drop, and `modelServer`, the
- * local model server's start/stop). The gateway auto-serves each @Remote method
- * at POST /api/board/<name>.
+ * Remote over board.store via the storecli subprocess: read methods plus three
+ * writes (`submitBrief` / `cancelBrief`, storecli's atomic brief drop and cancel
+ * marker, and `modelServer`, the local model server's start/stop). The gateway
+ * auto-serves each @Remote method at POST /api/board/<name>.
  */
 export class BoardBridge extends TypertRemoteService {
   /** Loader validation for the three deployment-varying paths. */
@@ -376,6 +378,66 @@ export class BoardBridge extends TypertRemoteService {
   @Remote('submitBrief')
   submitBrief(briefJson: string, session: string): Promise<JsonValue> {
     return this.run('submit_brief', undefined, ['--brief', briefJson, '--session', session])
+  }
+
+  /**
+   * Ask the resident runtime to stop one brief (`storecli cancel_brief`): drops
+   * the `<session>/cancel/<briefId>` marker the runtime honours at its next
+   * node/round boundary and files the brief under cancelled/. The second brief
+   * write, as narrow as the first: two verbatim strings, and board.store refuses
+   * an unknown or already-terminal brief with an `error` beside the state.
+   * @param briefId - the brief id `submitBrief` returned, forwarded as the name argument.
+   * @param session - runtime session directory name, forwarded as --session.
+   * @returns board.store.cancel_brief(...) verbatim ({brief_id, session, state, requested, error?}).
+   */
+  @Remote('cancelBrief')
+  cancelBrief(briefId: string, session: string): Promise<JsonValue> {
+    return this.run('cancel_brief', briefId, ['--session', session])
+  }
+
+  /**
+   * One session's records overview (`storecli skills`): per skill its name,
+   * embodiment -> executor keys, embodiment -> {n, k, by_executor} evidence,
+   * limits and failure_modes, the library record overlaid by the session's
+   * published copy. The 技能 page's table.
+   * @param request - the session name (guarded by storecli's safe_child).
+   * @returns board.store.skills(...) verbatim, or an {error} dict.
+   */
+  @Remote('skills')
+  skills(request: BoardSessionRequest): Promise<JsonValue> {
+    return this.run('skills', request.name)
+  }
+
+  /**
+   * One evolve campaign's state (`storecli rsi_run`): campaign.json plus `latest`.
+   * @param request - the session and the evolve task.
+   * @returns board.store.rsi_run(...) verbatim (null when no campaign exists), or an {error} dict.
+   */
+  @Remote('rsiRun')
+  rsiRun(request: BoardRsiRequest): Promise<JsonValue> {
+    return this.run('rsi_run', request.task, ['--session', request.session])
+  }
+
+  /**
+   * One evolve campaign's per-round {round, before, after, best} series (the line chart feed).
+   * @param request - the session and the evolve task.
+   * @returns board.store.rsi_series(...) verbatim ([] when no campaign exists), or an {error} dict.
+   */
+  @Remote('rsiSeries')
+  rsiSeries(request: BoardRsiRequest): Promise<JsonValue> {
+    return this.run('rsi_series', request.task, ['--session', request.session])
+  }
+
+  /**
+   * The kept keyframe/video paths one evolve round recorded (session-relative).
+   * @param request - the session, the evolve task and the round.
+   * @returns board.store.rsi_frames(...) verbatim ([] when absent), or an {error} dict.
+   */
+  @Remote('rsiFrames')
+  rsiFrames(request: BoardRsiFramesRequest): Promise<JsonValue> {
+    const round = Math.trunc(request.round)
+    return this.run('rsi_frames', request.task,
+      ['--session', request.session, '--round', String(Number.isFinite(round) && round > 0 ? round : 0)])
   }
 
   /**

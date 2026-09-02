@@ -71,3 +71,17 @@ export interface BoardVaultNeighborsRequest {
   /** Restrict adjacency to one `rel` (DESCENDS_FROM, GOVERNS, REQUIRES, …); omitted returns all. */
   readonly relation?: string
 }
+
+/** An evolve-campaign read: one task's `campaigns/evolve-<task>/campaign.json` in one session. */
+export interface BoardRsiRequest {
+  /** Runtime session directory name; storecli rejects a traversal name. */
+  readonly session: string
+  /** The evolve task (the campaign directory suffix); storecli rejects a traversal name. */
+  readonly task: string
+}
+
+/** An evolve-round media read: the kept keyframe/video paths of one round. */
+export interface BoardRsiFramesRequest extends BoardRsiRequest {
+  /** The evolve round whose kept media paths to list (forwarded as `--round`). */
+  readonly round: number
+}

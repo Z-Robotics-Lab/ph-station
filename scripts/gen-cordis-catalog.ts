@@ -571,6 +571,8 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   BoardRuntimeKeyframeRequest: 'name-addressed board read request is owned by packages/host/dsh-ph-board/src/types.ts',
   BoardBriefStatusRequest: 'name-addressed board brief-status request is owned by packages/host/dsh-ph-board/src/types.ts',
   BoardVaultNodeRequest: 'name-addressed board read request is owned by packages/host/dsh-ph-board/src/types.ts',
+  BoardRsiRequest: 'session+task-addressed board evolve read request is owned by packages/host/dsh-ph-board/src/types.ts',
+  BoardRsiFramesRequest: 'session+task+round-addressed board evolve read request is owned by packages/host/dsh-ph-board/src/types.ts',
   BoardVaultNeighborsRequest: 'name-addressed board read request is owned by packages/host/dsh-ph-board/src/types.ts',
   CompactionAgentContext: 'compaction service input is owned by packages/compaction/compaction/src/index.ts',
   ManualCompactAgentContext: 'manual compaction service input is owned by packages/compaction/compaction/src/index.ts',

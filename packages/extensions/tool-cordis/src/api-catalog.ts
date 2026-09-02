@@ -503,8 +503,8 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   },
   {
     key: 'board',
-    summary: 'Remote over board.store via the storecli subprocess: read methods plus two writes (`submitBrief`, storecli\'s atomic brief drop, and `modelServer`, the local model server\'s start/stop).',
-    description: 'Remote over board.store via the storecli subprocess: read methods plus two writes (`submitBrief`, storecli\'s atomic brief drop, and `modelServer`, the local model server\'s start/stop). The gateway auto-serves each @Remote method at POST /api/board/<name>.',
+    summary: 'Remote over board.store via the storecli subprocess: read methods plus three writes (`submitBrief` / `cancelBrief`, storecli\'s atomic brief drop and cancel marker, and `modelServer`, the local model server\'s start/stop).',
+    description: 'Remote over board.store via the storecli subprocess: read methods plus three writes (`submitBrief` / `cancelBrief`, storecli\'s atomic brief drop and cancel marker, and `modelServer`, the local model server\'s start/stop). The gateway auto-serves each @Remote method at POST /api/board/<name>.',
     methods: [
       {
         signature: '@Remote(\'stores\') stores(): Promise<JsonValue>',
@@ -613,6 +613,36 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Drop one brief into a runtime session\'s inbox (`storecli submit_brief`, which shares board/brief_drop\'s atomic write with mcp_server.submit_brief). The one write on this Remote, and deliberately zero-validation on both sides: the resident runtime is the sole authority over what a brief means, so a malformed brief is filed under the session\'s failed/ by the runtime rather than second-guessed here.',
         parameters: [{ name: 'briefJson', description: 'the brief as a JSON string, forwarded verbatim as --brief.' }, { name: 'session', description: 'runtime session directory name, forwarded as --session.' }],
         returns: 'storecli\'s stdout verbatim ({submitted, inbox}, the same JSON mcp_server.submit_brief returns), or an {error} dict.',
+      },
+      {
+        signature: '@Remote(\'cancelBrief\') cancelBrief(briefId: string, session: string): Promise<JsonValue>',
+        description: 'Ask the resident runtime to stop one brief (`storecli cancel_brief`): drops the `<session>/cancel/<briefId>` marker the runtime honours at its next node/round boundary and files the brief under cancelled/. The second brief write, as narrow as the first: two verbatim strings, and board.store refuses an unknown or already-terminal brief with an `error` beside the state.',
+        parameters: [{ name: 'briefId', description: 'the brief id `submitBrief` returned, forwarded as the name argument.' }, { name: 'session', description: 'runtime session directory name, forwarded as --session.' }],
+        returns: 'board.store.cancel_brief(...) verbatim ({brief_id, session, state, requested, error?}).',
+      },
+      {
+        signature: '@Remote(\'skills\') skills(request: BoardSessionRequest): Promise<JsonValue>',
+        description: 'One session\'s records overview (`storecli skills`): per skill its name, embodiment -> executor keys, embodiment -> {n, k, by_executor} evidence, limits and failure_modes, the library record overlaid by the session\'s published copy. The 技能 page\'s table.',
+        parameters: [{ name: 'request', description: 'the session name (guarded by storecli\'s safe_child).' }],
+        returns: 'board.store.skills(...) verbatim, or an {error} dict.',
+      },
+      {
+        signature: '@Remote(\'rsiRun\') rsiRun(request: BoardRsiRequest): Promise<JsonValue>',
+        description: 'One evolve campaign\'s state (`storecli rsi_run`): campaign.json plus `latest`.',
+        parameters: [{ name: 'request', description: 'the session and the evolve task.' }],
+        returns: 'board.store.rsi_run(...) verbatim (null when no campaign exists), or an {error} dict.',
+      },
+      {
+        signature: '@Remote(\'rsiSeries\') rsiSeries(request: BoardRsiRequest): Promise<JsonValue>',
+        description: 'One evolve campaign\'s per-round {round, before, after, best} series (the line chart feed).',
+        parameters: [{ name: 'request', description: 'the session and the evolve task.' }],
+        returns: 'board.store.rsi_series(...) verbatim ([] when no campaign exists), or an {error} dict.',
+      },
+      {
+        signature: '@Remote(\'rsiFrames\') rsiFrames(request: BoardRsiFramesRequest): Promise<JsonValue>',
+        description: 'The kept keyframe/video paths one evolve round recorded (session-relative).',
+        parameters: [{ name: 'request', description: 'the session, the evolve task and the round.' }],
+        returns: 'board.store.rsi_frames(...) verbatim ([] when absent), or an {error} dict.',
       },
       {
         signature: '@Remote(\'briefStatus\') briefStatus(request: BoardBriefStatusRequest): Promise<JsonValue>',
@@ -3168,6 +3198,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'BoardBriefStatusRequest',
     declaration: 'export interface BoardBriefStatusRequest {\n    readonly briefId: string;\n    readonly session: string;\n    readonly waitMs?: number;\n}',
+  },
+  {
+    name: 'BoardRsiFramesRequest',
+    declaration: 'export interface BoardRsiFramesRequest extends BoardRsiRequest {\n    readonly round: number;\n}',
+  },
+  {
+    name: 'BoardRsiRequest',
+    declaration: 'export interface BoardRsiRequest {\n    readonly session: string;\n    readonly task: string;\n}',
   },
   {
     name: 'BoardRuntimeEventsRequest',

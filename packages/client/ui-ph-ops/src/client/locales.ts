@@ -101,6 +101,39 @@ export type PhOpsKey =
   | 'brain.phase.done'
   | 'brain.phase.failed'
   | 'brain.phase.flagged'
+  // skills + evolve pages
+  | 'view.skills'
+  | 'view.evolve'
+  | 'skills.name'
+  | 'skills.embodiments'
+  | 'skills.executors'
+  | 'skills.evidence'
+  | 'skills.limits'
+  | 'skills.failureModes'
+  | 'skills.byExecutor'
+  | 'skills.empty'
+  | 'evolve.task'
+  | 'evolve.taskHint'
+  | 'evolve.start'
+  | 'evolve.starting'
+  | 'evolve.stop'
+  | 'evolve.resume'
+  | 'evolve.empty'
+  | 'evolve.select'
+  | 'evolve.round'
+  | 'evolve.tried'
+  | 'evolve.before'
+  | 'evolve.after'
+  | 'evolve.best'
+  | 'evolve.published'
+  | 'evolve.status'
+  | 'evolve.seeds'
+  | 'evolve.arm'
+  | 'evolve.chart'
+  | 'evolve.log'
+  | 'evolve.noLog'
+  | 'evolve.media'
+  | 'evolve.noMedia'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -202,6 +235,38 @@ export const zh: Record<PhOpsKey, string> = {
   'brain.phase.done': '完成',
   'brain.phase.failed': '失败',
   'brain.phase.flagged': '需人工',
+  'view.skills': '技能',
+  'view.evolve': '演化',
+  'skills.name': '技能',
+  'skills.embodiments': '具身绑定',
+  'skills.executors': '执行器',
+  'skills.evidence': '证据',
+  'skills.limits': '限制',
+  'skills.failureModes': '失败模式',
+  'skills.byExecutor': '按执行器的证据',
+  'skills.empty': '暂无技能记录',
+  'evolve.task': '任务',
+  'evolve.taskHint': '例如 kitchen_thaw',
+  'evolve.start': '启动演化',
+  'evolve.starting': '启动中…',
+  'evolve.stop': '停止',
+  'evolve.resume': '续跑',
+  'evolve.empty': '暂无演化 campaign',
+  'evolve.select': '点击一个 campaign 查看详情',
+  'evolve.round': '轮次',
+  'evolve.tried': '尝试',
+  'evolve.before': '前',
+  'evolve.after': '后',
+  'evolve.best': '最佳',
+  'evolve.published': '已发布',
+  'evolve.status': '状态',
+  'evolve.seeds': '种子',
+  'evolve.arm': 'arm',
+  'evolve.chart': '每轮成功计数（前 / 后 / 最佳）',
+  'evolve.log': '运行日志',
+  'evolve.noLog': '暂无该 brief 的日志',
+  'evolve.media': '关键帧 / 视频',
+  'evolve.noMedia': '该轮无保留媒体',
 }
 
 /** English dictionary. */
@@ -297,4 +362,36 @@ export const en: Record<PhOpsKey, string> = {
   'brain.phase.done': 'done',
   'brain.phase.failed': 'failed',
   'brain.phase.flagged': 'needs operator',
+  'view.skills': 'Skills',
+  'view.evolve': 'Evolve',
+  'skills.name': 'Skill',
+  'skills.embodiments': 'Embodiments',
+  'skills.executors': 'Executors',
+  'skills.evidence': 'Evidence',
+  'skills.limits': 'Limits',
+  'skills.failureModes': 'Failure modes',
+  'skills.byExecutor': 'Evidence by executor',
+  'skills.empty': 'No skill records',
+  'evolve.task': 'Task',
+  'evolve.taskHint': 'e.g. kitchen_thaw',
+  'evolve.start': 'Start evolve',
+  'evolve.starting': 'Starting…',
+  'evolve.stop': 'Stop',
+  'evolve.resume': 'Resume',
+  'evolve.empty': 'No evolve campaigns',
+  'evolve.select': 'Pick a campaign to see its rounds',
+  'evolve.round': 'Round',
+  'evolve.tried': 'Tried',
+  'evolve.before': 'before',
+  'evolve.after': 'after',
+  'evolve.best': 'best',
+  'evolve.published': 'published',
+  'evolve.status': 'Status',
+  'evolve.seeds': 'Seeds',
+  'evolve.arm': 'arm',
+  'evolve.chart': 'Success count per round (before / after / best)',
+  'evolve.log': 'Runtime log',
+  'evolve.noLog': 'No log lines for this brief yet',
+  'evolve.media': 'Keyframes / videos',
+  'evolve.noMedia': 'No media kept for this round',
 }
