@@ -219,7 +219,7 @@ describe('the shipped Web composition', () => {
   it('supplies the shipped presets, and only those, from the system root', async () => {
     const listed = await ctx.agentPresets.list()
 
-    expect(listed.map(preset => preset.id).sort()).toEqual(['code', 'cordis', 'minimal', 'physical', 'standard'])
+    expect(listed.map(preset => preset.id).sort()).toEqual(['code', 'cordis', 'minimal', 'physical', 'skill-author', 'standard'])
     expect(listed.every(preset => preset.trust === 'system')).toBe(true)
     expect(ctx.agentPresets.defaultId).toBe('standard')
   })
@@ -252,6 +252,33 @@ describe('the shipped Web composition', () => {
       expect(persona).toContain('stalled')
       expect(persona).not.toContain('chain_seq')
       expect(persona).not.toContain('不要手动轮询')
+    } finally {
+      await handle.dispose()
+    }
+  })
+
+  it('composes a proposal author from `skill-author` — reads rsi evidence, writes only submit_proposal', async () => {
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('preset-skill-author'),
+      setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'skill-author').then(() => undefined),
+    })
+    try {
+      // Same slim shape as `physical`: no shell, no filesystem, so the author
+      // cannot edit records or manifests by hand — its only output channel is
+      // the host-plane `submit_proposal` MCP tool, named in the persona.
+      const tools = toolNames(ctx, handle.agent)
+      expect(tools).toContain('ask_user_question')
+      for (const forbidden of ['bash', 'read', 'write', 'edit', 'skill', 'glob', 'grep']) {
+        expect(tools).not.toContain(forbidden)
+      }
+      expect(ctx.agentPresets.serviceFor(handle.agent, 'compaction')).toBeDefined()
+      const persona = (await ctx.systemPrompt.assemble({ scope: handle.agent })).sections
+        .map(section => section.text).join('\n')
+      expect(persona).toContain('submit_proposal')
+      for (const source of ['rsi_run', 'rsi_series', 'rsi_frames', 'chain']) expect(persona).toContain(source)
+      for (const kind of ['tunables', 'executor', 'card']) expect(persona).toContain(kind)
+      expect(persona).toContain('绝不直接修改 records')
+      expect(persona).not.toContain('run_task')
     } finally {
       await handle.dispose()
     }
