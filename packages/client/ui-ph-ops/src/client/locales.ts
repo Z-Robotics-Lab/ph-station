@@ -192,7 +192,7 @@ export type PhOpsKey =
   | 'rsi.messages'
   | 'rsi.matrix.baseline'
   | 'rsi.matrix.trial'
-  | 'rsi.graph.legend'
+  | 'rsi.matrix.elapsed'
   | 'rsi.chart.nodes'
   | 'rsi.chart.task'
   | 'rsi.heat'
@@ -390,7 +390,7 @@ export const zh: Record<PhOpsKey, string> = {
   'rsi.messages': '消息流',
   'rsi.matrix.baseline': '基线',
   'rsi.matrix.trial': '试探',
-  'rsi.graph.legend': '图例：绿 = 通过 · 红 = 失败（下方为失败模式）· 琥珀闪烁 = 运行中 · 灰 = 待运行 · 虚线 = 恢复节点 · 粗琥珀框 = 基线/试探不同',
+  'rsi.matrix.elapsed': '用时',
   'rsi.chart.nodes': '节点通过率',
   'rsi.chart.task': '整任务成功',
   'rsi.heat': '按子任务',
@@ -582,7 +582,7 @@ export const en: Record<PhOpsKey, string> = {
   'rsi.messages': 'Messages',
   'rsi.matrix.baseline': 'Baseline',
   'rsi.matrix.trial': 'Trial',
-  'rsi.graph.legend': 'Legend: green = pass · red = fail (failure mode below) · amber pulse = running · grey = pending · dashed = recovery · thick amber = differs baseline/trial',
+  'rsi.matrix.elapsed': 'Elapsed',
   'rsi.chart.nodes': 'Node pass rate',
   'rsi.chart.task': 'Whole-task success',
   'rsi.heat': 'By subtask',

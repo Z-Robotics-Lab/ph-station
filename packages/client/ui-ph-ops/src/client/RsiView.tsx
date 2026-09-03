@@ -4,13 +4,13 @@
  * (`rsiCampaigns`, read off disk so it survives a restart; the first row —
  * running, else newest — auto-selects); then the picked campaign: 状态卡 only
  * while a round is in flight (stepper on `live.phase`, seed / node, elapsed /
- * ETA, message, the running seed's plan graph — chips when no `after` edges),
- * the last `live.messages`
+ * ETA, message, the running seed's node chips), the last `live.messages`
  * lines, the live frame + seed board while running, one 轮次 strip
  * (round chips above the `rsiSeries` chart — one 0–100% axis, 节点通过率 solid /
  * 整任务成功 dotted — and the 按子任务 heat strip; a chip picks the round), the round
- * card (one summary line 节点通过 k/n → k/n · 子任务 ✓/✗, then 看到了什么 = per-seed table, or one plan graph per seed — 基线 / 试探
- * side by side, changed nodes outlined — once rows carry `nodes`; 试了什么
+ * card (one summary line 节点通过 k/n → k/n · 子任务 ✓/✗, then 看到了什么 =
+ * per-seed table, or the seed × node matrix — 基线 / 试探 side by side, changed
+ * cells highlighted — once rows carry `nodes`; 试了什么
  * / 结果 / 发布 / 还缺什么), 关键片段, and 日志
  * folded unless the campaign failed or was cancelled. The legacy heavy chain
  * (prereg / blind twin / held-out) renders only when legacy stores exist.
@@ -22,7 +22,6 @@ import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/clie
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { formatAgo, seedCount, statusLine } from './format.ts'
 import { evolveSessions, pickEvolveDefault } from './OperatorRail.tsx'
-import { PlanGraph } from './PlanGraph.tsx'
 import { usePolledLoad } from './poll.ts'
 import type {
   Campaign, CampaignRound, CampaignSummary, LiveState, NodeRow, RoundRates, RuntimeEvent, RuntimeEventsPayload, SeedRow, SeriesPoint,
@@ -201,13 +200,17 @@ export function roundSummary(r: CampaignRound, rates: RoundRates | undefined, t:
   return parts.join(' · ')
 }
 
+/** A tunable as the operator reads it: at most 4 significant digits, so a
+ * float step like 0.034999999999999996 prints as 0.035. */
+export const fmtNum = (v: number): string => String(Number(v.toPrecision(4)))
+
 /** What one round tried, in operator words: "把 drop-can1 的 reach_tol 0.03 →
  * 0.036" / "drop-can1 换用 pi05 执行器" — the {kind, node, detail} shape
  * scripts/evolve.py writes, shown as a sentence rather than JSON. */
 export function describeTried(tried: CampaignRound['tried'], t: T): string {
   const d = (tried?.detail ?? {}) as Record<string, unknown>
   const node = tried?.node ?? '—'
-  const s = (v: unknown) => (v === undefined || v === null ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v))
+  const s = (v: unknown) => (v === undefined || v === null ? '—' : typeof v === 'number' ? fmtNum(v) : typeof v === 'object' ? JSON.stringify(v) : String(v))
   let out: string
   switch (tried?.kind) {
     case 'executor': out = t('rsi.tried.executor', { node, to: s(d.to) }); break
@@ -448,9 +451,7 @@ export function RsiView({
                         <Elapsed live={live} now={now} t={t} />
                       </div>
                       {typeof live.message === 'string' && live.message !== '' && <div className={css.dim}>{live.message}</div>}
-                      {(live.nodes?.length ?? 0) > 0 && (live.nodes ?? []).some(nd => (nd.after?.length ?? 0) > 0)
-                        ? <LiveGraph nodes={live.nodes ?? []} t={t} />
-                        : (live.nodes?.length ?? 0) > 0 && <NodeChips nodes={live.nodes ?? []} t={t} />}
+                      {(live.nodes?.length ?? 0) > 0 && <NodeChips nodes={live.nodes ?? []} t={t} />}
                     </>
                   )
                   : <div className={css.dim}>{t('rsi.noLive')}</div>}
@@ -612,47 +613,42 @@ function Messages({ messages, running, t }: { messages: NonNullable<LiveState['m
   )
 }
 
-/** The running seed's plan as a graph (the first unrun node pulses), with the legend line. */
-function LiveGraph({ nodes, t }: { nodes: NodeRow[]; t: T }) {
-  return (
-    <div>
-      <div className={css.paneLabel}>{t('rsi.nodes')}</div>
-      <PlanGraph nodes={nodes} running testId="rsi-nodes" stepsLabel={n => t('rsi.node.steps', { n })} />
-      <div className={css.legend}>{t('rsi.graph.legend')}</div>
-    </div>
-  )
+/** Node ids across every row, first-seen order (plan order, since each row lists its nodes in order). */
+function nodeIds(rows: SeedRow[]): string[] {
+  const ids: string[] = []
+  for (const r of rows) for (const nd of r.nodes ?? []) if (typeof nd.id === 'string' && !ids.includes(nd.id)) ids.push(nd.id)
+  return ids
 }
 
-/** One small card per seed — "seed 4243 · 82s" — holding its plan graph; with
- * `after` (the trial's retest rows) the 基线 / 试探 graphs sit side by side and
- * every node whose verdict differs between the two is outlined. */
-function SeedGraphs({ seeds, after, t }: { seeds: SeedRow[]; after: SeedRow[]; t: T }) {
-  const steps = (n: number) => t('rsi.node.steps', { n })
+/** Seeds × nodes: ✓ / ✗ / – per cell (steps and failure mode on hover),
+ * elapsed_s per row. With `other` (the paired baseline or trial rows), a cell
+ * whose `ok` differs there is marked `data-changed`. */
+function NodeMatrix({ rows, other, ids, title, t }:
+{ rows: SeedRow[]; other?: SeedRow[] | undefined; ids: string[]; title: string; t: T }) {
+  const cell = (r: SeedRow, id: string) => r.nodes?.find(nd => nd.id === id)
   return (
     <div>
-      <div className={css.seedCards} data-testid="rsi-seed-graphs">
-        {seeds.map((r) => {
-          const trial = after.find(x => x.seed === r.seed)
-          return (
-            <div key={r.seed} className={css.seedCard} data-seed={r.seed}>
-              <div className={`${css.seedCardHead} ${css.mono}`}>{t('rsi.seed')} {r.seed} · {typeof r.elapsed_s === 'number' ? formatAgo(Math.floor(r.elapsed_s)) : '—'}</div>
-              <div className={css.seedCardPair}>
-                <div>
-                  {trial !== undefined && <div className={css.paneLabel}>{t('rsi.matrix.baseline')}</div>}
-                  <PlanGraph nodes={r.nodes ?? []} other={trial?.nodes ?? undefined} testId={`rsi-graph-${r.seed}-base`} stepsLabel={steps} />
-                </div>
-                {trial !== undefined && (
-                  <div>
-                    <div className={css.paneLabel}>{t('rsi.matrix.trial')}</div>
-                    <PlanGraph nodes={trial.nodes ?? []} other={r.nodes ?? []} testId={`rsi-graph-${r.seed}-trial`} stepsLabel={steps} />
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-      <div className={css.legend}>{t('rsi.graph.legend')}</div>
+      <div className={css.paneLabel}>{title}</div>
+      <table className={css.table} data-testid={`rsi-matrix-${title}`}>
+        <thead><tr><th>{t('rsi.seed')}</th>{ids.map(id => <th key={id} className={css.mono}>{id}</th>)}<th>{t('rsi.matrix.elapsed')}</th></tr></thead>
+        <tbody>{rows.map(r => (
+          <tr key={r.seed}><td className={css.mono}>{r.seed}</td>
+            {ids.map((id) => {
+              const nd = cell(r, id)
+              const ok = nd?.ok ?? null
+              const o = other?.find(x => x.seed === r.seed)
+              const changed = other !== undefined && ok !== (o === undefined ? null : cell(o, id)?.ok ?? null)
+              const hint = [typeof nd?.steps === 'number' ? t('rsi.node.steps', { n: nd.steps }) : '', nd?.failure_mode ?? ''].filter(Boolean).join(' · ')
+              return (
+                <td key={id} data-ok={ok === true ? 'pass' : ok === false ? 'fail' : undefined} data-changed={changed ? 'true' : undefined} title={hint || undefined}>
+                  {ok === true ? '✓' : ok === false ? '✗' : '–'}
+                </td>
+              )
+            })}
+            <td className={css.mono}>{typeof r.elapsed_s === 'number' ? formatAgo(Math.floor(r.elapsed_s)) : '—'}</td>
+          </tr>
+        ))}</tbody>
+      </table>
     </div>
   )
 }
@@ -680,6 +676,7 @@ function MediaCard({ session, path }: { session: string; path: string }) {
 function RoundCard({ r, rates, t }: { r: CampaignRound; rates: RoundRates | undefined; t: T }) {
   const seeds = r.per_seed ?? []
   const after = r.after_seeds ?? []
+  const ids = nodeIds([...seeds, ...after])
   const summary = roundSummary(r, rates, t)
   return (
     <div className={css.card}>
@@ -688,8 +685,13 @@ function RoundCard({ r, rates, t }: { r: CampaignRound; rates: RoundRates | unde
       <div className={css.beat}><span className={css.beatLabel}>{t('rsi.saw')}</span><div>
         {seeds.length === 0
           ? <span className={css.dim}>{t('rsi.noPerSeed')}</span>
-          : seeds.some(s => (s.nodes?.length ?? 0) > 0)
-            ? <SeedGraphs seeds={seeds} after={after} t={t} />
+          : ids.length > 0
+            ? (
+              <div className={css.matrices}>
+                <NodeMatrix rows={seeds} other={after.length > 0 ? after : undefined} ids={ids} title={t('rsi.matrix.baseline')} t={t} />
+                {after.length > 0 && <NodeMatrix rows={after} other={seeds} ids={ids} title={t('rsi.matrix.trial')} t={t} />}
+              </div>
+            )
             : (
               <table className={css.table}>
                 <thead><tr><th>{t('rsi.seed')}</th><th>{t('success')}</th><th>{t('rsi.firstDeath')}</th><th>{t('skills.failureModes')}</th></tr></thead>
