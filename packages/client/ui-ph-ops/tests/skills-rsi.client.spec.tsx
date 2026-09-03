@@ -29,11 +29,12 @@ describe('RsiView', () => {
     best: 2, cursor: 2, open_brief: 'b-evolve',
     rounds: [
       { round: 1, tried: { kind: 'executor', node: 'grasp-0', detail: { skill: 'grasp', from: 'scripted', to: 'pi05' } },
+        proposer: 'llm', llm: { summary: 'grasp-0 stalls on seed 2', rationale: 'pi05 handles reach better', model: 'deepseek-chat', prompt_sha: 'abc' },
         before: 1, after: 2, best: 2, published: true, media: ['media/kitchen_thaw/1/grasp-0.mp4'],
         per_seed: [{ seed: 1, success: true, first_death: null, failure_mode: null }, { seed: 2, success: false, first_death: 'grasp-0', failure_mode: 'reach_stall' }, { seed: 3, success: true, first_death: null, failure_mode: null }],
         needs: [], media_dropped: { '2/grasp-0': 'verify_failed' } },
       { round: 2, tried: { kind: 'none', node: 'grasp-0', detail: { reason: 'no untried executor', needs: ['tunables on grasp', 'proposal'] } },
-        before: 2, after: 2, best: 2, published: false, media: [], per_seed: [], needs: ['tunables on grasp', 'proposal'], media_dropped: {} },
+        proposer: 'rules', before: 2, after: 2, best: 2, published: false, media: [], per_seed: [], needs: ['tunables on grasp', 'proposal'], media_dropped: {} },
     ],
     latest: { round: 2, tried: { kind: 'none', node: 'grasp-0', detail: { reason: 'no untried executor' } }, before: 2, after: 2, best: 2, media: [] },
   }
@@ -285,6 +286,33 @@ describe('RsiView', () => {
     expect(screen.getByTestId('rsi-round-summary').textContent).toBe('Nodes passed 25% → 50% · Subtasks grasp ✓')
   })
 
+  it('round card: an LLM 分析 beat with the summary above 看到了什么, the proposer chip and rationale under 试了什么, the chip on the round chips', async () => {
+    mount(props())
+    await waitFor(() => { expect(roundChips()).toHaveLength(2) })
+    // Round 2 (latest) came from the rules: no analysis beat, a 规则 chip, no rationale.
+    expect(screen.queryByTestId('rsi-analysis')).toBeNull()
+    expect(screen.queryByTestId('rsi-rationale')).toBeNull()
+    const triedBeat = () => screen.getByText(en['rsi.tried']).parentElement as HTMLElement
+    expect(triedBeat().querySelector('[data-proposer]')?.getAttribute('data-proposer')).toBe('rules')
+    fireEvent.click(roundChips()[0] as HTMLElement)
+    expect(screen.getByTestId('rsi-analysis').textContent).toBe(`${en['rsi.analysis']}grasp-0 stalls on seed 2`)
+    expect(screen.getByTestId('rsi-analysis').nextElementSibling?.textContent).toMatch(new RegExp(`^${en['rsi.saw']}`))
+    expect(screen.getByTestId('rsi-rationale').textContent).toBe('pi05 handles reach better')
+    expect(screen.getByTestId('rsi-rationale').parentElement?.textContent).toContain('LLM grasp-0: switch executor to pi05')
+    // The strip's round chips carry the same source chip, in round order.
+    expect(roundChips().map(c => c.querySelector('[data-proposer]')?.textContent)).toEqual(['LLM', 'Rules'])
+  })
+
+  it('status card: while the phase is propose the 试 step reads LLM 分析中 with the message line', async () => {
+    const live = { phase: 'propose', round: 3, seeds_total: 3, seed_index: 3, seed: null, node: null, started_at: Date.now() / 1000 - 40, message: 'LLM 分析第 3 轮…' }
+    const { container } = mount(props({ fetchRsiRun: vi.fn(() => Promise.resolve(ok({ ...campaign, live }))) }))
+    await waitFor(() => { expect(container.querySelector('[aria-current="step"]')).toBeTruthy() })
+    const step = container.querySelector('[aria-current="step"]') as HTMLElement
+    expect(step.getAttribute('data-phase')).toBe('propose')
+    expect(step.textContent).toBe(en['rsi.phase.proposing'])
+    expect(screen.getByText('LLM 分析第 3 轮…')).toBeTruthy()
+  })
+
   it('tells the operator how to begin when the session holds no campaign', async () => {
     mount(props({ fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok([]))) }))
     await waitFor(() => { expect(screen.getByText(en['rsi.guide'])).toBeTruthy() })
@@ -322,13 +350,14 @@ describe('RsiView', () => {
     fireEvent.change(input, { target: { value: 'new_task' } })
     expect(start.disabled).toBe(false)
     fireEvent.click(start)
-    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"new_task"}', 'session-main') })
-    // Resume = pick the campaign chip (prefills its task) and press the same button.
+    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"new_task","proposer":"llm"}', 'session-main') })
+    // Resume = pick the campaign chip (prefills its task) and press the same button; the 提议器 select rides the brief.
+    fireEvent.change(screen.getByLabelText(en['rsi.proposer']), { target: { value: 'rules' } })
     fireEvent.click(chip('pack_lunch'))
     expect(input.value).toBe('pack_lunch')
     expect((screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: en['evolve.start'] }))
-    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"pack_lunch"}', 'session-main') })
+    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"pack_lunch","proposer":"rules"}', 'session-main') })
     expect(p.cancelBrief).not.toHaveBeenCalled()
   })
 

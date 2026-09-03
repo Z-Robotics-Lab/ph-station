@@ -232,6 +232,10 @@ export interface RoundRates {
 export interface CampaignRound {
   round?: number
   tried?: { kind?: string; node?: string; detail?: unknown } | null
+  /** Who proposed `tried`: 'llm' | 'rules' | 'inbox'; absent on rounds written before proposers were named. */
+  proposer?: string | null
+  /** The LLM proposer's own words (present only when `proposer` is 'llm'). */
+  llm?: { summary?: string | null; rationale?: string | null; model?: string | null; prompt_sha?: string | null } | null
   before?: number
   after?: number
   best?: number

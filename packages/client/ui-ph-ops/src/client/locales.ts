@@ -202,6 +202,12 @@ export type PhOpsKey =
   | 'rsi.heat.cell'
   | 'rsi.summary.nodes'
   | 'rsi.summary.tasks'
+  | 'rsi.analysis'
+  | 'rsi.phase.proposing'
+  | 'rsi.proposer'
+  | 'rsi.proposer.llm'
+  | 'rsi.proposer.rules'
+  | 'rsi.proposer.inbox'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -403,6 +409,12 @@ export const zh: Record<PhOpsKey, string> = {
   'rsi.heat.cell': '第 {r} 轮 · {task} 通过 {k}/{n}',
   'rsi.summary.nodes': '节点通过 {b} → {a}',
   'rsi.summary.tasks': '子任务',
+  'rsi.analysis': 'LLM 分析',
+  'rsi.phase.proposing': 'LLM 分析中',
+  'rsi.proposer': '提议器',
+  'rsi.proposer.llm': 'LLM',
+  'rsi.proposer.rules': '规则',
+  'rsi.proposer.inbox': '收件箱',
 }
 
 /** English dictionary. */
@@ -598,4 +610,10 @@ export const en: Record<PhOpsKey, string> = {
   'rsi.heat.cell': 'Round {r} · {task} passed {k}/{n}',
   'rsi.summary.nodes': 'Nodes passed {b} → {a}',
   'rsi.summary.tasks': 'Subtasks',
+  'rsi.analysis': 'LLM analysis',
+  'rsi.phase.proposing': 'LLM analyzing',
+  'rsi.proposer': 'Proposer',
+  'rsi.proposer.llm': 'LLM',
+  'rsi.proposer.rules': 'Rules',
+  'rsi.proposer.inbox': 'Inbox',
 }

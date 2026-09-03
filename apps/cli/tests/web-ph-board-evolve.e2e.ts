@@ -173,10 +173,10 @@ describe.skipIf(!runnable)('board bridge over a real web boot', () => {
     const series = await board(base, 'rsiSeries', { request: { session: 'session-main', task: 'kitchen_thaw' } })
     expect(series).toEqual([
       { round: 1, before: 0, after: 1, best: 1, per_seed: CAMPAIGN.rounds[0]?.per_seed, needs: null,
-        node_rate: { before: 0.75, after: null, best: 0.75 },
+        proposer: null, llm: null, node_rate: { before: 0.75, after: null, best: 0.75 },
         by_task: { grasp: { before: 0.5, after: null }, reach: { before: 1, after: null } } },
       { round: 2, before: 1, after: 1, best: 1, per_seed: null, needs: null,
-        node_rate: { before: null, after: null, best: 0.75 }, by_task: {} },
+        proposer: null, llm: null, node_rate: { before: null, after: null, best: 0.75 }, by_task: {} },
     ])
     expect(await board(base, 'rsiFrames', { request: { session: 'session-main', task: 'kitchen_thaw', round: 1 } }))
       .toEqual(['media/kitchen_thaw/1/grasp.gif'])

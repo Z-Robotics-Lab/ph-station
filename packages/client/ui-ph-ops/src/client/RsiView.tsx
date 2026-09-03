@@ -8,12 +8,15 @@
  * lines, the live frame + seed board while running, one 轮次 strip
  * (round chips above the `rsiSeries` chart — one 0–100% axis, 节点通过率 solid /
  * 整任务成功 dotted — and the 按子任务 heat strip; a chip picks the round), the round
- * card (one summary line 节点通过 k/n → k/n · 子任务 ✓/✗, then 看到了什么 =
+ * card (one summary line 节点通过 k/n → k/n · 子任务 ✓/✗, LLM 分析 = `llm.summary`
+ * when the round carries one, then 看到了什么 =
  * per-seed table, or the seed × node matrix — 基线 / 试探 side by side, changed
- * cells highlighted — once rows carry `nodes`; 试了什么
- * / 结果 / 发布 / 还缺什么), 关键片段, and 日志
+ * cells highlighted — once rows carry `nodes`; 试了什么 with a source chip off
+ * `proposer` (LLM / 规则 / 收件箱; the round chips carry the same) and
+ * `llm.rationale` beneath / 结果 / 发布 / 还缺什么), 关键片段, and 日志
  * folded unless the campaign failed or was cancelled. The legacy heavy chain
- * (prereg / blind twin / held-out) renders only when legacy stores exist.
+ * (prereg / blind twin / held-out) renders only when legacy stores exist. The
+ * head's 提议器 select (LLM by default, else 规则) rides the brief as `proposer`.
  * Renders only — every count is campaign.json's, written by scripts/evolve.py. */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -59,6 +62,8 @@ interface Card { contributes?: { task_bindings?: string[] } }
 
 /** The four beats of one round, in loop order; `live.phase` names one of them. */
 const PHASES = ['baseline', 'propose', 'retest', 'publish'] as const
+/** The proposers the head offers: the brief's `proposer` word, LLM first (the default). */
+const PROPOSERS = ['llm', 'rules'] as const
 /** Poll cadence: seconds while a campaign runs, slower once it settled. */
 const POLL_RUNNING_MS = 2000
 const POLL_IDLE_MS = 10000
@@ -222,6 +227,13 @@ export function describeTried(tried: CampaignRound['tried'], t: T): string {
   return typeof d.error === 'string' ? `${out} · ${d.error}` : out
 }
 
+/** Who proposed a round's try, as a small chip: LLM / 规则 / 收件箱 off the
+ * row's `proposer` word; nothing on rows written before proposers were named. */
+function SourceChip({ proposer, t }: { proposer: string | null | undefined; t: T }) {
+  if (proposer !== 'llm' && proposer !== 'rules' && proposer !== 'inbox') return null
+  return <span className={css.seedChip} data-proposer={proposer}>{t(`rsi.proposer.${proposer}`)}</span>
+}
+
 /** One runtime event as an operator sentence: the board's task_claimed /
  * task_done / task_failed / task_cancelled markers get their own words; a
  * round-bearing row (rsi_step) leads with 第 r 轮; anything else shows its
@@ -261,6 +273,7 @@ export function RsiView({
   const [round, setRound] = useState<number | null>(null)
   const [frames, setFrames] = useState<string[]>([])
   const [draft, setDraft] = useState('')
+  const [proposer, setProposer] = useState<typeof PROPOSERS[number]>(PROPOSERS[0])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   /** The brief 开始 just submitted, until the runtime claims it — with the
@@ -388,14 +401,14 @@ export function RsiView({
   // The log opens itself when the campaign ended badly; otherwise it stays folded.
   const failed = sel?.status === 'cancelled' || sel?.status === 'failed' || log.some(e => e.kind === 'task_failed')
 
-  /** Start or resume: the brief is `{kind:"evolve", task}` and nothing else;
-   * the runtime continues a known task from campaign.json's cursor. */
+  /** Start or resume: the brief is `{kind:"evolve", task, proposer}` and nothing
+   * else; the runtime continues a known task from campaign.json's cursor. */
   const start = useCallback(async () => {
     const tk = draft.trim()
     if (sessionName === null || tk === '') return
     setBusy(true); setError(null)
     try {
-      const r = await submitBrief(JSON.stringify({ kind: 'evolve', task: tk }), sessionName)
+      const r = await submitBrief(JSON.stringify({ kind: 'evolve', task: tk, proposer }), sessionName)
       const v = r.ok ? r.value as { submitted?: string; error?: string } | null : null
       if (v?.submitted === undefined) { setError(v?.error ?? t('brain.transportFail')); return }
       const c = campaigns?.find(x => x.task === tk)
@@ -409,7 +422,7 @@ export function RsiView({
     } finally {
       setBusy(false)
     }
-  }, [submitBrief, sessionName, draft, campaigns, t])
+  }, [submitBrief, sessionName, draft, proposer, campaigns, t])
 
   const stop = useCallback(async () => {
     if (sessionName === null || open === null) return
@@ -439,6 +452,9 @@ export function RsiView({
         <label>{t('evolve.task')} <input list="ph-rsi-tasks" value={draft} placeholder={t('evolve.taskHint')}
           onChange={(e) => { setDraft(e.target.value) }} /></label>
         <datalist id="ph-rsi-tasks">{taskNames.map(n => <option key={n} value={n} />)}</datalist>
+        <label>{t('rsi.proposer')} <select value={proposer} onChange={(e) => { setProposer(e.target.value as typeof PROPOSERS[number]) }}>
+          {PROPOSERS.map(p => <option key={p} value={p}>{t(`rsi.proposer.${p}`)}</option>)}
+        </select></label>
         <button type="button" disabled={busy || draft.trim() === '' || sessionName === null || pending?.task === draft.trim()} onClick={() => { void start() }}>
           {busy ? t('evolve.starting') : t('evolve.start')}
         </button>
@@ -480,7 +496,7 @@ export function RsiView({
                           {PHASES.map((ph, i) => (
                             <span key={ph}>
                               {i > 0 && <span className={css.stepArrow}> → </span>}
-                              <span className={css.step} data-phase={ph} aria-current={live.phase === ph ? 'step' : undefined}>{t(`rsi.phase.${ph}`)}</span>
+                              <span className={css.step} data-phase={ph} aria-current={live.phase === ph ? 'step' : undefined}>{t(ph === 'propose' && live.phase === 'propose' ? 'rsi.phase.proposing' : `rsi.phase.${ph}`)}</span>
                             </span>
                           ))}
                         </div>
@@ -514,7 +530,7 @@ export function RsiView({
                 {rounds.map(r => (
                   <button key={r.round} type="button" className={css.tlChip} aria-pressed={r.round === shownRound} onClick={() => { setRound(r.round ?? null) }}>
                     <span><b>{t('rsi.roundN', { r: r.round ?? 0 })}</b> <span className={css.mono}>{r.before} → {r.after}</span> · {r.published === true ? '✓' : '–'}</span>
-                    <span className={css.tlTried}>{describeTried(r.tried, t)}</span>
+                    <span className={css.tlTried}><SourceChip proposer={r.proposer} t={t} /> {describeTried(r.tried, t)}</span>
                   </button>
                 ))}
                 {live !== null && (
@@ -709,8 +725,9 @@ function MediaCard({ session, path }: { session: string; path: string }) {
   )
 }
 
-/** One round of the loop, in its four teaching beats: 看到了什么 (per_seed) →
- * 试了什么 (tried) → 结果 (before → after, best) → 发布 (published), plus
+/** One round of the loop, in its teaching beats: LLM 分析 (llm.summary, when
+ * the row carries one) → 看到了什么 (per_seed) → 试了什么 (tried, its proposer
+ * chip, llm.rationale) → 结果 (before → after, best) → 发布 (published), plus
  * 还缺什么 (needs) when the proposer had nothing to try. */
 function RoundCard({ r, rates, t }: { r: CampaignRound; rates: RoundRates | undefined; t: T }) {
   const seeds = r.per_seed ?? []
@@ -721,6 +738,7 @@ function RoundCard({ r, rates, t }: { r: CampaignRound; rates: RoundRates | unde
     <div className={css.card}>
       <div className={css.cardHead}><span className={css.cardHeadTitle}>{t('rsi.roundN', { r: r.round ?? 0 })}</span></div>
       {summary !== '' && <div className={css.mono} data-testid="rsi-round-summary">{summary}</div>}
+      {r.llm != null && <div className={css.beat} data-testid="rsi-analysis"><span className={css.beatLabel}>{t('rsi.analysis')}</span><span>{r.llm.summary ?? ''}</span></div>}
       <div className={css.beat}><span className={css.beatLabel}>{t('rsi.saw')}</span><div>
         {seeds.length === 0
           ? <span className={css.dim}>{t('rsi.noPerSeed')}</span>
@@ -741,7 +759,10 @@ function RoundCard({ r, rates, t }: { r: CampaignRound; rates: RoundRates | unde
               </table>
             )}
       </div></div>
-      <div className={css.beat}><span className={css.beatLabel}>{t('rsi.tried')}</span><span>{describeTried(r.tried, t)}</span></div>
+      <div className={css.beat}><span className={css.beatLabel}>{t('rsi.tried')}</span><div>
+        <SourceChip proposer={r.proposer} t={t} /> {describeTried(r.tried, t)}
+        {typeof r.llm?.rationale === 'string' && r.llm.rationale !== '' && <div className={css.dim} data-testid="rsi-rationale">{r.llm.rationale}</div>}
+      </div></div>
       <div className={css.beat}><span className={css.beatLabel}>{t('rsi.result')}</span><span className={css.mono}>{r.before} → {r.after} ({t('evolve.best')} {r.best})</span></div>
       <div className={css.beat}><span className={css.beatLabel}>{t('rsi.published')}</span><span>{r.published === true ? t('yes') : t('no')}</span></div>
       {r.tried?.kind === 'none' && (r.needs ?? []).length > 0 && (
