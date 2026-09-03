@@ -192,7 +192,7 @@ export type PhOpsKey =
   | 'rsi.messages'
   | 'rsi.matrix.baseline'
   | 'rsi.matrix.trial'
-  | 'rsi.matrix.elapsed'
+  | 'rsi.graph.legend'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -384,7 +384,7 @@ export const zh: Record<PhOpsKey, string> = {
   'rsi.messages': '消息流',
   'rsi.matrix.baseline': '基线',
   'rsi.matrix.trial': '试探',
-  'rsi.matrix.elapsed': '用时',
+  'rsi.graph.legend': '图例：绿 = 通过 · 红 = 失败（下方为失败模式）· 琥珀闪烁 = 运行中 · 灰 = 待运行 · 虚线 = 恢复节点 · 粗琥珀框 = 基线/试探不同',
 }
 
 /** English dictionary. */
@@ -570,5 +570,5 @@ export const en: Record<PhOpsKey, string> = {
   'rsi.messages': 'Messages',
   'rsi.matrix.baseline': 'Baseline',
   'rsi.matrix.trial': 'Trial',
-  'rsi.matrix.elapsed': 'Elapsed',
+  'rsi.graph.legend': 'Legend: green = pass · red = fail (failure mode below) · amber pulse = running · grey = pending · dashed = recovery · thick amber = differs baseline/trial',
 }

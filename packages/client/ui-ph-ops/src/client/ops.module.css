@@ -561,11 +561,6 @@
 .nodeChips > .seedChip { flex: none; }
 .nodeChip { font-size: 10px; margin-left: 4px; opacity: 0.8; }
 .msgs { max-height: 8.5em; overflow-y: auto; font-size: 12px; }
-.matrices { display: flex; gap: 12px; flex-wrap: wrap; }
-.matrices > div { overflow-x: auto; }
-.table td[data-ok="pass"] { color: var(--ph-pass); }
-.table td[data-ok="fail"] { color: var(--ph-fail); }
-.table td[data-changed="true"] { background: color-mix(in srgb, #d97706 20%, transparent); font-weight: 700; }
 .seedChip[data-state="fail"] { color: var(--ph-fail); border-color: color-mix(in srgb, var(--ph-fail) 55%, transparent); }
 .timeline { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
 .tlChip { flex: none; display: flex; flex-direction: column; gap: 1px; padding: 4px 9px; border-radius: 8px; border: 1px solid var(--ph-line); background: var(--ph-surface); color: inherit; font: inherit; font-size: 11px; text-align: left; cursor: pointer; max-width: 220px; }
@@ -577,3 +572,22 @@
 .logLine { display: flex; gap: 8px; font-size: 12px; }
 .logLine time { color: var(--ph-dim); font-variant-numeric: tabular-nums; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.planGraph { overflow-x: auto; max-width: 100%; }
+.planSvg { display: block; color: var(--ph-dim); }
+.planEdge { fill: none; stroke: currentColor; stroke-width: 1; }
+.planNode rect { fill: var(--ph-surface); stroke: var(--ph-line); stroke-width: 1.2; }
+.planNode text { fill: var(--ph-ink); font-size: 10px; }
+.planId { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.planGlyph { font-size: 8px; fill: var(--ph-dim) !important; }
+.planFail { font-size: 8px; fill: var(--ph-fail) !important; }
+.planNode[data-state="pass"] rect { stroke: var(--ph-pass); fill: color-mix(in srgb, var(--ph-pass) 12%, var(--ph-surface)); }
+.planNode[data-state="fail"] rect { stroke: var(--ph-fail); fill: color-mix(in srgb, var(--ph-fail) 12%, var(--ph-surface)); }
+.planNode[data-state="running"] rect { stroke: #d97706; fill: color-mix(in srgb, #d97706 14%, var(--ph-surface)); animation: pulse 1.2s ease-in-out infinite; }
+.planNode[data-state="queued"] text { fill: var(--ph-dim); }
+.planNode[data-kind="recovery"] rect { stroke-dasharray: 4 3; }
+.planNode[data-changed="true"] rect { stroke: #d97706; stroke-width: 2.5; }
+.seedCards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+.seedCard { border: 1px solid var(--ph-line); border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; }
+.seedCardHead { font-size: 11px; color: var(--ph-dim); }
+.seedCardPair { display: flex; gap: 10px; }
+.legend { font-size: 10px; color: var(--ph-dim); }

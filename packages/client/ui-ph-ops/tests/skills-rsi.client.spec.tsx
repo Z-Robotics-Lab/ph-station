@@ -230,6 +230,27 @@ describe('RsiView', () => {
     expect(container.querySelector('[data-testid="rsi-messages"] time')?.textContent).toMatch(/^\d\d:\d\d:\d\d$/)
   })
 
+  it('draws the running seed as a plan graph once nodes carry after edges: running node pulses, recovery nodes dashed', async () => {
+    const nodes = [
+      { id: 'reach-0', skill: 'reach', ok: true, steps: 40 },
+      { id: 'grasp-0', skill: 'grasp', ok: null, after: ['reach-0'] },
+      { id: 'regrasp-0', skill: 'grasp', kind: 'recovery', ok: null, after: ['grasp-0'] },
+      { id: 'place-0', skill: 'place', ok: null, after: ['grasp-0', 'regrasp-0'] },
+    ]
+    const live = { phase: 'baseline', round: 1, seeds_total: 3, seed_index: 1, seed: 1, node: 'grasp-0', round_started_at: Date.now() / 1000 - 5, nodes, messages: [] }
+    const p = props({ fetchRsiRun: vi.fn((_s: string, task: string) => Promise.resolve(ok(task === 'kitchen_thaw' ? { ...campaign, live } : null))) })
+    mount(p)
+    await waitFor(() => { expect(screen.getByTestId('rsi-nodes')).toBeTruthy() })
+    const g = screen.getByTestId('rsi-nodes')
+    const els = [...g.querySelectorAll('[data-node]')]
+    expect(els.map(e => e.getAttribute('data-state'))).toEqual(['pass', 'running', 'queued', 'queued'])
+    expect(els.map(e => e.getAttribute('data-kind'))).toEqual([null, null, 'recovery', null])
+    expect(g.querySelectorAll('[data-edge="after"]').length).toBe(4)
+    expect(g.querySelectorAll('[data-changed]').length).toBe(0)
+    expect(g.querySelector('svg')?.getAttribute('height')).toMatch(/^\d+/)
+    expect(screen.getByText(en['rsi.graph.legend'])).toBeTruthy()
+  })
+
   it('collapses the messages to the latest line when the campaign is not running, and hides empty node chips', async () => {
     const live = { phase: 'baseline', round: 1, nodes: [], messages: [{ ts: 1, text: 'a' }, { ts: 2, text: 'b' }] }
     const p = props({
@@ -242,28 +263,29 @@ describe('RsiView', () => {
     expect(screen.queryByTestId('rsi-nodes')).toBeNull()
   })
 
-  it('shows the round as a seed × node matrix once rows carry nodes: 基线 and 试探 side by side, changed cells marked', async () => {
+  it('shows the round as one plan graph per seed once rows carry nodes: 基线 and 试探 side by side, changed nodes outlined', async () => {
     const base = [
-      { seed: 1, success: false, elapsed_s: 42, nodes: [{ id: 'reach-0', ok: true, steps: 40 }, { id: 'grasp-0', ok: false, steps: 12, failure_mode: 'reach_stall' }, { id: 'place-0', ok: null }] },
-      { seed: 2, success: true, elapsed_s: 100, nodes: [{ id: 'reach-0', ok: true, steps: 38 }, { id: 'grasp-0', ok: true, steps: 20 }, { id: 'place-0', ok: true, steps: 30 }] },
+      { seed: 1, success: false, elapsed_s: 42, nodes: [{ id: 'reach-0', ok: true, steps: 40 }, { id: 'grasp-0', ok: false, steps: 12, failure_mode: 'reach_stall', after: ['reach-0'] }, { id: 'place-0', ok: null, after: ['grasp-0'] }] },
+      { seed: 2, success: true, elapsed_s: 100, nodes: [{ id: 'reach-0', ok: true, steps: 38 }, { id: 'grasp-0', ok: true, steps: 20, after: ['reach-0'] }, { id: 'place-0', ok: true, steps: 30, after: ['grasp-0'] }] },
     ]
     const trial = [
-      { seed: 1, success: true, elapsed_s: 61, nodes: [{ id: 'reach-0', ok: true, steps: 40 }, { id: 'grasp-0', ok: true, steps: 15 }, { id: 'place-0', ok: true, steps: 33 }] },
-      { seed: 2, success: true, elapsed_s: 99, nodes: [{ id: 'reach-0', ok: true, steps: 38 }, { id: 'grasp-0', ok: true, steps: 20 }, { id: 'place-0', ok: true, steps: 30 }] },
+      { seed: 1, success: true, elapsed_s: 61, nodes: [{ id: 'reach-0', ok: true, steps: 40 }, { id: 'grasp-0', ok: true, steps: 15, after: ['reach-0'] }, { id: 'place-0', ok: true, steps: 33, after: ['grasp-0'] }] },
+      { seed: 2, success: true, elapsed_s: 99, nodes: [{ id: 'reach-0', ok: true, steps: 38 }, { id: 'grasp-0', ok: true, steps: 20, after: ['reach-0'] }, { id: 'place-0', ok: true, steps: 30, after: ['grasp-0'] }] },
     ]
     const rounds = [{ ...campaign.rounds[0], per_seed: base, after_seeds: trial }]
     const p = props({ fetchRsiRun: vi.fn((_s: string, task: string) => Promise.resolve(ok(task === 'kitchen_thaw' ? { ...campaign, rounds, latest: rounds[0] } : null))) })
     mount(p)
-    await waitFor(() => { expect(screen.getByTestId('rsi-matrix-Baseline')).toBeTruthy() })
-    const cells = (id: string) => [...screen.getByTestId(id).querySelectorAll('tbody td')].map(e => e.textContent)
-    expect([...screen.getByTestId('rsi-matrix-Baseline').querySelectorAll('th')].map(e => e.textContent)).toEqual(['Seed', 'reach-0', 'grasp-0', 'place-0', 'Elapsed'])
-    expect(cells('rsi-matrix-Baseline')).toEqual(['1', '✓', '✗', '–', '42s', '2', '✓', '✓', '✓', '1m'])
-    expect(cells('rsi-matrix-Trial')).toEqual(['1', '✓', '✓', '✓', '1m', '2', '✓', '✓', '✓', '1m'])
-    // Seed 1's grasp-0 and place-0 changed between baseline and trial; both matrices mark them, nothing else.
-    const changed = (id: string) => [...screen.getByTestId(id).querySelectorAll('td[data-changed="true"]')].map(e => e.textContent)
-    expect(changed('rsi-matrix-Baseline')).toEqual(['✗', '–'])
-    expect(changed('rsi-matrix-Trial')).toEqual(['✓', '✓'])
-    expect(screen.getByTestId('rsi-matrix-Baseline').querySelector('td[data-ok="fail"]')?.getAttribute('title')).toBe('12 steps · reach_stall')
+    await waitFor(() => { expect(screen.getByTestId('rsi-seed-graphs')).toBeTruthy() })
+    const heads = [...screen.getByTestId('rsi-seed-graphs').querySelectorAll('[data-seed]')].map(e => e.firstElementChild?.textContent)
+    expect(heads).toEqual(['Seed 1 · 42s', 'Seed 2 · 1m'])
+    const states = (id: string) => [...screen.getByTestId(id).querySelectorAll('[data-node]')].map(e => `${e.getAttribute('data-node')}:${e.getAttribute('data-state')}${e.getAttribute('data-changed') === 'true' ? '!' : ''}`)
+    // One node element per entry, its state class, edges == sum(after); seed 1's grasp-0 / place-0 differ between 基线 and 试探.
+    expect(states('rsi-graph-1-base')).toEqual(['reach-0:pass', 'grasp-0:fail!', 'place-0:queued!'])
+    expect(states('rsi-graph-1-trial')).toEqual(['reach-0:pass', 'grasp-0:pass!', 'place-0:pass!'])
+    expect(states('rsi-graph-2-base')).toEqual(['reach-0:pass', 'grasp-0:pass', 'place-0:pass'])
+    expect(screen.getByTestId('rsi-graph-1-base').querySelectorAll('[data-edge="after"]').length).toBe(2)
+    expect(screen.getByTestId('rsi-graph-1-base').querySelector('[data-state="fail"] title')?.textContent).toBe('✗ · 12 steps · reach_stall')
+    expect(screen.getByTestId('rsi-graph-1-base').querySelector('[data-state="fail"] text:last-child')?.textContent).toBe('reach_stall')
     // The plain per-seed table is gone.
     expect(screen.queryByText(en['rsi.firstDeath'])).toBeNull()
   })

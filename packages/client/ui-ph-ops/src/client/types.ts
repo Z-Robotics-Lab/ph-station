@@ -202,6 +202,10 @@ export interface NodeRow {
   ok?: boolean | null
   steps?: number | null
   failure_mode?: string | null
+  /** Ids this node runs after (the plan's edges); absent on trails written before edges existed. */
+  after?: string[] | null
+  /** The plan's node kind ('task' | 'recovery' | ...); recovery nodes draw dashed. */
+  kind?: string | null
 }
 
 /** One seed of the kept suite, as scripts/evolve.py's `per_seed` writes it. */
