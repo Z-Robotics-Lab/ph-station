@@ -13,7 +13,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import { RsiView, describeEvent, describeTried } from '../src/client/RsiView.tsx'
+import { RsiView, SeriesChart, TaskHeat, describeEvent, describeTried, roundSummary } from '../src/client/RsiView.tsx'
 import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -91,15 +91,18 @@ describe('RsiView', () => {
     await waitFor(() => { expect(chip('kitchen_thaw').getAttribute('aria-pressed')).toBe('true') })
     expect((screen.getByPlaceholderText(en['evolve.taskHint']) as HTMLInputElement).value).toBe('kitchen_thaw')
     expect((screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement).disabled).toBe(false)
-    await waitFor(() => { expect(container.querySelectorAll('polyline')).toHaveLength(3) })
+    await waitFor(() => { expect(container.querySelectorAll('polyline')).toHaveLength(4) })
     expect(p.fetchRsiRun).toHaveBeenCalledWith('session-main', 'kitchen_thaw')
     expect(p.fetchRsiRun).not.toHaveBeenCalledWith('session-main', 'pack_lunch')
     expect(p.fetchRsiSeries).toHaveBeenCalledWith('session-main', 'kitchen_thaw')
-    // Chart: y ticks 0..3 (seed count), one x label per round, a three-entry legend.
-    expect([...container.querySelectorAll('text[data-axis="y"]')].map(e => e.textContent)).toEqual(['0', '1', '2', '3'])
+    // Chart: a 0–100% axis, one x label per round, a three-entry legend; rows without node_rate fall back to k/n·100.
+    expect([...container.querySelectorAll('text[data-axis="y"]')].map(e => e.textContent)).toEqual(['0%', '25%', '50%', '75%', '100%'])
     expect([...container.querySelectorAll('text[data-axis="x"]')].map(e => e.textContent)).toEqual(['Round 1', 'Round 2'])
     expect(container.querySelectorAll('[data-legend]')).toHaveLength(3)
     expect(container.querySelector('polyline[data-series="best"]')?.getAttribute('points')).toMatch(/^26,[\d.]+ 312,[\d.]+$/)
+    // No by_task on these rows: no heat strip; the round card carries no summary line either.
+    expect(screen.queryByTestId('rsi-heat')).toBeNull()
+    expect(screen.queryByTestId('rsi-round-summary')).toBeNull()
     // Status card: this running campaign predates live progress — it says so and nothing more (the chip has the rest).
     const status = screen.getByTestId('rsi-status')
     expect(status.textContent).toBe(en['rsi.noLive'])
@@ -290,6 +293,20 @@ describe('RsiView', () => {
     expect(screen.queryByText(en['rsi.firstDeath'])).toBeNull()
   })
 
+  it('the round card summary reads the series row of the shown round; the heat strip rides the same rows', async () => {
+    const rows = campaign.rounds.map(({ round, before, after, best }) => ({
+      round, before, after, best, node_rate: { before: 0.25, after: 0.5, best: 0.5 },
+      by_task: { grasp: { before: 0, after: round === 1 ? 1 : 0.5 } },
+    }))
+    mount(props({ fetchRsiSeries: vi.fn(() => Promise.resolve(ok(rows))) }))
+    await waitFor(() => { expect(screen.getByTestId('rsi-round-summary')).toBeTruthy() })
+    // Round 2 (latest) is shown: no nodes on its per_seed, so node_rate percentages; grasp half-passed.
+    expect(screen.getByTestId('rsi-round-summary').textContent).toBe('Nodes passed 25% → 50% · Subtasks grasp 50%')
+    expect(screen.getByTestId('rsi-heat').querySelectorAll('td[data-task="grasp"]')).toHaveLength(2)
+    fireEvent.click(roundChips()[0] as Element)
+    expect(screen.getByTestId('rsi-round-summary').textContent).toBe('Nodes passed 25% → 50% · Subtasks grasp ✓')
+  })
+
   it('tells the operator how to begin when the session holds no campaign', async () => {
     mount(props({ fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok([]))) }))
     await waitFor(() => { expect(screen.getByText(en['rsi.guide'])).toBeTruthy() })
@@ -369,5 +386,63 @@ describe('evolveSessions', () => {
     expect(evolveSessions(list).map(s => s.name)).toEqual(['session-robocasa-evolution', 'session-robocasa-rsi'])
     expect(pickEvolveDefault(list)).toBe('session-robocasa-rsi')
     expect(pickEvolveDefault([{ name: 'session-main', kinds: { 'runtime.boot': 1 } }])).toBe('session-main')
+  })
+})
+
+describe('SeriesChart / TaskHeat / roundSummary (node_rate + by_task rows)', () => {
+  const series = [
+    { round: 1, before: 0, after: 1, best: 1, node_rate: { before: 0.25, after: 0.5, best: 0.5 },
+      by_task: { nav: { before: 0.5, after: 1 }, grasp: { before: 0, after: 0.5 }, drop: { before: 0, after: 0 } } },
+    { round: 2, before: 1, after: 1, best: 1, node_rate: { before: 0.5, after: 0.5, best: 0.5 },
+      by_task: { nav: { before: 1, after: 1 }, grasp: { before: 0.5, after: 0 }, drop: { before: 0, after: null } } },
+  ]
+
+  it('draws node_rate·100 solid and after k/n·100 dotted on one percentage axis; a toggle hides either group', () => {
+    const { container } = render(<SeriesChart series={series} n={2} t={t as never} />)
+    // y = 104 - pct/100·96: 25% → 80, 50% → 56 (node lines); task after 1/2 → 50% on both rounds.
+    expect(container.querySelector('polyline[data-series="before"]')?.getAttribute('points')).toBe('26,80 312,56')
+    expect(container.querySelector('polyline[data-series="task"]')?.getAttribute('points')).toBe('26,56 312,56')
+    expect(container.querySelector('polyline[data-series="task"]')?.getAttribute('class')).toMatch(/chartTask/)
+    fireEvent.click(container.querySelector('input[data-group="nodes"]') as Element)
+    expect(container.querySelectorAll('polyline')).toHaveLength(1)
+    fireEvent.click(container.querySelector('input[data-group="task"]') as Element)
+    expect(container.querySelectorAll('polyline')).toHaveLength(0)
+    expect(screen.getByText(en['rsi.chart.nodes'])).toBeTruthy()
+    expect(screen.getByText(en['rsi.chart.task'])).toBeTruthy()
+  })
+
+  it('heat strip: tasks in first-seen order × rounds, after (else before) coloured, k/n tooltip, ▲ / ▼ off before', () => {
+    const { container } = render(<TaskHeat series={series} n={2} t={t as never} />)
+    expect((screen.getByTestId('rsi-heat') as HTMLDetailsElement).open).toBe(true)
+    expect([...container.querySelectorAll('tbody th')].map(e => e.textContent)).toEqual(['nav', 'grasp', 'drop'])
+    const cell = (task: string, r: number) => container.querySelector(`td[data-task="${task}"][data-round="${r}"]`) as HTMLElement
+    expect(cell('nav', 1).title).toBe('Round 1 · nav passed 2/2')
+    expect(cell('nav', 1).textContent).toBe('▲')
+    expect(cell('nav', 2).textContent).toBe('')
+    expect(cell('grasp', 2).textContent).toBe('▼')
+    expect(cell('grasp', 2).title).toBe('Round 2 · grasp passed 0/2')
+    expect(cell('grasp', 1).getAttribute('data-rate')).toBe('0.5')
+    expect(cell('grasp', 1).style.background).toContain('color-mix')
+    // after null falls back to before; no arrow.
+    expect(cell('drop', 2).getAttribute('data-rate')).toBe('0')
+    expect(cell('drop', 2).textContent).toBe('')
+    expect(render(<TaskHeat series={[{ round: 1, before: 0, after: 0, best: 0 }]} n={2} t={t as never} />).container.textContent).toBe('')
+  })
+
+  it('roundSummary: node counts off per_seed / after_seeds nodes, subtask verdicts off by_task', () => {
+    const nodes = (oks: boolean[]) => oks.map((ok, i) => ({ id: `n${i}`, ok }))
+    const r = {
+      round: 1, per_seed: [{ seed: 1, nodes: nodes([true, false, false, false]) }, { seed: 2, nodes: nodes([true, true, true, false]) }],
+      after_seeds: [{ seed: 1, nodes: nodes([true, true, true, false]) }, { seed: 2, nodes: nodes([true, true, true, false]) }],
+    }
+    const rates = { by_task: {
+      nav: { before: 1, after: 1 }, grasp: { before: 0.5, after: 1 }, carry: { before: 0, after: 1 }, drop: { before: 0, after: 0 },
+    } }
+    expect(roundSummary(r, rates, t as never)).toBe('Nodes passed 4/8 → 6/8 · Subtasks nav ✓ grasp ✓ carry ✓ drop ✗')
+    // Nothing retested: after repeats before; a half-passed task shows its percentage.
+    expect(roundSummary({ ...r, after_seeds: [] }, { by_task: { grasp: { before: 0.5, after: null } } }, t as never)).toBe('Nodes passed 4/8 → 4/8 · Subtasks grasp 50%')
+    // Rows without nodes fall back to the series row's node_rate as percentages; neither → ''.
+    expect(roundSummary({ round: 2 }, { node_rate: { before: 0.25, after: 0.5, best: 0.5 } }, t as never)).toBe('Nodes passed 25% → 50%')
+    expect(roundSummary({ round: 3 }, undefined, t as never)).toBe('')
   })
 })

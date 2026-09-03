@@ -193,6 +193,12 @@ export type PhOpsKey =
   | 'rsi.matrix.baseline'
   | 'rsi.matrix.trial'
   | 'rsi.graph.legend'
+  | 'rsi.chart.nodes'
+  | 'rsi.chart.task'
+  | 'rsi.heat'
+  | 'rsi.heat.cell'
+  | 'rsi.summary.nodes'
+  | 'rsi.summary.tasks'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -324,7 +330,7 @@ export const zh: Record<PhOpsKey, string> = {
   'evolve.published': '已发布',
   'evolve.status': '状态',
   'evolve.rounds': '轮数',
-  'evolve.chart': '每轮成功计数（前 / 后 / 最佳）',
+  'evolve.chart': '每轮节点通过率与整任务成功（前 / 后 / 最佳）',
   'evolve.log': '运行日志',
   'evolve.noLog': '暂无该 brief 的日志',
   'evolve.media': '关键帧 / 视频',
@@ -385,6 +391,12 @@ export const zh: Record<PhOpsKey, string> = {
   'rsi.matrix.baseline': '基线',
   'rsi.matrix.trial': '试探',
   'rsi.graph.legend': '图例：绿 = 通过 · 红 = 失败（下方为失败模式）· 琥珀闪烁 = 运行中 · 灰 = 待运行 · 虚线 = 恢复节点 · 粗琥珀框 = 基线/试探不同',
+  'rsi.chart.nodes': '节点通过率',
+  'rsi.chart.task': '整任务成功',
+  'rsi.heat': '按子任务',
+  'rsi.heat.cell': '第 {r} 轮 · {task} 通过 {k}/{n}',
+  'rsi.summary.nodes': '节点通过 {b} → {a}',
+  'rsi.summary.tasks': '子任务',
 }
 
 /** English dictionary. */
@@ -510,7 +522,7 @@ export const en: Record<PhOpsKey, string> = {
   'evolve.published': 'published',
   'evolve.status': 'Status',
   'evolve.rounds': 'Rounds',
-  'evolve.chart': 'Success count per round (before / after / best)',
+  'evolve.chart': 'Node pass rate and whole-task success per round (before / after / best)',
   'evolve.log': 'Runtime log',
   'evolve.noLog': 'No log lines for this brief yet',
   'evolve.media': 'Keyframes / videos',
@@ -571,4 +583,10 @@ export const en: Record<PhOpsKey, string> = {
   'rsi.matrix.baseline': 'Baseline',
   'rsi.matrix.trial': 'Trial',
   'rsi.graph.legend': 'Legend: green = pass · red = fail (failure mode below) · amber pulse = running · grey = pending · dashed = recovery · thick amber = differs baseline/trial',
+  'rsi.chart.nodes': 'Node pass rate',
+  'rsi.chart.task': 'Whole-task success',
+  'rsi.heat': 'By subtask',
+  'rsi.heat.cell': 'Round {r} · {task} passed {k}/{n}',
+  'rsi.summary.nodes': 'Nodes passed {b} → {a}',
+  'rsi.summary.tasks': 'Subtasks',
 }

@@ -219,6 +219,15 @@ export interface SeedRow {
   elapsed_s?: number | null
 }
 
+/** The per-round rates board/store.py derives off the seeds' nodes for
+ * `rsiSeries` (not stored in campaign.json): `node_rate` = mean ok-nodes/nodes
+ * over seeds (0..1, null on rounds without nodes), `by_task` = the pass
+ * fraction of each plan task (every node carrying that `task` ok), {} when none. */
+export interface RoundRates {
+  node_rate?: { before?: number | null; after?: number | null; best?: number | null } | null
+  by_task?: Record<string, { before?: number | null; after?: number | null }> | null
+}
+
 /** One round of an evolve campaign (`campaign.json` rounds[]). */
 export interface CampaignRound {
   round?: number
@@ -292,6 +301,8 @@ export interface CampaignSummary {
   best?: number
   seeds?: [number, number]
   arm?: string
+  /** The series' running-max node pass rate (0..1), null before any round carried nodes. */
+  node_rate_best?: number | null
   /** campaign.json mtime, epoch seconds. */
   updated?: number
   live?: { phase?: string | null; message?: string | null } | null
@@ -299,7 +310,7 @@ export interface CampaignSummary {
 }
 
 /** `rsiSeries({name, task})`: one point per round, the line-chart feed. */
-export interface SeriesPoint {
+export interface SeriesPoint extends RoundRates {
   round?: number
   before?: number
   after?: number

@@ -41,6 +41,11 @@ const CAMPAIGN = {
   rounds: [
     { round: 1, tried: { kind: 'executor', node: 'grasp', detail: 'scripted->geometric' },
       before: 0, after: 1, best: 1, suite_sha: 'a'.repeat(64), published: true,
+      // Trail nodes carry `task`: rsiSeries derives node_rate / by_task off them.
+      per_seed: [
+        { seed: 1, success: false, first_death: 'grasp', failure_mode: 'reach_stall', nodes: [{ id: 'reach', task: 'reach', ok: true }, { id: 'grasp', task: 'grasp', ok: false }] },
+        { seed: 2, success: true, first_death: null, failure_mode: null, nodes: [{ id: 'reach', task: 'reach', ok: true }, { id: 'grasp', task: 'grasp', ok: true }] },
+      ],
       media: ['media/kitchen_thaw/1/grasp.gif'], ts: 1.0 },
     { round: 2, tried: { kind: 'tunables', node: 'grasp', detail: 'hover_z*1.2' },
       before: 1, after: 1, best: 1, suite_sha: 'b'.repeat(64), published: false,
@@ -167,8 +172,11 @@ describe.skipIf(!runnable)('board bridge over a real web boot', () => {
     expect(run).toMatchObject({ ...CAMPAIGN, latest: CAMPAIGN.rounds[1] })
     const series = await board(base, 'rsiSeries', { request: { session: 'session-main', task: 'kitchen_thaw' } })
     expect(series).toEqual([
-      { round: 1, before: 0, after: 1, best: 1, per_seed: null, needs: null },
-      { round: 2, before: 1, after: 1, best: 1, per_seed: null, needs: null },
+      { round: 1, before: 0, after: 1, best: 1, per_seed: CAMPAIGN.rounds[0]?.per_seed, needs: null,
+        node_rate: { before: 0.75, after: null, best: 0.75 },
+        by_task: { grasp: { before: 0.5, after: null }, reach: { before: 1, after: null } } },
+      { round: 2, before: 1, after: 1, best: 1, per_seed: null, needs: null,
+        node_rate: { before: null, after: null, best: 0.75 }, by_task: {} },
     ])
     expect(await board(base, 'rsiFrames', { request: { session: 'session-main', task: 'kitchen_thaw', round: 1 } }))
       .toEqual(['media/kitchen_thaw/1/grasp.gif'])
@@ -177,7 +185,7 @@ describe.skipIf(!runnable)('board bridge over a real web boot', () => {
 
   it('lists the fixture campaign through rsiCampaigns, off disk', async () => {
     expect(await board(base, 'rsiCampaigns', { request: { name: 'session-main' } })).toEqual([{
-      task: 'kitchen_thaw', status: 'running', cursor: 2, rounds: 2, best: 1, seeds: [1, 2], arm: 'auto',
+      task: 'kitchen_thaw', status: 'running', cursor: 2, rounds: 2, best: 1, seeds: [1, 2], arm: 'auto', node_rate_best: 0.75,
       updated: expect.any(Number), live: null, open_brief: null,
     }])
   })

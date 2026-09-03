@@ -7,8 +7,9 @@
  * ETA, message, the running seed's plan graph — chips when no `after` edges),
  * the last `live.messages`
  * lines, the live frame + seed board while running, one 轮次 strip
- * (round chips above the `rsiSeries` chart; a chip picks the round), the round
- * card (看到了什么 = per-seed table, or one plan graph per seed — 基线 / 试探
+ * (round chips above the `rsiSeries` chart — one 0–100% axis, 节点通过率 solid /
+ * 整任务成功 dotted — and the 按子任务 heat strip; a chip picks the round), the round
+ * card (one summary line 节点通过 k/n → k/n · 子任务 ✓/✗, then 看到了什么 = per-seed table, or one plan graph per seed — 基线 / 试探
  * side by side, changed nodes outlined — once rows carry `nodes`; 试了什么
  * / 结果 / 发布 / 还缺什么), 关键片段, and 日志
  * folded unless the campaign failed or was cancelled. The legacy heavy chain
@@ -24,7 +25,8 @@ import { evolveSessions, pickEvolveDefault } from './OperatorRail.tsx'
 import { PlanGraph } from './PlanGraph.tsx'
 import { usePolledLoad } from './poll.ts'
 import type {
-  Campaign, CampaignRound, CampaignSummary, LiveState, NodeRow, RuntimeEvent, RuntimeEventsPayload, SeedRow, SeriesPoint, SessionSummary,
+  Campaign, CampaignRound, CampaignSummary, LiveState, NodeRow, RoundRates, RuntimeEvent, RuntimeEventsPayload, SeedRow, SeriesPoint,
+  SessionSummary,
 } from './types.ts'
 import css from './ops.module.css'
 
@@ -78,47 +80,125 @@ function briefsOf(events: RuntimeEvent[], task: string): Set<string> {
   return ids
 }
 
-/** Inline SVG line chart of the series: x = round, y = success count out of
- * `n` seeds. Three polylines (before / after / best) over labelled axes, y
- * ticks 0..n, x labels 第1轮…; no chart library. */
+/** Inline SVG line chart of the series on one 0–100% axis. 节点通过率 = the
+ * main signal: `node_rate` before / after / best as solid lines (k/n·100 when
+ * a row predates node_rate). 整任务成功 = the round's after k/n·100 as one thin
+ * dotted line. Two checkboxes hide either group; no chart library. */
 export function SeriesChart({ series, n, t }: { series: SeriesPoint[]; n: number; t: T }) {
+  const [show, setShow] = useState({ nodes: true, task: true })
   const W = 320; const H = 130; const L = 26; const R = 8; const TOP = 8; const B = 26
   if (series.length === 0) return <div className={css.dim}>{t('rsi.chartEmpty')}</div>
-  const top = Math.max(1, n, ...series.flatMap(p => [p.before ?? 0, p.after ?? 0, p.best ?? 0]))
-  const step = Math.max(1, Math.ceil(top / 6))
-  const ticks: number[] = []
-  for (let v = 0; v <= top; v += step) ticks.push(v)
   const x = (i: number) => L + (series.length < 2 ? 0 : (i * (W - L - R)) / (series.length - 1))
-  const y = (v: number) => H - B - (v / top) * (H - B - TOP)
-  const line = (k: 'before' | 'after' | 'best') => series.map((p, i) => `${x(i)},${y(p[k] ?? 0)}`).join(' ')
+  const y = (pct: number) => H - B - (pct / 100) * (H - B - TOP)
+  const taskPct = (v: number | null | undefined) => (n > 0 ? ((v ?? 0) / n) * 100 : 0)
+  const nodePct = (p: SeriesPoint, k: 'before' | 'after' | 'best') => {
+    const r = p.node_rate?.[k]
+    return typeof r === 'number' ? r * 100 : taskPct(p[k])
+  }
+  const line = (k: 'before' | 'after' | 'best') => series.map((p, i) => `${x(i)},${y(nodePct(p, k))}`).join(' ')
+  const taskLine = series.map((p, i) => `${x(i)},${y(taskPct(p.after))}`).join(' ')
   const legend: Array<[string, 'before' | 'after' | 'best']> = [[t('evolve.before'), 'before'], [t('evolve.after'), 'after'], [t('evolve.best'), 'best']]
   const cls = { before: css.chartBefore, after: css.chartAfter, best: css.chartBest }
   return (
-    <svg className={css.chart} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t('evolve.chart')}>
-      <line className={css.chartAxis} x1={L} y1={TOP} x2={L} y2={H - B} />
-      <line className={css.chartAxis} x1={L} y1={H - B} x2={W - R} y2={H - B} />
-      {ticks.map(v => (
-        <g key={v}>
-          <line className={css.chartGrid} x1={L} y1={y(v)} x2={W - R} y2={y(v)} />
-          <text className={css.chartLabel} x={L - 4} y={y(v) + 3} textAnchor="end" data-axis="y">{v}</text>
-        </g>
-      ))}
-      {series.map((p, i) => (
-        <text key={p.round ?? i} className={css.chartLabel} x={x(i)} y={H - B + 11} textAnchor="middle" data-axis="x">
-          {t('rsi.roundN', { r: p.round ?? i + 1 })}
-        </text>
-      ))}
-      {legend.map(([label, k], i) => (
-        <g key={k} data-legend={k}>
-          <line className={cls[k]} x1={L + i * 70} y1={H - 4} x2={L + i * 70 + 14} y2={H - 4} />
-          <text className={css.chartLabel} x={L + i * 70 + 18} y={H - 1}>{label}</text>
-        </g>
-      ))}
-      <polyline className={css.chartBefore} data-series="before" points={line('before')} />
-      <polyline className={css.chartAfter} data-series="after" points={line('after')} />
-      <polyline className={css.chartBest} data-series="best" points={line('best')} />
-    </svg>
+    <div>
+      <div className={css.chartToggles}>
+        {(['nodes', 'task'] as const).map(g => (
+          <label key={g}><input type="checkbox" data-group={g} checked={show[g]} onChange={(e) => { setShow({ ...show, [g]: e.target.checked }) }} /> {t(`rsi.chart.${g}`)}</label>
+        ))}
+      </div>
+      <svg className={css.chart} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t('evolve.chart')}>
+        <line className={css.chartAxis} x1={L} y1={TOP} x2={L} y2={H - B} />
+        <line className={css.chartAxis} x1={L} y1={H - B} x2={W - R} y2={H - B} />
+        {[0, 25, 50, 75, 100].map(v => (
+          <g key={v}>
+            <line className={css.chartGrid} x1={L} y1={y(v)} x2={W - R} y2={y(v)} />
+            <text className={css.chartLabel} x={L - 4} y={y(v) + 3} textAnchor="end" data-axis="y">{v}%</text>
+          </g>
+        ))}
+        {series.map((p, i) => (
+          <text key={p.round ?? i} className={css.chartLabel} x={x(i)} y={H - B + 11} textAnchor="middle" data-axis="x">
+            {t('rsi.roundN', { r: p.round ?? i + 1 })}
+          </text>
+        ))}
+        {legend.map(([label, k], i) => (
+          <g key={k} data-legend={k}>
+            <line className={cls[k]} x1={L + i * 70} y1={H - 4} x2={L + i * 70 + 14} y2={H - 4} />
+            <text className={css.chartLabel} x={L + i * 70 + 18} y={H - 1}>{label}</text>
+          </g>
+        ))}
+        {show.nodes && (['before', 'after', 'best'] as const).map(k => (
+          <polyline key={k} className={cls[k]} data-series={k} points={line(k)} />
+        ))}
+        {show.task && <polyline className={css.chartTask} data-series="task" points={taskLine} />}
+      </svg>
+    </div>
   )
+}
+
+/** 按子任务 heat strip under the chart: rows = tasks in plan (first-seen) order,
+ * columns = rounds; a cell is `by_task` after (before when the round tried
+ * nothing) coloured red→green, ▲ / ▼ when after moved off before; the tooltip
+ * spells "第 r 轮 · nav 通过 1/2". Nothing when no row carries by_task. */
+export function TaskHeat({ series, n, t }: { series: SeriesPoint[]; n: number; t: T }) {
+  const tasks: string[] = []
+  for (const p of series) for (const k of Object.keys(p.by_task ?? {})) if (!tasks.includes(k)) tasks.push(k)
+  if (tasks.length === 0) return null
+  const roundOf = (p: SeriesPoint, i: number) => p.round ?? i + 1
+  return (
+    <details open className={css.logBlock} data-testid="rsi-heat">
+      <summary>{t('rsi.heat')}</summary>
+      <table className={css.heat}>
+        <thead><tr><th /> {series.map((p, i) => <th key={roundOf(p, i)}>{roundOf(p, i)}</th>)}</tr></thead>
+        <tbody>
+          {tasks.map(task => (
+            <tr key={task}>
+              <th className={css.mono}>{task}</th>
+              {series.map((p, i) => {
+                const c = p.by_task?.[task]
+                const rate = c?.after ?? c?.before ?? null
+                const r = roundOf(p, i)
+                const [a, b] = [c?.after, c?.before]
+                const arrow = typeof a === 'number' && typeof b === 'number' && a !== b ? (a > b ? '▲' : '▼') : ''
+                return rate === null
+                  ? <td key={r} data-task={task} data-round={r} />
+                  : (
+                    <td key={r} data-task={task} data-round={r} data-rate={rate} title={t('rsi.heat.cell', { r, task, k: Math.round(rate * n), n })}
+                      style={{ background: `color-mix(in srgb, color-mix(in srgb, #16a34a ${Math.round(rate * 100)}%, #dc2626) 55%, transparent)` }}>
+                      {arrow}
+                    </td>
+                  )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
+  )
+}
+
+/** "节点通过 7/32 → 7/32 · 子任务 nav ✓ grasp ✓ carry ✓ drop ✗": node counts off
+ * the round's per_seed / after_seeds nodes (after = before when nothing was
+ * retested; the series row's node_rate as a percentage when rows carry no
+ * nodes), subtask verdicts off that row's by_task after (before when absent):
+ * ✓ every seed, ✗ none, else the percentage. '' when neither exists. */
+export function roundSummary(r: CampaignRound, rates: RoundRates | undefined, t: T): string {
+  const count = (rows: SeedRow[]) => {
+    let k = 0; let total = 0
+    for (const s of rows) for (const nd of s.nodes ?? []) { total++; if (nd.ok === true) k++ }
+    return total > 0 ? `${k}/${total}` : null
+  }
+  const pct = (v: number | null | undefined) => (typeof v === 'number' ? `${Math.round(v * 100)}%` : null)
+  const bc = count(r.per_seed ?? [])
+  const before = bc ?? pct(rates?.node_rate?.before)
+  const after = bc !== null ? (count(r.after_seeds ?? []) ?? bc) : (pct(rates?.node_rate?.after) ?? before)
+  const parts: string[] = []
+  if (before !== null) parts.push(t('rsi.summary.nodes', { b: before, a: after }))
+  const tasks = Object.entries(rates?.by_task ?? {}).map(([task, c]) => {
+    const v = c?.after ?? c?.before
+    return `${task} ${v === 1 ? '✓' : v === 0 ? '✗' : pct(v) ?? '—'}`
+  })
+  if (tasks.length > 0) parts.push(`${t('rsi.summary.tasks')} ${tasks.join(' ')}`)
+  return parts.join(' · ')
 }
 
 /** What one round tried, in operator words: "把 drop-can1 的 reach_tol 0.03 →
@@ -405,10 +485,11 @@ export function RsiView({
                 )}
               </div>
               <SeriesChart series={series} n={n} t={t} />
+              <TaskHeat series={series} n={n} t={t} />
             </div>
 
             {shown !== null
-              ? <RoundCard r={shown} t={t} />
+              ? <RoundCard r={shown} rates={series.find(p => p.round === shown.round)} t={t} />
               : <div className={css.dim}>{t('rsi.roundRunning')}</div>}
 
             <h3 className={css.secTitle}>{t('rsi.sec.frames')}{shownRound !== null ? ` · ${t('rsi.roundN', { r: shownRound })}` : ''}</h3>
@@ -596,12 +677,14 @@ function MediaCard({ session, path }: { session: string; path: string }) {
 /** One round of the loop, in its four teaching beats: 看到了什么 (per_seed) →
  * 试了什么 (tried) → 结果 (before → after, best) → 发布 (published), plus
  * 还缺什么 (needs) when the proposer had nothing to try. */
-function RoundCard({ r, t }: { r: CampaignRound; t: T }) {
+function RoundCard({ r, rates, t }: { r: CampaignRound; rates: RoundRates | undefined; t: T }) {
   const seeds = r.per_seed ?? []
   const after = r.after_seeds ?? []
+  const summary = roundSummary(r, rates, t)
   return (
     <div className={css.card}>
       <div className={css.cardHead}><span className={css.cardHeadTitle}>{t('rsi.roundN', { r: r.round ?? 0 })}</span></div>
+      {summary !== '' && <div className={css.mono} data-testid="rsi-round-summary">{summary}</div>}
       <div className={css.beat}><span className={css.beatLabel}>{t('rsi.saw')}</span><div>
         {seeds.length === 0
           ? <span className={css.dim}>{t('rsi.noPerSeed')}</span>
