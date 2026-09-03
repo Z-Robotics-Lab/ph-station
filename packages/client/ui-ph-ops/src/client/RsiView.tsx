@@ -123,11 +123,18 @@ export function SeriesChart({ series, n, t }: { series: SeriesPoint[]; n: number
             <text className={css.chartLabel} x={L - 4} y={y(v) + 3} textAnchor="end" data-axis="y">{v}%</text>
           </g>
         ))}
-        {series.map((p, i) => (
-          <text key={p.round ?? i} className={css.chartLabel} x={x(i)} y={H - B + 11} textAnchor="middle" data-axis="x">
-            {t('rsi.roundN', { r: p.round ?? i + 1 })}
-          </text>
-        ))}
+        {series.map((p, i) => {
+          // ponytail: 41 rounds of "第 N 轮" overlap on a 500px axis — label every
+          // k-th round with the bare number (first and last always), full text ≤ 8 rounds.
+          const every = Math.max(1, Math.ceil(series.length / 10))
+          if (!(i === 0 || i === series.length - 1 || i % every === 0)) return null
+          const r = p.round ?? i + 1
+          return (
+            <text key={p.round ?? i} className={css.chartLabel} x={x(i)} y={H - B + 11} textAnchor="middle" data-axis="x">
+              {series.length <= 8 ? t('rsi.roundN', { r }) : String(r)}
+            </text>
+          )
+        })}
         {legend.map(([label, k], i) => (
           <g key={k} data-legend={k}>
             <line className={cls[k]} x1={L + i * 70} y1={H - 4} x2={L + i * 70 + 14} y2={H - 4} />
