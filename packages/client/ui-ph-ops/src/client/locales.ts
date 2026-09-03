@@ -121,6 +121,9 @@ export type PhOpsKey =
   | 'evolve.taskHint'
   | 'evolve.start'
   | 'evolve.starting'
+  | 'evolve.submitted'
+  | 'evolve.unclaimed'
+  | 'evolve.claimed'
   | 'evolve.stop'
   | 'evolve.empty'
   | 'evolve.select'
@@ -319,6 +322,9 @@ export const zh: Record<PhOpsKey, string> = {
   'evolve.taskHint': '例如 kitchen_thaw',
   'evolve.start': '开始 / 继续',
   'evolve.starting': '启动中…',
+  'evolve.submitted': '已投递 {brief} · 等待 runtime 认领 · {s} 秒',
+  'evolve.unclaimed': '已投递 {brief} · 60 秒内没有被认领：检查 runtime 是否在线（健康面板）· {s} 秒',
+  'evolve.claimed': '{brief} 已认领',
   'evolve.stop': '停止',
   'evolve.empty': '暂无演化 campaign',
   'evolve.select': '点击一个 campaign 查看详情',
@@ -511,6 +517,9 @@ export const en: Record<PhOpsKey, string> = {
   'evolve.taskHint': 'e.g. kitchen_thaw',
   'evolve.start': 'Start / resume',
   'evolve.starting': 'Starting…',
+  'evolve.submitted': 'Submitted {brief} · waiting for the runtime to claim it · {s}s',
+  'evolve.unclaimed': 'Submitted {brief} · not claimed within 60 s: check the runtime is online (health panel) · {s}s',
+  'evolve.claimed': '{brief} claimed',
   'evolve.stop': 'Stop',
   'evolve.empty': 'No evolve campaigns',
   'evolve.select': 'Pick a campaign to see its rounds',

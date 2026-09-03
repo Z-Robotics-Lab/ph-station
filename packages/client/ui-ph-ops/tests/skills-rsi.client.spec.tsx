@@ -331,6 +331,75 @@ describe('RsiView', () => {
     await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"pack_lunch"}', 'session-main') })
     expect(p.cancelBrief).not.toHaveBeenCalled()
   })
+
+  it('start answers at once: submitted with the brief id and a ticking counter, then claimed once the campaign runs', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      let rows: Array<Record<string, unknown>> = campaigns.map(c => ({ ...c, status: 'done', open_brief: null }))
+      const p = props({
+        fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok(rows))),
+        submitBrief: vi.fn(() => Promise.resolve(ok({ submitted: 'brief-42', inbox: 'x' }))),
+      })
+      mount(p)
+      await waitFor(() => { expect(chip('kitchen_thaw').getAttribute('aria-pressed')).toBe('true') })
+      const start = () => screen.getByRole('button', { name: en['evolve.start'] }) as HTMLButtonElement
+      const stop = () => screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement
+      expect(stop().disabled).toBe(true)
+      fireEvent.click(start())
+      await waitFor(() => { expect(screen.getByTestId('rsi-pending').textContent).toBe('Submitted brief-42 · waiting for the runtime to claim it · 0s') })
+      // Start is held for this task while its brief waits; Stop can already cancel that brief.
+      expect(start().disabled).toBe(true)
+      expect(stop().disabled).toBe(false)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(screen.getByTestId('rsi-pending').textContent).toMatch(/· 1s$/)
+      // The 2s poll sees the campaign running: 认领, the status card takes over, Start is free again.
+      rows = rows.map(c => (c.task === 'kitchen_thaw' ? { ...c, status: 'running', open_brief: 'brief-42' } : c))
+      await vi.advanceTimersByTimeAsync(2000)
+      await waitFor(() => { expect(screen.getByTestId('rsi-pending').textContent).toBe('brief-42 claimed') })
+      expect(screen.getByTestId('rsi-status')).toBeTruthy()
+      expect(start().disabled).toBe(false)
+      await vi.advanceTimersByTimeAsync(4000)
+      expect(screen.queryByTestId('rsi-pending')).toBeNull()
+      // Stop cancels the pending brief itself when nothing claimed it yet.
+      rows = rows.map(c => ({ ...c, status: 'done', open_brief: null }))
+      fireEvent.change(screen.getByPlaceholderText(en['evolve.taskHint']), { target: { value: 'pack_lunch' } })
+      fireEvent.click(start())
+      await waitFor(() => { expect(stop().disabled).toBe(false) })
+      fireEvent.click(stop())
+      await waitFor(() => { expect(p.cancelBrief).toHaveBeenCalledWith('brief-42', 'session-main') })
+      await waitFor(() => { expect(screen.queryByTestId('rsi-pending')).toBeNull() })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('start: says so after 60s unclaimed, and shows the error when the submit fails', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const p = props({
+        fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok(campaigns.map(c => ({ ...c, status: 'done', open_brief: null }))))),
+        submitBrief: vi.fn()
+          .mockResolvedValueOnce(ok({ submitted: 'brief-1', inbox: 'x' }))
+          .mockResolvedValueOnce(ok({ error: 'inbox missing' }))
+          .mockRejectedValueOnce(new Error('down')),
+      })
+      mount(p)
+      await waitFor(() => { expect(chip('kitchen_thaw').getAttribute('aria-pressed')).toBe('true') })
+      const start = () => screen.getByRole('button', { name: en['evolve.start'] })
+      fireEvent.click(start())
+      await waitFor(() => { expect(screen.getByTestId('rsi-pending').textContent).toMatch(/^Submitted brief-1 · waiting/) })
+      await vi.advanceTimersByTimeAsync(60000)
+      expect(screen.getByTestId('rsi-pending').textContent).toBe('Submitted brief-1 · not claimed within 60 s: check the runtime is online (health panel) · 60s')
+      // Another task can still start; its submit fails with the board's words, then with the transport's.
+      fireEvent.change(screen.getByPlaceholderText(en['evolve.taskHint']), { target: { value: 'pack_lunch' } })
+      fireEvent.click(start())
+      await waitFor(() => { expect(screen.getByText('inbox missing')).toBeTruthy() })
+      fireEvent.click(start())
+      await waitFor(() => { expect(screen.getByText(en['brain.transportFail'])).toBeTruthy() })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe('describeEvent', () => {

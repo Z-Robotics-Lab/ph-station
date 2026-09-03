@@ -263,6 +263,12 @@ export function RsiView({
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** The brief 开始 just submitted, until the runtime claims it — with the
+   * campaign's cursor / status as they stood at submit, so "claimed" means a
+   * change, not the state that was already there. */
+  const [pending, setPending] = useState<{ brief: string; task: string; cursor: number; wasRunning: boolean; at: number } | null>(null)
+  /** The brief just claimed: one transient line before the status card takes over. */
+  const [claimed, setClaimed] = useState<string | null>(null)
   const [online, setOnline] = useState<boolean | null>(null)
   const [hasStores, setHasStores] = useState(false)
   const [strictTab, setStrictTab] = useState<string>(STRICT_TABS[0].id)
@@ -315,7 +321,27 @@ export function RsiView({
     const c = campaigns[0]
     if (typeof c?.task === 'string') { setTask(c.task); setDraft(c.task) }
   }, [campaigns, task])
-  usePolledLoad(load, running ? POLL_RUNNING_MS : POLL_IDLE_MS)
+  usePolledLoad(load, running || pending !== null ? POLL_RUNNING_MS : POLL_IDLE_MS)
+  // A pending brief resolves on the first sign the runtime took it: its
+  // task_claimed marker, the campaign turning running, or its cursor moving.
+  useEffect(() => {
+    if (pending === null) return
+    const c = campaigns?.find(x => x.task === pending.task)
+    const taken = events.some(e => e.kind === 'task_claimed' && e.brief === pending.brief)
+      || (!pending.wasRunning && c?.status === 'running')
+      || (typeof c?.cursor === 'number' && c.cursor > pending.cursor)
+    if (taken) { setPending(null); setClaimed(pending.brief) }
+  }, [campaigns, events, pending])
+  useEffect(() => {
+    if (pending === null) return
+    const timer = setInterval(() => { setNow(Date.now()) }, 1000)
+    return () => { clearInterval(timer) }
+  }, [pending])
+  useEffect(() => {
+    if (claimed === null) return
+    const timer = setTimeout(() => { setClaimed(null) }, 4000)
+    return () => { clearTimeout(timer) }
+  }, [claimed])
   const shownCampaign = current?.task === task ? current : null
   const live = inFlight(shownCampaign?.live) ? shownCampaign.live : null
   const rounds = shownCampaign?.rounds ?? []
@@ -357,7 +383,8 @@ export function RsiView({
 
   const ids = task === null ? new Set<string>() : briefsOf(events, task)
   const log = events.filter(e => (typeof e.brief === 'string' ? ids.has(e.brief) : e.task === task))
-  const open = sel?.open_brief ?? null
+  // Until rsiCampaigns reports open_brief, the brief just submitted is the one to stop.
+  const open = sel?.open_brief ?? (pending?.task === task ? pending.brief : null)
   // The log opens itself when the campaign ended badly; otherwise it stays folded.
   const failed = sel?.status === 'cancelled' || sel?.status === 'failed' || log.some(e => e.kind === 'task_failed')
 
@@ -371,6 +398,10 @@ export function RsiView({
       const r = await submitBrief(JSON.stringify({ kind: 'evolve', task: tk }), sessionName)
       const v = r.ok ? r.value as { submitted?: string; error?: string } | null : null
       if (v?.submitted === undefined) { setError(v?.error ?? t('brain.transportFail')); return }
+      const c = campaigns?.find(x => x.task === tk)
+      setNow(Date.now())
+      setPending({ brief: v.submitted, task: tk, cursor: c?.cursor ?? -1, wasRunning: c?.status === 'running', at: Date.now() })
+      setClaimed(null)
       setSession(sessionName)
       setTask(tk); setRound(null)
     } catch {
@@ -378,7 +409,7 @@ export function RsiView({
     } finally {
       setBusy(false)
     }
-  }, [submitBrief, sessionName, draft, t])
+  }, [submitBrief, sessionName, draft, campaigns, t])
 
   const stop = useCallback(async () => {
     if (sessionName === null || open === null) return
@@ -387,12 +418,13 @@ export function RsiView({
       const r = await cancelBrief(open, sessionName)
       const v = r.ok ? r.value as { error?: string } | null : null
       if (v?.error !== undefined) setError(v.error)
+      else if (open === pending?.brief) setPending(null)
     } catch {
       setError(t('brain.transportFail'))
     } finally {
       setBusy(false)
     }
-  }, [cancelBrief, sessionName, open, t])
+  }, [cancelBrief, sessionName, open, pending, t])
 
   const pick = (c: CampaignSummary) => { setTask(c.task ?? null); setRound(null); setDraft(c.task ?? '') }
 
@@ -400,13 +432,14 @@ export function RsiView({
   if (campaigns === null) return <div className={css.state}>{t('loading')}</div>
   const n = sel === null ? 0 : seedCount(sel)
   const liveRound = live?.round ?? (rounds.length + 1)
+  const waited = pending === null ? 0 : Math.max(0, Math.floor((now - pending.at) / 1000))
   return (
     <div className={css.page}>
       <div className={css.pageHead}>
         <label>{t('evolve.task')} <input list="ph-rsi-tasks" value={draft} placeholder={t('evolve.taskHint')}
           onChange={(e) => { setDraft(e.target.value) }} /></label>
         <datalist id="ph-rsi-tasks">{taskNames.map(n => <option key={n} value={n} />)}</datalist>
-        <button type="button" disabled={busy || draft.trim() === '' || sessionName === null} onClick={() => { void start() }}>
+        <button type="button" disabled={busy || draft.trim() === '' || sessionName === null || pending?.task === draft.trim()} onClick={() => { void start() }}>
           {busy ? t('evolve.starting') : t('evolve.start')}
         </button>
         <button type="button" disabled={busy || open === null} onClick={() => { void stop() }}>{t('evolve.stop')}</button>
@@ -415,6 +448,12 @@ export function RsiView({
           {evolveSessions(sessions).map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
         </select></label>
       </div>
+      {pending !== null && (
+        <div className={waited >= 60 ? css.brainError : css.dim} data-testid="rsi-pending">
+          {t(waited >= 60 ? 'evolve.unclaimed' : 'evolve.submitted', { brief: pending.brief, s: waited })}
+        </div>
+      )}
+      {pending === null && claimed !== null && <div className={css.dim} data-testid="rsi-pending">{t('evolve.claimed', { brief: claimed })}</div>}
 
       {campaigns.length > 0 && (
         <div className={css.timeline} data-testid="rsi-campaigns">
