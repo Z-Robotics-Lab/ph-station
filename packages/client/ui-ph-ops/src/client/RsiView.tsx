@@ -2,18 +2,22 @@
  * publish when better) as the one RSI surface, kept flat. Head = task input ·
  * 开始/继续 · 停止 · session select; a chip row of the session's campaigns
  * (`rsiCampaigns`, read off disk so it survives a restart; the first row —
- * running, else newest — auto-selects); then the picked campaign: 状态卡 only
+ * running, else newest — auto-selects; summed `usage` on the chip); then the picked campaign: 状态卡 only
  * while a round is in flight (stepper on `live.phase`, seed / node, elapsed /
  * ETA, message, the running seed's node chips), the last `live.messages`
- * lines, the live frame + seed board while running, one 轮次 strip
- * (round chips above the `rsiSeries` chart — one 0–100% axis, 节点通过率 solid /
- * 整任务成功 dotted — and the 按子任务 heat strip; a chip picks the round), the round
+ * lines, the live frame + seed board while running, the 假设树 (one node per
+ * round left→right, a lane per accepted state it started from — `parent` —,
+ * green ring = published, grey = same / worse, dashed = running; a node picks
+ * the round) above the `rsiSeries` chart — one 0–100% axis, 节点通过率 solid /
+ * 整任务成功 dotted — and the 按子任务 heat strip, the round
  * card (one summary line 节点通过 k/n → k/n · 子任务 ✓/✗, LLM 分析 = `llm.summary`
  * when the round carries one, then 看到了什么 =
  * per-seed table, or the seed × node matrix — 基线 / 试探 side by side, changed
  * cells highlighted — once rows carry `nodes`; 试了什么 with a source chip off
- * `proposer` (LLM / 规则 / 收件箱; the round chips carry the same) and
- * `llm.rationale` beneath / 结果 / 发布 / 还缺什么), 关键片段, and 日志
+ * `proposer` (LLM / 规则 / 收件箱) and `llm.rationale` beneath / 结果 / 确认
+ * (the held-out seeds' k/n before → after, 通过 when the round published) /
+ * 发布 / 还缺什么, then the usage line LLM tokens · 仿真 s), 关键片段 (kept
+ * clips; each dropped node with its reason and up to three keyframe stills), and 日志
  * folded unless the campaign failed or was cancelled. The legacy heavy chain
  * (prereg / blind twin / held-out) renders only when legacy stores exist. The
  * head's 提议器 select (LLM by default, else 规则) rides the brief as `proposer`.
@@ -27,8 +31,8 @@ import { formatAgo, seedCount, statusLine } from './format.ts'
 import { evolveSessions, pickEvolveDefault } from './OperatorRail.tsx'
 import { usePolledLoad } from './poll.ts'
 import type {
-  Campaign, CampaignRound, CampaignSummary, LiveState, NodeRow, RoundRates, RuntimeEvent, RuntimeEventsPayload, SeedRow, SeriesPoint,
-  SessionSummary,
+  Campaign, CampaignRound, CampaignSummary, FramesPayload, LiveState, NodeRow, RoundRates, RuntimeEvent, RuntimeEventsPayload, SeedRow,
+  SeriesPoint, SessionSummary, Usage,
 } from './types.ts'
 import css from './ops.module.css'
 
@@ -46,7 +50,7 @@ export interface RsiInjected {
   fetchRsiRun: (session: string, task: string) => Promise<RemoteResult<unknown>>
   /** POST /api/board/rsi_series: per-round {round, before, after, best}. */
   fetchRsiSeries: (session: string, task: string) => Promise<RemoteResult<unknown>>
-  /** POST /api/board/rsi_frames: kept media paths of one round. */
+  /** POST /api/board/rsi_frames: kept media paths of one round, plus the keyframes of its dropped nodes. */
   fetchRsiFrames: (session: string, task: string, round: number) => Promise<RemoteResult<unknown>>
   /** POST /api/board/runtime_frame: the running episode's JPEG past `afterTs`
    * (`{jpeg_b64, ts}`), `{unchanged}` when not, `{error}` when none exists. */
@@ -227,6 +231,82 @@ export function describeTried(tried: CampaignRound['tried'], t: T): string {
   return typeof d.error === 'string' ? `${out} · ${d.error}` : out
 }
 
+/** "LLM tokens 1.2k · 仿真 164 s" off a round's (or the campaign's summed)
+ * usage; tokens = prompt + completion, '—' when the round called no LLM. */
+export function usageLine(u: Usage, t: T): string {
+  const tk = u.llm_tokens
+  const total = tk == null ? null : (tk.prompt ?? 0) + (tk.completion ?? 0)
+  const tokens = total === null ? '—' : total >= 1000 ? `${(total / 1000).toFixed(1)}k` : String(total)
+  return t('rsi.usage', { tokens, s: Math.round(u.sim_s ?? 0) })
+}
+
+/** "确认种子 4247,4248 · 0/2 → 1/2 · 通过": the held-out confirm pass; the
+ * verdict is the round's own publish decision, not a re-derivation. */
+export function confirmLine(r: CampaignRound, t: T): string {
+  const seeds = r.confirm?.seeds ?? []
+  return t('rsi.confirm.line', { seeds: seeds.join(','), b: r.confirm?.before ?? 0, a: r.confirm?.after ?? 0, n: seeds.length, verdict: t(r.published === true ? 'rsi.confirm.pass' : 'rsi.confirm.fail') })
+}
+
+/** Tree layout: rounds sorted by number left→right (x = rank); every round
+ * that started from the same accepted state (`parent`; 0 / absent = the
+ * initial baseline) shares one lane, lanes in first-seen order. */
+export function treeLayout(
+  rounds: Array<{ round?: number; parent?: number | null }>,
+): Array<{ round: number; parent: number; x: number; lane: number }> {
+  const lanes = new Map<number, number>()
+  return [...rounds].sort((a, b) => (a.round ?? 0) - (b.round ?? 0)).map((r, x) => {
+    const parent = r.parent ?? 0
+    if (!lanes.has(parent)) lanes.set(parent, lanes.size)
+    return { round: r.round ?? 0, parent, x, lane: lanes.get(parent) ?? 0 }
+  })
+}
+
+const TREE = { stepX: 26, stepY: 22, r: 8, pad: 12 }
+
+/** The ENPIRE-style hypothesis tree: one absolutely placed round button per
+ * node (number inside, the full sentence as title / aria-label; data-outcome
+ * / data-published / data-running drive the ring, grey and dash) over an SVG
+ * of parent → child elbows. The in-flight round rides the last published
+ * round's lane as a dashed node. */
+function HypothesisTree({ rounds, live, liveRound, shownRound, onPick, t }:
+{ rounds: CampaignRound[]; live: LiveState | null; liveRound: number; shownRound: number | null; onPick: (r: number) => void; t: T }) {
+  const lastPublished = rounds.filter(r => r.published === true).reduce((m, r) => Math.max(m, r.round ?? 0), 0)
+  const all: Array<CampaignRound & { running?: boolean }> = live === null
+    ? rounds
+    : [...rounds, { round: liveRound, parent: lastPublished, tried: live.tried ?? null, running: true }]
+  const nodes = treeLayout(all)
+  const byRound = new Map(nodes.map(nd => [nd.round, nd]))
+  const cx = (x: number) => TREE.pad + x * TREE.stepX
+  const cy = (lane: number) => TREE.pad + lane * TREE.stepY
+  const lanes = nodes.reduce((m, nd) => Math.max(m, nd.lane), 0) + 1
+  const width = TREE.pad * 2 + Math.max(0, nodes.length - 1) * TREE.stepX
+  const height = TREE.pad * 2 + (lanes - 1) * TREE.stepY
+  return (
+    <div className={css.tree} data-testid="rsi-rounds" title={t('rsi.tree')} style={{ height, minWidth: width }}>
+      <svg className={css.treeEdges} width={width} height={height} aria-hidden="true">
+        {nodes.map((nd) => {
+          const p = byRound.get(nd.parent)
+          if (p === undefined) return null
+          return <path key={nd.round} data-edge={`${p.round}-${nd.round}`} d={`M${cx(p.x)},${cy(p.lane)} V${cy(nd.lane)} H${cx(nd.x) - TREE.r}`} />
+        })}
+      </svg>
+      {all.map((r) => {
+        const nd = byRound.get(r.round ?? 0)
+        if (nd === undefined) return null
+        const label = t('rsi.tree.node', { r: nd.round, tried: r.tried ? describeTried(r.tried, t) : t('rsi.seed.running'), b: r.before ?? '—', a: r.after ?? '—' })
+        return (
+          <button key={nd.round} type="button" className={css.treeNode} title={label} aria-label={label} aria-pressed={nd.round === shownRound}
+            data-round={nd.round} data-lane={nd.lane} data-proposer={r.proposer ?? undefined} data-outcome={r.outcome ?? undefined}
+            data-published={r.published === true ? 'true' : undefined} data-running={r.running === true ? 'true' : undefined}
+            style={{ left: cx(nd.x) - TREE.r, top: cy(nd.lane) - TREE.r }} onClick={() => { onPick(nd.round) }}>
+            {nd.round}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 /** Who proposed a round's try, as a small chip: LLM / 规则 / 收件箱 off the
  * row's `proposer` word; nothing on rows written before proposers were named. */
 function SourceChip({ proposer, t }: { proposer: string | null | undefined; t: T }) {
@@ -271,7 +351,7 @@ export function RsiView({
   const [current, setCurrent] = useState<Campaign | null>(null)
   const [series, setSeries] = useState<SeriesPoint[]>([])
   const [round, setRound] = useState<number | null>(null)
-  const [frames, setFrames] = useState<string[]>([])
+  const [frames, setFrames] = useState<{ media: string[]; keyframes: Record<string, string[]> }>({ media: [], keyframes: {} })
   const [draft, setDraft] = useState('')
   const [proposer, setProposer] = useState<typeof PROPOSERS[number]>(PROPOSERS[0])
   const [busy, setBusy] = useState(false)
@@ -362,11 +442,21 @@ export function RsiView({
   const shown = rounds.find(r => r.round === shownRound) ?? null
 
   useEffect(() => {
-    if (sessionName === null || task === null || shownRound === null) { setFrames([]); return }
+    const none = { media: [], keyframes: {} }
+    if (sessionName === null || task === null || shownRound === null) { setFrames(none); return }
     let alive = true
     fetchRsiFrames(sessionName, task, shownRound)
-      .then((r) => { if (alive && r.ok) setFrames(Array.isArray(r.value) ? r.value as string[] : []) })
-      .catch(() => { if (alive) setFrames([]) })
+      .then((r) => {
+        if (!alive || !r.ok) return
+        const v = r.value as FramesPayload
+        setFrames(Array.isArray(v)
+          ? { media: v, keyframes: {} }
+          : {
+            media: v?.media ?? [],
+            keyframes: Object.fromEntries(Object.entries(v?.dropped ?? {}).map(([k, d]) => [k, d?.keyframes ?? []])),
+          })
+      })
+      .catch(() => { if (alive) setFrames(none) })
     return () => { alive = false }
   }, [fetchRsiFrames, sessionName, task, shownRound])
 
@@ -475,7 +565,7 @@ export function RsiView({
         <div className={css.timeline} data-testid="rsi-campaigns">
           {campaigns.map(c => (
             <button key={c.task} type="button" className={css.tlChip} aria-pressed={c.task === task} onClick={() => { pick(c) }}>
-              <b className={css.mono}>{c.task}</b> · {statusLine(c, t)}
+              <b className={css.mono}>{c.task}</b> · {statusLine(c, t)}{c.usage != null && ` · ${usageLine(c.usage, t)}`}
             </button>
           ))}
         </div>
@@ -526,20 +616,7 @@ export function RsiView({
 
             <h3 className={css.secTitle}>{t('evolve.round')} <span className={css.dim}>{t('evolve.chart')}</span></h3>
             <div className={css.roundStrip}>
-              <div className={css.timeline} data-testid="rsi-rounds">
-                {rounds.map(r => (
-                  <button key={r.round} type="button" className={css.tlChip} aria-pressed={r.round === shownRound} onClick={() => { setRound(r.round ?? null) }}>
-                    <span><b>{t('rsi.roundN', { r: r.round ?? 0 })}</b> <span className={css.mono}>{r.before} → {r.after}</span> · {r.published === true ? '✓' : '–'}</span>
-                    <span className={css.tlTried}><SourceChip proposer={r.proposer} t={t} /> {describeTried(r.tried, t)}</span>
-                  </button>
-                ))}
-                {live !== null && (
-                  <button type="button" className={css.tlChip} data-running="true" aria-pressed={liveRound === shownRound} onClick={() => { setRound(liveRound) }}>
-                    <span><b>{t('rsi.roundN', { r: liveRound })}</b> · {t(`rsi.phase.${live.phase as typeof PHASES[number]}`)}</span>
-                    <span className={css.tlTried}>{live.tried ? describeTried(live.tried, t) : t('rsi.seed.running')}</span>
-                  </button>
-                )}
-              </div>
+              <HypothesisTree rounds={rounds} live={live} liveRound={liveRound} shownRound={shownRound} onPick={setRound} t={t} />
               <SeriesChart series={series} n={n} t={t} />
               <TaskHeat series={series} n={n} t={t} />
             </div>
@@ -549,11 +626,14 @@ export function RsiView({
               : <div className={css.dim}>{t('rsi.roundRunning')}</div>}
 
             <h3 className={css.secTitle}>{t('rsi.sec.frames')}{shownRound !== null ? ` · ${t('rsi.roundN', { r: shownRound })}` : ''}</h3>
-            {frames.length === 0
+            {frames.media.length === 0
               ? <div className={css.dim}>{t('evolve.noMedia')}</div>
-              : <div className={css.media}>{frames.map(p => <MediaCard key={p} session={sessionName ?? ''} path={p} />)}</div>}
+              : <div className={css.media}>{frames.media.map(p => <MediaCard key={p} session={sessionName ?? ''} path={p} />)}</div>}
             {Object.entries(shown?.media_dropped ?? {}).map(([k, why]) => (
-              <div key={k} className={css.dim}><span className={css.mono}>{k}</span> · {t('rsi.dropped')}: {why}</div>
+              <div key={k} className={css.droppedRow} data-testid="rsi-dropped" data-node={k}>
+                <span className={css.dim}><span className={css.mono}>{k}</span> · {t('rsi.dropped')}: {typeof why === 'string' ? why : why?.reason ?? ''}</span>
+                {(frames.keyframes[k] ?? []).slice(0, 3).map(p => <img key={p} className={css.keyframe} src={mediaUrl(sessionName ?? '', p)} alt={k} title={p} loading="lazy" />)}
+              </div>
             ))}
 
             <details className={css.logBlock} open={failed} data-testid="rsi-log">
@@ -712,8 +792,10 @@ function NodeMatrix({ rows, other, ids, title, t }:
  * (`GET /api/board/media/<session>/<relpath>`): a muted metadata-only
  * `<video>` for .mp4, an `<img>` otherwise; the caption is the node name the
  * harness put in the filename (`media/<task>/<seed>/<node>.mp4`). */
+const mediaUrl = (session: string, path: string) => `/api/board/media/${encodeURIComponent(session)}/${path.split('/').map(encodeURIComponent).join('/')}`
+
 function MediaCard({ session, path }: { session: string; path: string }) {
-  const src = `/api/board/media/${encodeURIComponent(session)}/${path.split('/').map(encodeURIComponent).join('/')}`
+  const src = mediaUrl(session, path)
   const node = (path.split('/').pop() ?? path).replace(/\.[^.]+$/, '')
   return (
     <figure className={css.mediaCard} title={path}>
@@ -764,10 +846,12 @@ function RoundCard({ r, rates, t }: { r: CampaignRound; rates: RoundRates | unde
         {typeof r.llm?.rationale === 'string' && r.llm.rationale !== '' && <div className={css.dim} data-testid="rsi-rationale">{r.llm.rationale}</div>}
       </div></div>
       <div className={css.beat}><span className={css.beatLabel}>{t('rsi.result')}</span><span className={css.mono}>{r.before} → {r.after} ({t('evolve.best')} {r.best})</span></div>
+      {r.confirm != null && <div className={css.beat} data-testid="rsi-confirm"><span className={css.beatLabel}>{t('rsi.confirm')}</span><span className={css.mono}>{confirmLine(r, t)}</span></div>}
       <div className={css.beat}><span className={css.beatLabel}>{t('rsi.published')}</span><span>{r.published === true ? t('yes') : t('no')}</span></div>
       {r.tried?.kind === 'none' && (r.needs ?? []).length > 0 && (
         <div className={css.beat}><span className={css.beatLabel}>{t('rsi.needs')}</span><span>{(r.needs ?? []).join(' · ')}</span></div>
       )}
+      {r.usage != null && <div className={css.dim} data-testid="rsi-usage">{usageLine(r.usage, t)}</div>}
     </div>
   )
 }

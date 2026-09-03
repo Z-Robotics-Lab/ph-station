@@ -159,6 +159,13 @@ export type PhOpsKey =
   | 'rsi.tried.card'
   | 'rsi.tried.none'
   | 'rsi.dropped'
+  | 'rsi.tree'
+  | 'rsi.tree.node'
+  | 'rsi.confirm'
+  | 'rsi.confirm.line'
+  | 'rsi.confirm.pass'
+  | 'rsi.confirm.fail'
+  | 'rsi.usage'
   | 'rsi.strict'
   | 'rsi.strictNote'
   | 'rsi.tab.evolution'
@@ -366,6 +373,13 @@ export const zh: Record<PhOpsKey, string> = {
   'rsi.tried.card': '{node} 挂候选卡 {to}',
   'rsi.tried.none': '没有可试的：{reason}',
   'rsi.dropped': '未留下片段',
+  'rsi.tree': '假设树：每轮一个节点，绿环 = 已发布，灰 = 没变好，虚线 = 进行中',
+  'rsi.tree.node': '第 {r} 轮 · {tried} · {b} → {a}',
+  'rsi.confirm': '确认',
+  'rsi.confirm.line': '确认种子 {seeds} · {b}/{n} → {a}/{n} · {verdict}',
+  'rsi.confirm.pass': '通过',
+  'rsi.confirm.fail': '未通过',
+  'rsi.usage': 'LLM tokens {tokens} · 仿真 {s} s',
   'rsi.strict': '严格评测（prereg / 盲双胞胎 / held-out）',
   'rsi.strictNote': '可选的规则型纪律，只对 plugins/rsi 的 rule 型 RSI 有意义。',
   'rsi.tab.evolution': '迭代记录',
@@ -567,6 +581,13 @@ export const en: Record<PhOpsKey, string> = {
   'rsi.tried.card': '{node}: mount candidate card {to}',
   'rsi.tried.none': 'Nothing to try: {reason}',
   'rsi.dropped': 'no clip kept',
+  'rsi.tree': 'Hypothesis tree: one node per round, green ring = published, grey = no better, dashed = running',
+  'rsi.tree.node': 'Round {r} · {tried} · {b} → {a}',
+  'rsi.confirm': 'Confirm',
+  'rsi.confirm.line': 'Confirm seeds {seeds} · {b}/{n} → {a}/{n} · {verdict}',
+  'rsi.confirm.pass': 'passed',
+  'rsi.confirm.fail': 'failed',
+  'rsi.usage': 'LLM tokens {tokens} · sim {s} s',
   'rsi.strict': 'Strict evaluation (prereg / blind twin / held-out)',
   'rsi.strictNote': 'Optional rule-type discipline; only meaningful for the rule-type RSI under plugins/rsi.',
   'rsi.tab.evolution': 'Generations',

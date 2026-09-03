@@ -13,7 +13,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import { RsiView, SeriesChart, TaskHeat, describeEvent, describeTried, fmtNum, roundSummary } from '../src/client/RsiView.tsx'
+import { RsiView, SeriesChart, TaskHeat, confirmLine, describeEvent, describeTried, fmtNum, roundSummary, treeLayout, usageLine } from '../src/client/RsiView.tsx'
 import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -32,15 +32,18 @@ describe('RsiView', () => {
         proposer: 'llm', llm: { summary: 'grasp-0 stalls on seed 2', rationale: 'pi05 handles reach better', model: 'deepseek-chat', prompt_sha: 'abc' },
         before: 1, after: 2, best: 2, published: true, media: ['media/kitchen_thaw/1/grasp-0.mp4'],
         per_seed: [{ seed: 1, success: true, first_death: null, failure_mode: null }, { seed: 2, success: false, first_death: 'grasp-0', failure_mode: 'reach_stall' }, { seed: 3, success: true, first_death: null, failure_mode: null }],
-        needs: [], media_dropped: { '2/grasp-0': 'verify_failed' } },
+        needs: [], media_dropped: { '2/grasp-0': { reason: 'verify_failed', keyframes: ['media/kitchen_thaw/2/grasp-0-000.jpg'] } }, parent: 0, outcome: 'improved',
+        confirm: { seeds: [4247, 4248], before: 0, after: 1 }, usage: { llm_tokens: { prompt: 1000, completion: 234 }, sim_s: 163.6 } },
       { round: 2, tried: { kind: 'none', node: 'grasp-0', detail: { reason: 'no untried executor', needs: ['tunables on grasp', 'proposal'] } },
-        proposer: 'rules', before: 2, after: 2, best: 2, published: false, media: [], per_seed: [], needs: ['tunables on grasp', 'proposal'], media_dropped: {} },
+        proposer: 'rules', before: 2, after: 2, best: 2, published: false, media: [], per_seed: [], needs: ['tunables on grasp', 'proposal'], media_dropped: {},
+        parent: 1, outcome: 'none', confirm: null, usage: { llm_tokens: null, sim_s: 12 } },
     ],
     latest: { round: 2, tried: { kind: 'none', node: 'grasp-0', detail: { reason: 'no untried executor' } }, before: 2, after: 2, best: 2, media: [] },
   }
   /** The `rsiCampaigns` rows: the running one first, a settled one after. */
   const campaigns = [
-    { task: 'kitchen_thaw', status: 'running', cursor: 2, rounds: 2, best: 2, seeds: [1, 3], arm: 'auto', updated: 20, live: null, open_brief: 'b-evolve' },
+    { task: 'kitchen_thaw', status: 'running', cursor: 2, rounds: 2, best: 2, seeds: [1, 3], arm: 'auto', updated: 20, live: null, open_brief: 'b-evolve',
+      published_rounds: 1, usage: { llm_tokens: { prompt: 1000, completion: 234 }, sim_s: 175.6 } },
     { task: 'pack_lunch', status: 'done', cursor: 1, rounds: 1, best: 1, seeds: [1, 2], arm: 'auto', updated: 10, live: null, open_brief: null },
   ]
   const events = [
@@ -61,7 +64,9 @@ describe('RsiView', () => {
       fetchRsiSeries: vi.fn(() => Promise.resolve(ok(
         campaign.rounds.map(({ round, before, after, best }) => ({ round, before, after, best })),
       ))),
-      fetchRsiFrames: vi.fn((_s: string, _t: string, round: number) => Promise.resolve(ok(round === 1 ? ['media/kitchen_thaw/1/grasp-0.mp4'] : []))),
+      fetchRsiFrames: vi.fn((_s: string, _t: string, round: number) => Promise.resolve(ok(round === 1
+        ? { media: ['media/kitchen_thaw/1/grasp-0.mp4'], dropped: { '2/grasp-0': { reason: 'verify_failed', keyframes: ['media/kitchen_thaw/2/grasp-0-000.jpg', 'media/kitchen_thaw/2/grasp-0-001.jpg', 'media/kitchen_thaw/2/grasp-0-002.jpg', 'media/kitchen_thaw/2/grasp-0-003.jpg'] } } }
+        : []))),
       fetchRuntimeFrame: vi.fn(() => Promise.resolve(ok({ jpeg_b64: 'AAAA', ts: 7, age_s: 0 }))),
       submitBrief: vi.fn(() => Promise.resolve(ok({ submitted: 'b-new', inbox: 'x' }))),
       cancelBrief: vi.fn(() => Promise.resolve(ok({ brief_id: 'b-evolve', requested: true }))),
@@ -83,7 +88,7 @@ describe('RsiView', () => {
     await waitFor(() => { expect(chip('kitchen_thaw')).toBeTruthy() })
     expect(p.fetchRsiCampaigns).toHaveBeenCalledWith('session-main')
     // Chips carry the headline; the settled campaign is listed too, unselected.
-    expect(chip('kitchen_thaw').textContent).toBe('kitchen_thaw · Round 2 · best 2/3 · running')
+    expect(chip('kitchen_thaw').textContent).toBe('kitchen_thaw · Round 2 · best 2/3 · running · LLM tokens 1.2k · sim 176 s')
     expect(chip('pack_lunch').getAttribute('aria-pressed')).toBe('false')
     // The task picker offers the cards' task_bindings as a native datalist.
     expect(container.querySelectorAll('datalist option')).toHaveLength(2)
@@ -108,10 +113,10 @@ describe('RsiView', () => {
     const status = screen.getByTestId('rsi-status')
     expect(status.textContent).toBe(en['rsi.noLive'])
     expect(container.querySelector('[aria-current="step"]')).toBeNull()
-    // Round strip: one chip per finished round, none dashed; the latest is selected.
+    // Hypothesis tree: one node per finished round, none dashed; the latest is selected.
     const chips = roundChips()
     expect(chips).toHaveLength(2)
-    expect(container.querySelector('button[data-running="true"]')).toBeNull()
+    expect(container.querySelector('[data-running="true"]')).toBeNull()
     expect(chips[1]?.getAttribute('aria-pressed')).toBe('true')
     // Round 2 (latest) card: tried nothing, so its needs list shows.
     expect(screen.getAllByText(en['rsi.saw'])).toHaveLength(1)
@@ -146,6 +151,17 @@ describe('RsiView', () => {
     expect(container.querySelector('figcaption')?.textContent).toBe('grasp-0')
     expect(p.fetchRsiFrames).toHaveBeenCalledWith('session-main', 'kitchen_thaw', 1)
     expect(screen.getByText(/verify_failed/)).toBeTruthy()
+    // The dropped node shows its reason and at most three keyframe stills off the byte route.
+    const dropped = screen.getByTestId('rsi-dropped')
+    expect(dropped.getAttribute('data-node')).toBe('2/grasp-0')
+    expect([...dropped.querySelectorAll('img')].map(i => i.getAttribute('src'))).toEqual([
+      '/api/board/media/session-main/media/kitchen_thaw/2/grasp-0-000.jpg',
+      '/api/board/media/session-main/media/kitchen_thaw/2/grasp-0-001.jpg',
+      '/api/board/media/session-main/media/kitchen_thaw/2/grasp-0-002.jpg',
+    ])
+    // Round 1's card: the 确认 beat and the usage line.
+    expect(screen.getByTestId('rsi-confirm').textContent).toBe(`${en['rsi.confirm']}Confirm seeds 4247,4248 · 0/2 → 1/2 · passed`)
+    expect(screen.getByTestId('rsi-usage').textContent).toBe('LLM tokens 1.2k · sim 164 s')
     // Stop cancels the campaign's open_brief.
     fireEvent.click(screen.getByRole('button', { name: en['evolve.stop'] }))
     await waitFor(() => { expect(p.cancelBrief).toHaveBeenCalledWith('b-evolve', 'session-main') })
@@ -193,9 +209,11 @@ describe('RsiView', () => {
     // Seed board: seeds 1..3 → ✓ / running / queued.
     const states = [...container.querySelectorAll('[data-state]')].map(e => e.getAttribute('data-state'))
     expect(states).toEqual(['pass', 'running', 'queued'])
-    // Round strip: two finished rounds plus the dashed running one.
+    // Tree: two finished rounds plus the dashed running one, in round 1's lane (the last published).
     expect(roundChips()).toHaveLength(3)
-    expect(container.querySelector('button[data-running="true"]')?.textContent).toContain('Round 3')
+    const runningNode = container.querySelector('[data-running="true"]') as HTMLElement
+    expect(runningNode.getAttribute('title')).toBe('Round 3 · grasp-0: reach_tol 0.03 → 0.036 · — → —')
+    expect(runningNode.getAttribute('data-lane')).toBe('1')
     // The live frame polls runtimeFrame and lands in the <img>.
     await waitFor(() => { expect(p.fetchRuntimeFrame).toHaveBeenCalledWith('session-main', 0) })
     await waitFor(() => { expect((container.querySelector('img') as HTMLImageElement).src).toBe('data:image/jpeg;base64,AAAA') })
@@ -299,8 +317,32 @@ describe('RsiView', () => {
     expect(screen.getByTestId('rsi-analysis').nextElementSibling?.textContent).toMatch(new RegExp(`^${en['rsi.saw']}`))
     expect(screen.getByTestId('rsi-rationale').textContent).toBe('pi05 handles reach better')
     expect(screen.getByTestId('rsi-rationale').parentElement?.textContent).toContain('LLM grasp-0: switch executor to pi05')
-    // The strip's round chips carry the same source chip, in round order.
-    expect(roundChips().map(c => c.querySelector('[data-proposer]')?.textContent)).toEqual(['LLM', 'Rules'])
+    // The tree's nodes carry the same source word, in round order.
+    expect(roundChips().map(c => c.getAttribute('data-proposer'))).toEqual(['llm', 'rules'])
+  })
+
+  it('hypothesis tree: lanes by parent, green ring on published, grey on same / worse / none, edges parent → child, a node picks the round', async () => {
+    const rounds = [
+      { round: 1, parent: 0, outcome: 'improved', published: true, before: 1, after: 2, best: 2, tried: { kind: 'executor', node: 'grasp-0', detail: { to: 'pi05' } } },
+      { round: 2, parent: 1, outcome: 'same', published: false, before: 2, after: 2, best: 2, tried: { kind: 'card', node: 'grasp-0', detail: { to: 'c1' } } },
+      { round: 3, parent: 1, outcome: 'worse', published: false, before: 2, after: 1, best: 2, tried: { kind: 'card', node: 'grasp-0', detail: { to: 'c2' } } },
+      { round: 4, parent: 1, outcome: 'improved', published: true, before: 2, after: 3, best: 3, tried: { kind: 'card', node: 'grasp-0', detail: { to: 'c3' } } },
+      { round: 5, parent: 4, outcome: 'none', published: false, before: 3, after: 3, best: 3, tried: { kind: 'none', detail: { reason: 'r' } } },
+    ]
+    const p = props({ fetchRsiRun: vi.fn(() => Promise.resolve(ok({ ...campaign, rounds, latest: rounds[4] }))) })
+    const { container } = mount(p)
+    await waitFor(() => { expect(roundChips()).toHaveLength(5) })
+    const nodes = roundChips()
+    expect(nodes.map(n => n.getAttribute('data-lane'))).toEqual(['0', '1', '1', '1', '2'])
+    expect(nodes.map(n => n.getAttribute('data-published'))).toEqual(['true', null, null, 'true', null])
+    expect(nodes.map(n => n.getAttribute('data-outcome'))).toEqual(['improved', 'same', 'worse', 'improved', 'none'])
+    expect([...container.querySelectorAll('[data-edge]')].map(e => e.getAttribute('data-edge'))).toEqual(['1-2', '1-3', '1-4', '4-5'])
+    expect(nodes[4]?.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(nodes[2] as HTMLElement)
+    expect(nodes[2]?.getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText('2 → 1 (best 2)')).toBeTruthy()
+    // Legacy rows without parent all share lane 0.
+    expect(treeLayout([{ round: 2 }, { round: 1 }]).map(n => [n.round, n.x, n.lane])).toEqual([[1, 0, 0], [2, 1, 0]])
   })
 
   it('status card: while the phase is propose the 试 step reads LLM 分析中 with the message line', async () => {
@@ -438,6 +480,16 @@ describe('describeEvent', () => {
     expect(describeEvent({ kind: 'task_cancelled' }, tt)).toBe('cancelled')
     expect(describeEvent({ kind: 'rsi_step', round: 2, message: 'seed 1 ok' }, tt)).toBe('Round 2 · rsi_step seed 1 ok')
     expect(describeEvent({ kind: 'boot' }, tt)).toBe('boot')
+  })
+})
+
+describe('usageLine / confirmLine', () => {
+  it('sums prompt + completion into k, — with no LLM; the confirm verdict is the publish decision', () => {
+    expect(usageLine({ llm_tokens: { prompt: 1000, completion: 234 }, sim_s: 163.6 }, t as never)).toBe('LLM tokens 1.2k · sim 164 s')
+    expect(usageLine({ llm_tokens: { prompt: 900 }, sim_s: 5 }, t as never)).toBe('LLM tokens 900 · sim 5 s')
+    expect(usageLine({ llm_tokens: null, sim_s: null }, t as never)).toBe('LLM tokens — · sim 0 s')
+    expect(confirmLine({ confirm: { seeds: [4247, 4248], before: 0, after: 1 }, published: true }, t as never)).toBe('Confirm seeds 4247,4248 · 0/2 → 1/2 · passed')
+    expect(confirmLine({ confirm: { seeds: [4247, 4248], before: 1, after: 1 }, published: false }, t as never)).toBe('Confirm seeds 4247,4248 · 1/2 → 1/2 · failed')
   })
 })
 

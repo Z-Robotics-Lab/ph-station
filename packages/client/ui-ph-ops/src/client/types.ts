@@ -247,10 +247,31 @@ export interface CampaignRound {
   /** What would unblock a round that tried nothing (non-empty only for kind none). */
   needs?: string[] | null
   media?: string[]
-  /** `"<seed>/<node>": reason` of the segments that left no clip. */
-  media_dropped?: Record<string, string> | null
+  /** `"<seed>/<node>"` → `{reason, keyframes}` of the segments that left no clip (a bare reason on older rows). */
+  media_dropped?: Record<string, string | DroppedNode> | null
+  /** The round this try started from (the last accepted state; 0 = the initial baseline). */
+  parent?: number | null
+  /** 'improved' | 'same' | 'worse' | 'none' (tried nothing). */
+  outcome?: string | null
+  /** The held-out confirm pass, when one ran: its seeds and k-of-n before / after. */
+  confirm?: { seeds?: number[] | null; before?: number | null; after?: number | null } | null
+  usage?: Usage | null
   ts?: number
 }
+
+/** What one round (or a whole campaign, summed) spent. */
+export interface Usage {
+  llm_tokens?: { prompt?: number | null; completion?: number | null } | null
+  sim_s?: number | null
+}
+
+/** A dropped segment: why, and the failure keyframe stills it left (session-relative). */
+export interface DroppedNode { reason?: string | null; keyframes?: string[] | null }
+
+/** `rsiFrames({name, task, round})`: the kept media paths plus, per dropped
+ * `"<seed>/<node>"`, its reason and keyframe stills; a bare path list on rows
+ * written before keyframes existed. All paths session-relative. */
+export type FramesPayload = string[] | { media?: string[] | null; dropped?: Record<string, DroppedNode> | null } | null
 
 /** The in-flight round, as scripts/evolve.py rewrites campaign.json's `live`
  * between checkpoints; null on a campaign written before live progress existed. */
@@ -311,6 +332,9 @@ export interface CampaignSummary {
   updated?: number
   live?: { phase?: string | null; message?: string | null } | null
   open_brief?: string | null
+  published_rounds?: number
+  /** Summed over the rounds. */
+  usage?: Usage | null
 }
 
 /** `rsiSeries({name, task})`: one point per round, the line-chart feed. */

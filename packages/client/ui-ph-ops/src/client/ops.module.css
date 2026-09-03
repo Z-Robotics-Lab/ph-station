@@ -577,7 +577,17 @@
 .tlChip { flex: none; display: flex; flex-direction: column; gap: 1px; padding: 4px 9px; border-radius: 8px; border: 1px solid var(--ph-line); background: var(--ph-surface); color: inherit; font: inherit; font-size: 11px; text-align: left; cursor: pointer; max-width: 220px; }
 .tlChip[aria-pressed="true"] { border-color: currentColor; font-weight: 600; }
 .tlChip[data-running="true"] { border-style: dashed; animation: pulse 1.2s ease-in-out infinite; }
-.tlTried { color: var(--ph-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Hypothesis tree: absolutely placed round nodes over an SVG of parent→child elbows. */
+.tree { position: relative; overflow-x: auto; }
+.treeEdges { position: absolute; inset: 0; pointer-events: none; }
+.treeEdges path { fill: none; stroke: var(--ph-line); stroke-width: 1.5; }
+.treeNode { position: absolute; width: 16px; height: 16px; padding: 0; border-radius: 50%; border: 1.5px solid currentColor; background: var(--ph-surface); color: var(--ph-ink); font: inherit; font-size: 8px; line-height: 1; cursor: pointer; }
+.treeNode[data-outcome="same"], .treeNode[data-outcome="worse"], .treeNode[data-outcome="none"] { color: var(--ph-dim); background: color-mix(in srgb, var(--ph-dim) 18%, transparent); }
+.treeNode[data-published="true"] { box-shadow: 0 0 0 2px #16a34a; }
+.treeNode[data-running="true"] { border-style: dashed; animation: pulse 1.2s ease-in-out infinite; }
+.treeNode[aria-pressed="true"] { font-weight: 700; outline: 2px solid currentColor; outline-offset: 2px; }
+.droppedRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.keyframe { height: 48px; width: auto; border-radius: 3px; background: #000; }
 .chartLabel { font-size: 9px; fill: currentColor; opacity: 0.6; }
 .chartGrid { stroke: color-mix(in srgb, currentColor 8%, transparent); }
 .logLine { display: flex; gap: 8px; font-size: 12px; }

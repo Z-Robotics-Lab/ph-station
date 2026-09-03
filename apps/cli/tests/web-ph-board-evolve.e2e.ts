@@ -173,19 +173,21 @@ describe.skipIf(!runnable)('board bridge over a real web boot', () => {
     const series = await board(base, 'rsiSeries', { request: { session: 'session-main', task: 'kitchen_thaw' } })
     expect(series).toEqual([
       { round: 1, before: 0, after: 1, best: 1, per_seed: CAMPAIGN.rounds[0]?.per_seed, needs: null,
-        proposer: null, llm: null, node_rate: { before: 0.75, after: null, best: 0.75 },
+        proposer: null, llm: null, parent: null, outcome: null, confirm: null, usage: null,
+        node_rate: { before: 0.75, after: null, best: 0.75 },
         by_task: { grasp: { before: 0.5, after: null }, reach: { before: 1, after: null } } },
       { round: 2, before: 1, after: 1, best: 1, per_seed: null, needs: null,
-        proposer: null, llm: null, node_rate: { before: null, after: null, best: 0.75 }, by_task: {} },
+        proposer: null, llm: null, parent: null, outcome: null, confirm: null, usage: null,
+        node_rate: { before: null, after: null, best: 0.75 }, by_task: {} },
     ])
     expect(await board(base, 'rsiFrames', { request: { session: 'session-main', task: 'kitchen_thaw', round: 1 } }))
-      .toEqual(['media/kitchen_thaw/1/grasp.gif'])
+      .toEqual({ media: ['media/kitchen_thaw/1/grasp.gif'], dropped: {} })
     expect(await board(base, 'rsiRun', { request: { session: 'session-main', task: 'nope' } })).toBeNull()
   })
 
   it('lists the fixture campaign through rsiCampaigns, off disk', async () => {
     expect(await board(base, 'rsiCampaigns', { request: { name: 'session-main' } })).toEqual([{
-      task: 'kitchen_thaw', status: 'running', cursor: 2, rounds: 2, best: 1, seeds: [1, 2], arm: 'auto', node_rate_best: 0.75,
+      task: 'kitchen_thaw', status: 'running', cursor: 2, rounds: 2, best: 1, seeds: [1, 2], arm: 'auto', published_rounds: [1], usage: { llm_tokens: null, sim_s: 0 }, node_rate_best: 0.75,
       updated: expect.any(Number), live: null, open_brief: null,
     }])
   })
