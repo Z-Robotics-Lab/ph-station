@@ -4,9 +4,12 @@
  * (`rsiCampaigns`, read off disk so it survives a restart; the first row —
  * running, else newest — auto-selects); then the picked campaign: 状态卡 only
  * while a round is in flight (stepper on `live.phase`, seed / node, elapsed /
- * ETA, message), the live frame + seed board while running, one 轮次 strip
+ * ETA, message, the running seed's node chips), the last `live.messages`
+ * lines, the live frame + seed board while running, one 轮次 strip
  * (round chips above the `rsiSeries` chart; a chip picks the round), the round
- * card (看到了什么 / 试了什么 / 结果 / 发布 / 还缺什么), 关键片段, and 日志
+ * card (看到了什么 = per-seed table, or the seed × node matrix — 基线 / 试探
+ * side by side, changed cells highlighted — once rows carry `nodes`; 试了什么
+ * / 结果 / 发布 / 还缺什么), 关键片段, and 日志
  * folded unless the campaign failed or was cancelled. The legacy heavy chain
  * (prereg / blind twin / held-out) renders only when legacy stores exist.
  * Renders only — every count is campaign.json's, written by scripts/evolve.py. */
@@ -19,7 +22,7 @@ import { formatAgo, seedCount, statusLine } from './format.ts'
 import { evolveSessions, pickEvolveDefault } from './OperatorRail.tsx'
 import { usePolledLoad } from './poll.ts'
 import type {
-  Campaign, CampaignRound, CampaignSummary, LiveState, RuntimeEvent, RuntimeEventsPayload, SeriesPoint, SessionSummary,
+  Campaign, CampaignRound, CampaignSummary, LiveState, NodeRow, RuntimeEvent, RuntimeEventsPayload, SeedRow, SeriesPoint, SessionSummary,
 } from './types.ts'
 import css from './ops.module.css'
 
@@ -363,11 +366,13 @@ export function RsiView({
                         <Elapsed live={live} now={now} t={t} />
                       </div>
                       {typeof live.message === 'string' && live.message !== '' && <div className={css.dim}>{live.message}</div>}
+                      {(live.nodes?.length ?? 0) > 0 && <NodeChips nodes={live.nodes ?? []} t={t} />}
                     </>
                   )
                   : <div className={css.dim}>{t('rsi.noLive')}</div>}
               </div>
             )}
+            {(live?.messages?.length ?? 0) > 0 && <Messages messages={live?.messages ?? []} running={running} t={t} />}
 
             {running && (
               <div className={css.liveGrid}>
@@ -479,6 +484,89 @@ function SeedBoard({ live, seeds, t }: { live: LiveState; seeds: [number, number
   )
 }
 
+/** One chip per plan node of the running seed, in plan order: ✓ steps (ok
+ * true), ✗ failure_mode (ok false), ● pulsing for the first unrun node, ○ for
+ * the rest. Rendered only when `live.nodes` is non-empty. */
+function NodeChips({ nodes, t }: { nodes: NodeRow[]; t: T }) {
+  let running = true
+  return (
+    <div>
+      <div className={css.paneLabel}>{t('rsi.nodes')}</div>
+      <div className={css.nodeChips} data-testid="rsi-nodes">
+        {nodes.map((nd, i) => {
+          const state = nd.ok === true ? 'pass' : nd.ok === false ? 'fail' : running ? 'running' : 'queued'
+          if (state === 'running') running = false
+          const mark = { pass: '✓', fail: '✗', running: '●', queued: '○' }[state]
+          const small = state === 'pass' && typeof nd.steps === 'number' ? t('rsi.node.steps', { n: nd.steps })
+            : state === 'fail' ? nd.failure_mode ?? '' : ''
+          return (
+            <span key={nd.id ?? i} className={css.seedChip} data-state={state} title={nd.skill ?? undefined}>
+              {mark} <span className={css.mono}>{nd.id ?? '—'}</span>{small !== '' && <span className={css.nodeChip}>{small}</span>}
+            </span>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** The last 8 `live.messages` as HH:MM:SS text, newest last and kept scrolled
+ * to; only the latest line once the campaign is no longer running. */
+function Messages({ messages, running, t }: { messages: NonNullable<LiveState['messages']>; running: boolean; t: T }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const shown = messages.slice(running ? -8 : -1)
+  const lastTs = shown[shown.length - 1]?.ts
+  useEffect(() => { if (ref.current) ref.current.scrollTop = ref.current.scrollHeight }, [shown.length, lastTs])
+  return (
+    <div>
+      <div className={css.paneLabel}>{t('rsi.messages')}</div>
+      <div ref={ref} className={css.msgs} data-testid="rsi-messages">
+        {shown.map((m, i) => <div key={`${m.ts ?? 0}-${i}`} className={css.logLine}><time>{clock(m.ts)}</time><span>{m.text ?? ''}</span></div>)}
+      </div>
+    </div>
+  )
+}
+
+/** Node ids across every row, first-seen order (plan order, since each row lists its nodes in order). */
+function nodeIds(rows: SeedRow[]): string[] {
+  const ids: string[] = []
+  for (const r of rows) for (const nd of r.nodes ?? []) if (typeof nd.id === 'string' && !ids.includes(nd.id)) ids.push(nd.id)
+  return ids
+}
+
+/** Seeds × nodes: ✓ / ✗ / – per cell (steps and failure mode on hover),
+ * elapsed_s per row. With `other` (the paired baseline or trial rows), a cell
+ * whose `ok` differs there is marked `data-changed`. */
+function NodeMatrix({ rows, other, ids, title, t }:
+{ rows: SeedRow[]; other?: SeedRow[] | undefined; ids: string[]; title: string; t: T }) {
+  const cell = (r: SeedRow, id: string) => r.nodes?.find(nd => nd.id === id)
+  return (
+    <div>
+      <div className={css.paneLabel}>{title}</div>
+      <table className={css.table} data-testid={`rsi-matrix-${title}`}>
+        <thead><tr><th>{t('rsi.seed')}</th>{ids.map(id => <th key={id} className={css.mono}>{id}</th>)}<th>{t('rsi.matrix.elapsed')}</th></tr></thead>
+        <tbody>{rows.map(r => (
+          <tr key={r.seed}><td className={css.mono}>{r.seed}</td>
+            {ids.map((id) => {
+              const nd = cell(r, id)
+              const ok = nd?.ok ?? null
+              const o = other?.find(x => x.seed === r.seed)
+              const changed = other !== undefined && ok !== (o === undefined ? null : cell(o, id)?.ok ?? null)
+              const hint = [typeof nd?.steps === 'number' ? t('rsi.node.steps', { n: nd.steps }) : '', nd?.failure_mode ?? ''].filter(Boolean).join(' · ')
+              return (
+                <td key={id} data-ok={ok === true ? 'pass' : ok === false ? 'fail' : undefined} data-changed={changed ? 'true' : undefined} title={hint || undefined}>
+                  {ok === true ? '✓' : ok === false ? '✗' : '–'}
+                </td>
+              )
+            })}
+            <td className={css.mono}>{typeof r.elapsed_s === 'number' ? formatAgo(Math.floor(r.elapsed_s)) : '—'}</td>
+          </tr>
+        ))}</tbody>
+      </table>
+    </div>
+  )
+}
+
 /** One kept clip or still, served by the board's byte route
  * (`GET /api/board/media/<session>/<relpath>`): a muted metadata-only
  * `<video>` for .mp4, an `<img>` otherwise; the caption is the node name the
@@ -501,21 +589,30 @@ function MediaCard({ session, path }: { session: string; path: string }) {
  * 还缺什么 (needs) when the proposer had nothing to try. */
 function RoundCard({ r, t }: { r: CampaignRound; t: T }) {
   const seeds = r.per_seed ?? []
+  const after = r.after_seeds ?? []
+  const ids = nodeIds([...seeds, ...after])
   return (
     <div className={css.card}>
       <div className={css.cardHead}><span className={css.cardHeadTitle}>{t('rsi.roundN', { r: r.round ?? 0 })}</span></div>
       <div className={css.beat}><span className={css.beatLabel}>{t('rsi.saw')}</span><div>
         {seeds.length === 0
           ? <span className={css.dim}>{t('rsi.noPerSeed')}</span>
-          : (
-            <table className={css.table}>
-              <thead><tr><th>{t('rsi.seed')}</th><th>{t('success')}</th><th>{t('rsi.firstDeath')}</th><th>{t('skills.failureModes')}</th></tr></thead>
-              <tbody>{seeds.map(s => (
-                <tr key={s.seed}><td className={css.mono}>{s.seed}</td><td>{s.success === true ? '✓' : s.success === false ? '✗' : '—'}</td>
-                  <td className={css.mono}>{s.first_death ?? '—'}</td><td className={css.mono}>{s.failure_mode ?? '—'}</td></tr>
-              ))}</tbody>
-            </table>
-          )}
+          : ids.length > 0
+            ? (
+              <div className={css.matrices}>
+                <NodeMatrix rows={seeds} other={after.length > 0 ? after : undefined} ids={ids} title={t('rsi.matrix.baseline')} t={t} />
+                {after.length > 0 && <NodeMatrix rows={after} other={seeds} ids={ids} title={t('rsi.matrix.trial')} t={t} />}
+              </div>
+            )
+            : (
+              <table className={css.table}>
+                <thead><tr><th>{t('rsi.seed')}</th><th>{t('success')}</th><th>{t('rsi.firstDeath')}</th><th>{t('skills.failureModes')}</th></tr></thead>
+                <tbody>{seeds.map(s => (
+                  <tr key={s.seed}><td className={css.mono}>{s.seed}</td><td>{s.success === true ? '✓' : s.success === false ? '✗' : '—'}</td>
+                    <td className={css.mono}>{s.first_death ?? '—'}</td><td className={css.mono}>{s.failure_mode ?? '—'}</td></tr>
+                ))}</tbody>
+              </table>
+            )}
       </div></div>
       <div className={css.beat}><span className={css.beatLabel}>{t('rsi.tried')}</span><span>{describeTried(r.tried, t)}</span></div>
       <div className={css.beat}><span className={css.beatLabel}>{t('rsi.result')}</span><span className={css.mono}>{r.before} → {r.after} ({t('evolve.best')} {r.best})</span></div>

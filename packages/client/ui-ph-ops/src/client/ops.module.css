@@ -557,6 +557,15 @@
 .seedChip { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--ph-line); font-size: 11px; color: var(--ph-dim); }
 .seedChip[data-state="running"] { color: var(--ph-ink); border-color: currentColor; animation: pulse 1.2s ease-in-out infinite; }
 .seedChip[data-state="pass"] { color: var(--ph-pass); border-color: color-mix(in srgb, var(--ph-pass) 55%, transparent); }
+.nodeChips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.nodeChips > .seedChip { flex: none; }
+.nodeChip { font-size: 10px; margin-left: 4px; opacity: 0.8; }
+.msgs { max-height: 8.5em; overflow-y: auto; font-size: 12px; }
+.matrices { display: flex; gap: 12px; flex-wrap: wrap; }
+.matrices > div { overflow-x: auto; }
+.table td[data-ok="pass"] { color: var(--ph-pass); }
+.table td[data-ok="fail"] { color: var(--ph-fail); }
+.table td[data-changed="true"] { background: color-mix(in srgb, #d97706 20%, transparent); font-weight: 700; }
 .seedChip[data-state="fail"] { color: var(--ph-fail); border-color: color-mix(in srgb, var(--ph-fail) 55%, transparent); }
 .timeline { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
 .tlChip { flex: none; display: flex; flex-direction: column; gap: 1px; padding: 4px 9px; border-radius: 8px; border: 1px solid var(--ph-line); background: var(--ph-surface); color: inherit; font: inherit; font-size: 11px; text-align: left; cursor: pointer; max-width: 220px; }

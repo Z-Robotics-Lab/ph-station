@@ -187,6 +187,12 @@ export type PhOpsKey =
   | 'rsi.log.failed'
   | 'rsi.log.cancelled'
   | 'rsi.log.raw'
+  | 'rsi.nodes'
+  | 'rsi.node.steps'
+  | 'rsi.messages'
+  | 'rsi.matrix.baseline'
+  | 'rsi.matrix.trial'
+  | 'rsi.matrix.elapsed'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -373,6 +379,12 @@ export const zh: Record<PhOpsKey, string> = {
   'rsi.log.failed': '失败：{error}',
   'rsi.log.cancelled': '已取消',
   'rsi.log.raw': '原始',
+  'rsi.nodes': '当前种子节点',
+  'rsi.node.steps': '{n} 步',
+  'rsi.messages': '消息流',
+  'rsi.matrix.baseline': '基线',
+  'rsi.matrix.trial': '试探',
+  'rsi.matrix.elapsed': '用时',
 }
 
 /** English dictionary. */
@@ -553,4 +565,10 @@ export const en: Record<PhOpsKey, string> = {
   'rsi.log.failed': 'failed: {error}',
   'rsi.log.cancelled': 'cancelled',
   'rsi.log.raw': 'raw',
+  'rsi.nodes': 'Nodes of this seed',
+  'rsi.node.steps': '{n} steps',
+  'rsi.messages': 'Messages',
+  'rsi.matrix.baseline': 'Baseline',
+  'rsi.matrix.trial': 'Trial',
+  'rsi.matrix.elapsed': 'Elapsed',
 }

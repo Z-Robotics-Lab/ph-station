@@ -209,6 +209,65 @@ describe('RsiView', () => {
     expect(screen.getByTestId('rsi-elapsed').textContent).toContain(en['rsi.etaNone'])
   })
 
+  it('renders the running seed\'s node chips in plan order, and the last 8 messages newest last', async () => {
+    const nodes = [
+      { id: 'reach-0', skill: 'reach', ok: true, steps: 40 },
+      { id: 'grasp-0', skill: 'grasp', ok: false, steps: 12, failure_mode: 'reach_stall' },
+      { id: 'lift-0', skill: 'lift', ok: null },
+      { id: 'place-0', skill: 'place', ok: null },
+    ]
+    const messages = Array.from({ length: 10 }, (_, i) => ({ ts: 1000 + i, text: `line ${i}` }))
+    const live = { phase: 'baseline', round: 1, seeds_total: 3, seed_index: 1, seed: 1, node: 'lift-0', round_started_at: Date.now() / 1000 - 5, nodes, messages }
+    const p = props({ fetchRsiRun: vi.fn((_s: string, task: string) => Promise.resolve(ok(task === 'kitchen_thaw' ? { ...campaign, live } : null))) })
+    const { container } = mount(p)
+    await waitFor(() => { expect(screen.getByTestId('rsi-nodes')).toBeTruthy() })
+    const chips = [...screen.getByTestId('rsi-nodes').querySelectorAll('[data-state]')]
+    expect(chips.map(e => e.getAttribute('data-state'))).toEqual(['pass', 'fail', 'running', 'queued'])
+    expect(chips.map(e => e.textContent)).toEqual(['✓ reach-040 steps', '✗ grasp-0reach_stall', '● lift-0', '○ place-0'])
+    // Messages: 10 in the block, the last 8 shown oldest → newest.
+    const lines = [...screen.getByTestId('rsi-messages').querySelectorAll('span')].map(e => e.textContent)
+    expect(lines).toEqual(messages.slice(-8).map(m => m.text))
+    expect(container.querySelector('[data-testid="rsi-messages"] time')?.textContent).toMatch(/^\d\d:\d\d:\d\d$/)
+  })
+
+  it('collapses the messages to the latest line when the campaign is not running, and hides empty node chips', async () => {
+    const live = { phase: 'baseline', round: 1, nodes: [], messages: [{ ts: 1, text: 'a' }, { ts: 2, text: 'b' }] }
+    const p = props({
+      fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok(campaigns.map(c => ({ ...c, status: 'done' }))))),
+      fetchRsiRun: vi.fn((_s: string, task: string) => Promise.resolve(ok(task === 'kitchen_thaw' ? { ...campaign, status: 'done', live } : null))),
+    })
+    mount(p)
+    await waitFor(() => { expect(screen.getByTestId('rsi-messages')).toBeTruthy() })
+    expect([...screen.getByTestId('rsi-messages').querySelectorAll('span')].map(e => e.textContent)).toEqual(['b'])
+    expect(screen.queryByTestId('rsi-nodes')).toBeNull()
+  })
+
+  it('shows the round as a seed × node matrix once rows carry nodes: 基线 and 试探 side by side, changed cells marked', async () => {
+    const base = [
+      { seed: 1, success: false, elapsed_s: 42, nodes: [{ id: 'reach-0', ok: true, steps: 40 }, { id: 'grasp-0', ok: false, steps: 12, failure_mode: 'reach_stall' }, { id: 'place-0', ok: null }] },
+      { seed: 2, success: true, elapsed_s: 100, nodes: [{ id: 'reach-0', ok: true, steps: 38 }, { id: 'grasp-0', ok: true, steps: 20 }, { id: 'place-0', ok: true, steps: 30 }] },
+    ]
+    const trial = [
+      { seed: 1, success: true, elapsed_s: 61, nodes: [{ id: 'reach-0', ok: true, steps: 40 }, { id: 'grasp-0', ok: true, steps: 15 }, { id: 'place-0', ok: true, steps: 33 }] },
+      { seed: 2, success: true, elapsed_s: 99, nodes: [{ id: 'reach-0', ok: true, steps: 38 }, { id: 'grasp-0', ok: true, steps: 20 }, { id: 'place-0', ok: true, steps: 30 }] },
+    ]
+    const rounds = [{ ...campaign.rounds[0], per_seed: base, after_seeds: trial }]
+    const p = props({ fetchRsiRun: vi.fn((_s: string, task: string) => Promise.resolve(ok(task === 'kitchen_thaw' ? { ...campaign, rounds, latest: rounds[0] } : null))) })
+    mount(p)
+    await waitFor(() => { expect(screen.getByTestId('rsi-matrix-Baseline')).toBeTruthy() })
+    const cells = (id: string) => [...screen.getByTestId(id).querySelectorAll('tbody td')].map(e => e.textContent)
+    expect([...screen.getByTestId('rsi-matrix-Baseline').querySelectorAll('th')].map(e => e.textContent)).toEqual(['Seed', 'reach-0', 'grasp-0', 'place-0', 'Elapsed'])
+    expect(cells('rsi-matrix-Baseline')).toEqual(['1', '✓', '✗', '–', '42s', '2', '✓', '✓', '✓', '1m'])
+    expect(cells('rsi-matrix-Trial')).toEqual(['1', '✓', '✓', '✓', '1m', '2', '✓', '✓', '✓', '1m'])
+    // Seed 1's grasp-0 and place-0 changed between baseline and trial; both matrices mark them, nothing else.
+    const changed = (id: string) => [...screen.getByTestId(id).querySelectorAll('td[data-changed="true"]')].map(e => e.textContent)
+    expect(changed('rsi-matrix-Baseline')).toEqual(['✗', '–'])
+    expect(changed('rsi-matrix-Trial')).toEqual(['✓', '✓'])
+    expect(screen.getByTestId('rsi-matrix-Baseline').querySelector('td[data-ok="fail"]')?.getAttribute('title')).toBe('12 steps · reach_stall')
+    // The plain per-seed table is gone.
+    expect(screen.queryByText(en['rsi.firstDeath'])).toBeNull()
+  })
+
   it('tells the operator how to begin when the session holds no campaign', async () => {
     mount(props({ fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok([]))) }))
     await waitFor(() => { expect(screen.getByText(en['rsi.guide'])).toBeTruthy() })

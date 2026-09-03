@@ -194,12 +194,25 @@ export interface SkillRow {
   failure_modes?: string[]
 }
 
+/** One task node of a seed's plan, as scripts/evolve.py's `nodes` writes it:
+ * `ok` null = not run yet. */
+export interface NodeRow {
+  id?: string
+  skill?: string
+  ok?: boolean | null
+  steps?: number | null
+  failure_mode?: string | null
+}
+
 /** One seed of the kept suite, as scripts/evolve.py's `per_seed` writes it. */
 export interface SeedRow {
   seed?: number
   success?: boolean | null
   first_death?: string | null
   failure_mode?: string | null
+  /** Per-node verdicts in plan order; absent on rows written before nodes existed. */
+  nodes?: NodeRow[] | null
+  elapsed_s?: number | null
 }
 
 /** One round of an evolve campaign (`campaign.json` rounds[]). */
@@ -212,6 +225,8 @@ export interface CampaignRound {
   suite_sha?: string
   published?: boolean
   per_seed?: SeedRow[] | null
+  /** The retest rows of the trial (same seeds as `per_seed`); absent when nothing was tried. */
+  after_seeds?: SeedRow[] | null
   /** What would unblock a round that tried nothing (non-empty only for kind none). */
   needs?: string[] | null
   media?: string[]
@@ -238,6 +253,11 @@ export interface LiveState {
   per_seed_partial?: SeedRow[] | null
   tried?: CampaignRound['tried']
   message?: string | null
+  /** The running seed's plan nodes, in order; the first `ok: null` is the one executing. */
+  nodes?: NodeRow[] | null
+  seed_started_at?: number
+  /** The runtime's recent progress lines, oldest first. */
+  messages?: Array<{ ts?: number; text?: string }> | null
 }
 
 /** `rsiRun({name, task})`: campaign.json plus `latest` (newest round or null). */
