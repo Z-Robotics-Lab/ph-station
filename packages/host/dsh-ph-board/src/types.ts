@@ -80,6 +80,12 @@ export interface BoardRsiRequest {
   readonly task: string
 }
 
+/** An evolve campaign read that may narrow to one round. */
+export interface BoardRsiRunRequest extends BoardRsiRequest {
+  /** > 0 = fetch that ONE round in full instead of the bounded tail. */
+  readonly round?: number
+}
+
 /** An evolve-round media read: the kept keyframe/video paths of one round. */
 export interface BoardRsiFramesRequest extends BoardRsiRequest {
   /** The evolve round whose kept media paths to list (forwarded as `--round`). */

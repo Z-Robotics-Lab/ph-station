@@ -42,7 +42,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-session/types'
 // The Typert-generated ./typert and ./remote artifacts import Zod at runtime.
 import type {} from 'zod'
 import type {
-  BoardBriefStatusRequest, BoardRsiFramesRequest, BoardRsiRequest, BoardRuntimeEventsRequest,
+  BoardBriefStatusRequest, BoardRsiFramesRequest, BoardRsiRequest, BoardRsiRunRequest, BoardRuntimeEventsRequest,
   BoardRuntimeFrameRequest, BoardRuntimeKeyframeRequest, BoardSessionRequest, BoardStoreRequest,
   BoardVaultNeighborsRequest, BoardVaultNodeRequest,
 } from './types.ts'
@@ -526,13 +526,19 @@ export class BoardBridge extends TypertRemoteService {
   }
 
   /**
-   * One evolve campaign's state (`storecli rsi_run`): campaign.json plus `latest`.
-   * @param request - the session and the evolve task.
+   * One evolve campaign's state (`storecli rsi_run`): the campaign.json header,
+   * `latest`, and a BOUNDED `rounds` — the last 20 rounds in the compact
+   * `rsiSeries` shape. `request.round` (> 0) swaps that for the ONE named round
+   * in full (per-seed trails, trial_evidence, llm, media) as a single-element
+   * list: what the round card asks for when the operator selects a round.
+   * @param request - the session, the evolve task, and optionally one round.
    * @returns board.store.rsi_run(...) verbatim (null when no campaign exists), or an {error} dict.
    */
   @Remote('rsiRun')
-  rsiRun(request: BoardRsiRequest): Promise<JsonValue> {
-    return this.run('rsi_run', request.task, ['--session', request.session])
+  rsiRun(request: BoardRsiRunRequest): Promise<JsonValue> {
+    const round = Math.trunc(request.round ?? 0)
+    return this.run('rsi_run', request.task,
+      ['--session', request.session, '--round', String(Number.isFinite(round) && round > 0 ? round : 0)])
   }
 
   /**
@@ -550,7 +556,10 @@ export class BoardBridge extends TypertRemoteService {
   }
 
   /**
-   * One evolve campaign's per-round {round, before, after, best} series (the line chart feed).
+   * One evolve campaign's COMPACT per-round series (the line chart + heat strip
+   * feed): `{round, before, after, best, parent, proposer, outcome, accepted,
+   * published, usage, tried, node_rate, by_task}`. Bounded by construction —
+   * per-seed trails never ride this face; `rsiRun({round})` serves one round.
    * @param request - the session and the evolve task.
    * @returns board.store.rsi_series(...) verbatim ([] when no campaign exists), or an {error} dict.
    */
@@ -625,7 +634,12 @@ export class BoardBridge extends TypertRemoteService {
     const args = ['-m', 'board.storecli', fn]
     if (name !== undefined) args.push(name)
     args.push('--runs', this.config.runsDir, ...extraArgs)
-    const { stdout } = await execFileAsync(this.config.pythonPath, args, { cwd: this.config.repoRoot })
+    // 64 MB, an order of magnitude over storecli's own 4 MB refusal: Node's
+    // 1 MB default silently killed rsi_series / rsi_run on a 490-round campaign
+    // and the page sat on its empty state. The face is the size authority now;
+    // this buffer only has to be bigger than what the face will ever emit.
+    const { stdout } = await execFileAsync(this.config.pythonPath, args,
+      { cwd: this.config.repoRoot, maxBuffer: 64 * 1024 * 1024 })
     return JSON.parse(stdout) as JsonValue
   }
 }

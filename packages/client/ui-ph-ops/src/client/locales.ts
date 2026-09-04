@@ -171,6 +171,7 @@ export type PhOpsKey =
   | 'rsi.tab.evolution'
   | 'rsi.tab.battle'
   | 'rsi.tab.ledger'
+  | 'rsi.faceError'
   | 'rsi.guide'
   | 'rsi.noLive'
   | 'rsi.status.running'
@@ -385,6 +386,7 @@ export const zh: Record<PhOpsKey, string> = {
   'rsi.tab.evolution': '迭代记录',
   'rsi.tab.battle': '战报',
   'rsi.tab.ledger': '账本',
+  'rsi.faceError': '读取失败 {calls}——页面上的空白不是「还没数据」，是这条调用挂了。',
   'rsi.guide': '还没有演化：输入任务名，按「开始 / 继续」。',
   'rsi.noLive': '该运行早于实时进度功能，只有整轮结果',
   'rsi.status.running': '运行中',
@@ -593,6 +595,7 @@ export const en: Record<PhOpsKey, string> = {
   'rsi.tab.evolution': 'Generations',
   'rsi.tab.battle': 'Battle report',
   'rsi.tab.ledger': 'Ledger',
+  'rsi.faceError': 'Read failed {calls} — the blank below is a broken call, not "no data yet".',
   'rsi.guide': 'No evolve yet: type a task and press Start / resume.',
   'rsi.noLive': 'This run predates live progress; only whole-round results are available',
   'rsi.status.running': 'running',

@@ -16,12 +16,17 @@
  * cells highlighted — once rows carry `nodes`; 试了什么 with a source chip off
  * `proposer` (LLM / 规则 / 收件箱) and `llm.rationale` beneath / 结果 / 确认
  * (the held-out seeds' k/n before → after, 通过 when the round published) /
- * 发布 / 还缺什么, then the usage line LLM tokens · 仿真 s), 关键片段 (kept
+ * 发布 / 还缺什么, then the usage line LLM tokens · 仿真 s — the card's round is
+ * fetched ONE at a time through `rsiRun({round})`, since the campaign faces are
+ * bounded and carry only compact rows), 关键片段 (kept
  * clips; each dropped node with its reason and up to three keyframe stills), and 日志
  * folded unless the campaign failed or was cancelled. The legacy heavy chain
  * (prereg / blind twin / held-out) renders only when legacy stores exist. The
  * head's 提议器 select (LLM by default, else 规则) rides the brief as `proposer`.
- * Renders only — every count is campaign.json's, written by scripts/evolve.py. */
+ * Renders only — every count is campaign.json's, written by scripts/evolve.py.
+ * A board call that FAILS is said out loud in a red line above the campaign
+ * (which face, and the carrier's message): an empty chart must never again pass
+ * for "no data yet" the way it did for 490 rounds behind an oversized face. */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
@@ -46,9 +51,11 @@ export interface RsiInjected {
   fetchStores: () => Promise<RemoteResult<unknown>>
   /** POST /api/board/rsi_campaigns: every campaign the session holds on disk. */
   fetchRsiCampaigns: (session: string) => Promise<RemoteResult<unknown>>
-  /** POST /api/board/rsi_run: campaign.json + latest + live, or null when none. */
-  fetchRsiRun: (session: string, task: string) => Promise<RemoteResult<unknown>>
-  /** POST /api/board/rsi_series: per-round {round, before, after, best}. */
+  /** POST /api/board/rsi_run: the header + latest + live + the last 20 compact
+   * rounds, or null when none. `round` (> 0) asks for that ONE round in FULL
+   * (per-seed trails, trial_evidence, llm, media) as a single-element `rounds`. */
+  fetchRsiRun: (session: string, task: string, round?: number) => Promise<RemoteResult<unknown>>
+  /** POST /api/board/rsi_series: one compact row per round (never per-seed trails). */
   fetchRsiSeries: (session: string, task: string) => Promise<RemoteResult<unknown>>
   /** POST /api/board/rsi_frames: kept media paths of one round, plus the keyframes of its dropped nodes. */
   fetchRsiFrames: (session: string, task: string, round: number) => Promise<RemoteResult<unknown>>
@@ -276,9 +283,9 @@ const TREE = { stepX: 26, stepY: 22, r: 8, pad: 12 }
  * of parent → child elbows. The in-flight round rides the last published
  * round's lane as a dashed node. */
 function HypothesisTree({ rounds, live, liveRound, shownRound, onPick, t }:
-{ rounds: CampaignRound[]; live: LiveState | null; liveRound: number; shownRound: number | null; onPick: (r: number) => void; t: T }) {
+{ rounds: SeriesPoint[]; live: LiveState | null; liveRound: number; shownRound: number | null; onPick: (r: number) => void; t: T }) {
   const lastPublished = rounds.filter(r => r.published === true).reduce((m, r) => Math.max(m, r.round ?? 0), 0)
-  const all: Array<CampaignRound & { running?: boolean }> = live === null
+  const all: Array<SeriesPoint & { running?: boolean }> = live === null
     ? rounds
     : [...rounds, { round: liveRound, parent: lastPublished, tried: live.tried ?? null, running: true }]
   const nodes = treeLayout(all)
@@ -341,6 +348,16 @@ const clock = (ts?: number) => (typeof ts === 'number'
   ? new Date(ts * 1000).toTimeString().slice(0, 8)
   : '--:--:--')
 
+/** Unwrap one board call, recording `<call>: <why>` in `bad` when it failed.
+ * A face that dies (an oversized body, a missing venv, a raised storecli error)
+ * must say so on the page: the operator once watched 490 rounds behind an empty
+ * chart because rsi_series outgrew the bridge's buffer and nothing said a word. */
+function take<T>(call: string, r: RemoteResult<unknown>, bad: string[]): T | null {
+  if (r.ok) return r.value as T
+  bad.push(`${call}: ${r.error.message}`)
+  return null
+}
+
 /** True while `live` describes a round in flight (one of the four beats). */
 const inFlight = (live: LiveState | null | undefined): live is LiveState =>
   live != null && (PHASES as readonly string[]).includes(live.phase ?? '')
@@ -358,6 +375,10 @@ export function RsiView({
   const [current, setCurrent] = useState<Campaign | null>(null)
   const [series, setSeries] = useState<SeriesPoint[]>([])
   const [round, setRound] = useState<number | null>(null)
+  /** The selected round in FULL (trails, trial_evidence), fetched one at a time. */
+  const [full, setFull] = useState<CampaignRound | null>(null)
+  /** `<call>: <why>` for every board face that failed on the last poll. */
+  const [faceError, setFaceError] = useState<string | null>(null)
   const [frames, setFrames] = useState<{ media: string[]; keyframes: Record<string, string[]> }>({ media: [], keyframes: {} })
   const [draft, setDraft] = useState('')
   const [proposer, setProposer] = useState<typeof PROPOSERS[number]>(PROPOSERS[0])
@@ -384,31 +405,38 @@ export function RsiView({
   }, [fetchStores])
 
   const load = useCallback(async () => {
+    const bad: string[] = []
     try {
       const [c, s] = await Promise.all([fetchCards(), fetchSessions()])
-      if (c.ok) {
+      const cards = take<Card[]>('cards', c, bad)
+      if (cards !== null) {
         const names = new Set<string>()
-        for (const card of c.value as Card[]) for (const tk of card.contributes?.task_bindings ?? []) names.add(tk)
+        for (const card of cards) for (const tk of card.contributes?.task_bindings ?? []) names.add(tk)
         setTaskNames([...names].sort())
       }
-      if (!s.ok) { setOnline(false); return }
+      const list = take<SessionSummary[]>('sessions', s, bad)
+      if (list === null) { setOnline(false); setFaceError(bad.join(' · ')); return }
       setOnline(true)
-      const list = s.value as SessionSummary[]
       setSessions(list)
       const name = session ?? pickEvolveDefault(list)
-      if (name === null) { setCampaigns([]); return }
+      if (name === null) { setCampaigns([]); setFaceError(bad.length > 0 ? bad.join(' · ') : null); return }
       // The list is what the session holds on disk (survives a restart); the
       // per-boot feed only feeds the log.
       const [cs, ev] = await Promise.all([fetchRsiCampaigns(name), fetchRuntimeEvents(name)])
-      setCampaigns(cs.ok && Array.isArray(cs.value) ? cs.value as CampaignSummary[] : [])
-      setEvents(ev.ok ? ((ev.value as RuntimeEventsPayload | null)?.events ?? []) : [])
+      const list2 = take<CampaignSummary[]>('rsi_campaigns', cs, bad)
+      setCampaigns(Array.isArray(list2) ? list2 : [])
+      setEvents(take<RuntimeEventsPayload | null>('runtime_events', ev, bad)?.events ?? [])
       if (task !== null) {
         const [run, sr] = await Promise.all([fetchRsiRun(name, task), fetchRsiSeries(name, task)])
-        setCurrent(run.ok && typeof (run.value as Campaign | null)?.task === 'string' ? run.value as Campaign : null)
-        if (sr.ok) setSeries(Array.isArray(sr.value) ? sr.value as SeriesPoint[] : [])
+        const camp = take<Campaign | null>('rsi_run', run, bad)
+        setCurrent(typeof camp?.task === 'string' ? camp : null)
+        const rows = take<SeriesPoint[]>('rsi_series', sr, bad)
+        if (rows !== null) setSeries(Array.isArray(rows) ? rows : [])
       }
-    } catch {
+      setFaceError(bad.length > 0 ? bad.join(' · ') : null)
+    } catch (e) {
       setOnline(false)
+      setFaceError([...bad, `board: ${String(e)}`].join(' · '))
     }
   }, [fetchCards, fetchSessions, fetchRsiCampaigns, fetchRuntimeEvents, fetchRsiRun, fetchRsiSeries, session, task])
 
@@ -444,9 +472,26 @@ export function RsiView({
   }, [claimed])
   const shownCampaign = current?.task === task ? current : null
   const live = inFlight(shownCampaign?.live) ? shownCampaign.live : null
+  // The BOUNDED tail rsi_run carries: compact rows, enough for the tree.
   const rounds = shownCampaign?.rounds ?? []
   const shownRound = round ?? shownCampaign?.latest?.round ?? null
-  const shown = rounds.find(r => r.round === shownRound) ?? null
+  // The round card wants trails and evidence, which only the single-round read
+  // carries; the compact tail row stands in until that lands.
+  const shown = (full?.round === shownRound ? full : rounds.find(r => r.round === shownRound)) ?? null
+
+  // One round at a time, in full: what the operator selected, never the history.
+  useEffect(() => {
+    if (sessionName === null || task === null || shownRound === null) { setFull(null); return }
+    let alive = true
+    fetchRsiRun(sessionName, task, shownRound)
+      .then((r) => {
+        if (!alive) return
+        if (!r.ok) { setFaceError(`rsi_run(round=${shownRound}): ${r.error.message}`); return }
+        setFull((r.value as Campaign | null)?.rounds?.[0] ?? null)
+      })
+      .catch(() => { if (alive) setFull(null) })
+    return () => { alive = false }
+  }, [fetchRsiRun, sessionName, task, shownRound])
 
   useEffect(() => {
     const none = { media: [], keyframes: {} }
@@ -541,7 +586,7 @@ export function RsiView({
   if (online === false) return <div className={css.state}>{t('unavailable')}</div>
   if (campaigns === null) return <div className={css.state}>{t('loading')}</div>
   const n = sel === null ? 0 : seedCount(sel)
-  const liveRound = live?.round ?? (rounds.length + 1)
+  const liveRound = live?.round ?? (series.length + 1)   // series is every round; `rounds` is a 20-row tail
   const waited = pending === null ? 0 : Math.max(0, Math.floor((now - pending.at) / 1000))
   return (
     <div className={css.page}>
@@ -567,6 +612,9 @@ export function RsiView({
         </div>
       )}
       {pending === null && claimed !== null && <div className={css.dim} data-testid="rsi-pending">{t('evolve.claimed', { brief: claimed })}</div>}
+      {faceError !== null && (
+        <div className={css.brainError} data-testid="rsi-face-error">{t('rsi.faceError', { calls: faceError })}</div>
+      )}
 
       {campaigns.length > 0 && (
         <div className={css.timeline} data-testid="rsi-campaigns">
@@ -623,7 +671,7 @@ export function RsiView({
 
             <h3 className={css.secTitle}>{t('evolve.round')} <span className={css.dim}>{t('evolve.chart')}</span></h3>
             <div className={css.roundStrip}>
-              <HypothesisTree rounds={rounds} live={live} liveRound={liveRound} shownRound={shownRound} onPick={setRound} t={t} />
+              <HypothesisTree rounds={series} live={live} liveRound={liveRound} shownRound={shownRound} onPick={setRound} t={t} />
               <SeriesChart series={series} n={n} t={t} />
               <TaskHeat series={series} n={n} t={t} />
             </div>

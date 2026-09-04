@@ -60,9 +60,16 @@ describe('RsiView', () => {
       fetchRuntimeEvents: vi.fn(() => Promise.resolve(ok({ events, last_seq: 5 }))),
       fetchStores: vi.fn(() => Promise.resolve(ok([]))),
       fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok(campaigns))),
-      fetchRsiRun: vi.fn((_s: string, task: string) => Promise.resolve(ok(task === 'kitchen_thaw' ? campaign : null))),
+      // The real face is BOUNDED: no round -> header + the compact tail; round=n
+      // -> that ONE round in full, as a single-element `rounds`.
+      fetchRsiRun: vi.fn((_s: string, task: string, round?: number) => Promise.resolve(ok(
+        task !== 'kitchen_thaw'
+          ? null
+          : round ? { ...campaign, rounds: campaign.rounds.filter(r => r.round === round) } : campaign))),
+      // The compact row the real face returns: scalars off the round, no trails.
       fetchRsiSeries: vi.fn(() => Promise.resolve(ok(
-        campaign.rounds.map(({ round, before, after, best }) => ({ round, before, after, best })),
+        campaign.rounds.map(({ round, before, after, best, parent, proposer, outcome, published, usage, tried }) =>
+          ({ round, before, after, best, parent, proposer, outcome, published, usage, tried })),
       ))),
       fetchRsiFrames: vi.fn((_s: string, _t: string, round: number) => Promise.resolve(ok(round === 1
         ? { media: ['media/kitchen_thaw/1/grasp-0.mp4'], dropped: { '2/grasp-0': { reason: 'verify_failed', keyframes: ['media/kitchen_thaw/2/grasp-0-000.jpg', 'media/kitchen_thaw/2/grasp-0-001.jpg', 'media/kitchen_thaw/2/grasp-0-002.jpg', 'media/kitchen_thaw/2/grasp-0-003.jpg'] } } }
@@ -329,7 +336,13 @@ describe('RsiView', () => {
       { round: 4, parent: 1, outcome: 'improved', published: true, before: 2, after: 3, best: 3, tried: { kind: 'card', node: 'grasp-0', detail: { to: 'c3' } } },
       { round: 5, parent: 4, outcome: 'none', published: false, before: 3, after: 3, best: 3, tried: { kind: 'none', detail: { reason: 'r' } } },
     ]
-    const p = props({ fetchRsiRun: vi.fn(() => Promise.resolve(ok({ ...campaign, rounds, latest: rounds[4] }))) })
+    // The tree rides the COMPACT series (every round), not rsi_run's 20-round tail.
+    const p = props({
+      fetchRsiSeries: vi.fn(() => Promise.resolve(ok(rounds))),
+      fetchRsiRun: vi.fn((_s: string, _t: string, round?: number) => Promise.resolve(ok({
+        ...campaign, latest: rounds[4], rounds: round ? rounds.filter(r => r.round === round) : rounds,
+      }))),
+    })
     const { container } = mount(p)
     await waitFor(() => { expect(roundChips()).toHaveLength(5) })
     const nodes = roundChips()
@@ -353,6 +366,57 @@ describe('RsiView', () => {
     expect(step.getAttribute('data-phase')).toBe('propose')
     expect(step.textContent).toBe(en['rsi.phase.proposing'])
     expect(screen.getByText('LLM 分析第 3 轮…')).toBeTruthy()
+  })
+
+  it('a failing face says WHICH call failed and why, instead of an empty chart', async () => {
+    // The 490-round bug: rsi_series blew the bridge's buffer, the call died, and
+    // the page just showed "no data yet" forever. It must say it out loud now.
+    const p = props({
+      fetchRsiSeries: vi.fn(() => Promise.resolve({ ok: false, error: { code: 'exec', message: 'stdout maxBuffer length exceeded', details: {} } } as RemoteResult<unknown>)),
+    })
+    mount(p)
+    const line = await screen.findByTestId('rsi-face-error')
+    expect(line.textContent).toBe(t('rsi.faceError', { calls: 'rsi_series: stdout maxBuffer length exceeded' }))
+    // the faces that DID answer still render: the campaign chips are there
+    expect(chip('kitchen_thaw')).toBeTruthy()
+  })
+
+  it('the round card asks for the selected round alone, in full', async () => {
+    const p = props()
+    mount(p)
+    await waitFor(() => { expect(roundChips()).toHaveLength(2) })
+    // the page read the campaign bounded (round 0), then round 2 (latest) in full
+    expect(p.fetchRsiRun).toHaveBeenCalledWith('session-main', 'kitchen_thaw')
+    await waitFor(() => { expect(p.fetchRsiRun).toHaveBeenCalledWith('session-main', 'kitchen_thaw', 2) })
+    // picking round 1 fetches THAT round, never the history
+    fireEvent.click(roundChips()[0] as HTMLElement)
+    await waitFor(() => { expect(p.fetchRsiRun).toHaveBeenCalledWith('session-main', 'kitchen_thaw', 1) })
+    // and its full detail (the trails-only beats) renders off that single round
+    await waitFor(() => { expect(screen.getByTestId('rsi-analysis').textContent).toContain('grasp-0 stalls on seed 2') })
+    expect(screen.getByText('1 → 2 (best 2)')).toBeTruthy()
+  })
+
+  it('the chart and heat strip render off the COMPACT series rows alone', async () => {
+    // No per_seed / after_seeds / llm anywhere in these rows: the shape the
+    // bounded face actually returns.
+    const rows = [
+      { round: 1, before: 1, after: 2, best: 2, parent: 0, proposer: 'llm', outcome: 'improved', accepted: true, published: true,
+        usage: { llm_tokens: { prompt: 10, completion: 2 }, sim_s: 3 }, tried: { kind: 'executor', node: 'grasp-0', detail: { to: 'pi05' } },
+        node_rate: { before: 0.25, after: 0.75, best: 0.75 }, by_task: { grasp: { before: 0, after: 1 } } },
+      { round: 2, before: 2, after: 2, best: 2, parent: 1, proposer: 'rules', outcome: 'same', accepted: false, published: false,
+        usage: { llm_tokens: null, sim_s: 4 }, tried: { kind: 'none', node: 'grasp-0', detail: { reason: 'r' } },
+        node_rate: { before: 0.75, after: 0.75, best: 0.75 }, by_task: { grasp: { before: 1, after: 0.5 } } },
+    ]
+    const { container } = mount(props({ fetchRsiSeries: vi.fn(() => Promise.resolve(ok(rows))) }))
+    await waitFor(() => { expect(container.querySelector('polyline[data-series="best"]')).toBeTruthy() })
+    expect(screen.queryByTestId('rsi-face-error')).toBeNull()
+    // best rides node_rate (0.75 -> y 32 on the 8..104 plot band), not the k/n fallback (which would be y 40)
+    const y = (pts: string) => pts.split(' ').map(pt => Number(pt.split(',')[1]))
+    expect(y(container.querySelector('polyline[data-series="best"]')?.getAttribute('points') ?? '')).toEqual([32, 32])
+    // the heat strip reads by_task off the same rows
+    const cells = [...screen.getByTestId('rsi-heat').querySelectorAll('td[data-task="grasp"]')]
+    expect(cells.map(c => c.getAttribute('data-rate'))).toEqual(['1', '0.5'])
+    expect(cells.map(c => c.textContent)).toEqual(['\u25b2', '\u25bc'])
   })
 
   it('tells the operator how to begin when the session holds no campaign', async () => {

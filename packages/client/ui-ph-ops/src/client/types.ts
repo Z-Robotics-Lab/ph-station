@@ -298,7 +298,10 @@ export interface LiveState {
   messages?: Array<{ ts?: number; text?: string }> | null
 }
 
-/** `rsiRun({name, task})`: campaign.json plus `latest` (newest round or null). */
+/** `rsiRun({session, task})`: the campaign.json header, `latest` (the newest
+ * COMPACT round row or null) and a BOUNDED `rounds` — the last 20 rounds in the
+ * compact {@link SeriesPoint} shape. `rsiRun({session, task, round})` swaps
+ * `rounds` for that ONE round in full (per-seed trails, media, llm, needs). */
 export interface Campaign {
   task?: string
   session?: string
@@ -337,10 +340,20 @@ export interface CampaignSummary {
   usage?: Usage | null
 }
 
-/** `rsiSeries({name, task})`: one point per round, the line-chart feed. */
+/** `rsiSeries({session, task})`: one COMPACT point per round — the line-chart,
+ * heat-strip and hypothesis-tree feed. Scalars only: per-seed trails, traces and
+ * evidence never ride this face at any campaign length (they made it 11 MB on a
+ * 490-round campaign); `rsiRun({round})` serves them one round at a time. */
 export interface SeriesPoint extends RoundRates {
   round?: number
   before?: number
   after?: number
   best?: number
+  parent?: number | null
+  proposer?: string | null
+  outcome?: string | null
+  accepted?: boolean | null
+  published?: boolean | null
+  usage?: Usage | null
+  tried?: CampaignRound['tried']
 }

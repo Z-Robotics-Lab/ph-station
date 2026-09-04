@@ -85,7 +85,7 @@ export function apply(ctx: Context): void {
       fetchRuntimeEvents: (name: string) => board.runtimeEvents({ name }),
       fetchStores: () => board.stores(),
       fetchRsiCampaigns: (name: string) => board.rsiCampaigns({ name }),
-      fetchRsiRun: (name: string, task: string) => board.rsiRun({ session: name, task }),
+      fetchRsiRun: (name: string, task: string, round?: number) => board.rsiRun({ session: name, task, round: round ?? 0 }),
       fetchRsiSeries: (name: string, task: string) => board.rsiSeries({ session: name, task }),
       fetchRsiFrames: (name: string, task: string, round: number) => board.rsiFrames({ session: name, task, round }),
       fetchRuntimeFrame: (name: string, afterTs: number) => board.runtimeFrame({ name, afterTs, waitMs: 0 }),
