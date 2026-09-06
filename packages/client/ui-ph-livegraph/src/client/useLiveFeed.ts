@@ -2,8 +2,8 @@
  * Shared runtime-feed poller for the merged graph and the 过程流 ticker. It owns
  * the events cursor and the accumulated feed (in refs; polling appends, the
  * caller's fold derives), discovers the newest runtime session, and refreshes
- * the session rows on a slower stride. Renders only — every field is copied
- * verbatim from board payloads.
+ * sealed session rows independently at a slower cadence. Renders only — every
+ * field is copied verbatim from board payloads.
  *
  * `fast` is read live from a ref each tick so the caller can raise the cadence
  * once its folded model shows an in-flight task without re-arming the timer.
@@ -69,14 +69,15 @@ export interface LiveFeed {
 
 const FAST_MS = 1200
 const SLOW_MS = 4000
+const DETAILS_MS = 16000
 
 /**
  * First seq each `conversation × runtime session` pair is allowed to show,
  * keyed `<sessionId>\0<name>`. The runtime feed is global — one opstream per
  * runtime session, independent of dsh conversations — so without a floor every
  * newly opened conversation replays the previous one's runs. The first poll
- * under a conversation adopts the feed's current tail as that pair's floor and
- * drops the backlog; later mounts (a view-tab switch, or returning to the
+ * under a conversation hides completed history, but publishes an active run
+ * immediately from that response; later mounts (a view-tab switch, or returning to the
  * conversation) reuse the stored floor, so the panel restores the window it was
  * showing instead of re-blanking. A runtime reboot truncates the feed and
  * resets the floor to 0, because everything in the new file is new.
@@ -90,7 +91,7 @@ const SLOW_MS = 4000
  * loser used to fall through to the append branch and swallow the whole
  * backlog (previous conversation's run in 过程流, empty 执行图谱).
  *
- * Page lifetime only: a reload starts every conversation blank again.
+ * Page lifetime only: a reload rediscovers the active run and hides completed history.
  */
 const baseline = new Map<string, number>()
 
@@ -106,7 +107,7 @@ const baseline = new Map<string, number>()
 export function runningSince(events: readonly OpEvent[], tail: number): number {
   for (let i = events.length - 1; i >= 0; i--) {
     const kind = events[i]?.kind
-    if (kind === 'task_done' || kind === 'task_failed') return tail
+    if (kind === 'task_done' || kind === 'task_failed' || kind === 'task_cancelled') return tail
     if (kind === 'task_claimed') return Math.max((events[i]?.seq ?? 0) - 1, 0)
   }
   return tail
@@ -164,6 +165,8 @@ export function useLiveFeed(inj: FeedScope, fast: MutableRefObject<boolean>): Li
   const cursor = useRef(0)
   const feed = useRef<OpEvent[]>([])
   const sessionRows = useRef<unknown>(null)
+  const sessionReader = useRef(fetchSession)
+  sessionReader.current = fetchSession
   const knownSession = useRef<string | null>(null)
   // The conversation the accumulated feed belongs to. The runtime session is
   // global, so a conversation switch alone leaves `chosen` unchanged; the
@@ -176,103 +179,129 @@ export function useLiveFeed(inj: FeedScope, fast: MutableRefObject<boolean>): Li
   const needFloor = useRef(false)
   const override = useRef<string | null>(null)
   const tickNo = useRef(0)
+  const generation = useRef(0)
+  const pendingLoad = useRef<number | null>(null)
 
   const load = useCallback(async () => {
-    // One Python storecli spawn per tick on the fast lane (the events cursor);
-    // session discovery + routing rows refresh on a slower stride.
-    tickNo.current += 1
-    if (knownSession.current === null || sessionId !== knownConversation.current || tickNo.current % 4 === 1) {
-      const s = await fetchSessions()
-      if (!s.ok) { setOnline(false); return }
-      setOnline(true)
-      const list = s.value as SessionSummary[]
-      setSessions(list.map(x => ({ name: x.name ?? '', runtime: x.kinds?.['runtime.boot'] !== undefined })))
-      // Operator override wins while it names a live session; else auto-pick the
-      // current-runtime session (never the mtime-newest completed campaign).
-      const ovr = override.current
-      const chosen = (ovr !== null && list.some(x => x.name === ovr)) ? ovr : pickRuntimeSession(list)
-      if (chosen !== knownSession.current || sessionId !== knownConversation.current) {
-        // The chosen session changed (override, first probe, or a new runtime
-        // session appeared), or the panel moved to another conversation — either
-        // way the accumulated feed belongs to something else, so drop it and the
-        // graph/ticker never blend two sessions' (or two conversations') events.
-        knownSession.current = chosen
-        knownConversation.current = sessionId
-        // A stored floor means this conversation has looked at this session
-        // before (a view-tab switch, a sibling panel): restore its window.
-        // Absent, this poller owes the floor — see `needFloor`.
-        const stored = chosen !== null && chosen !== override.current
-          ? baseline.get(baseKey(sessionId, chosen))
-          : 0
-        needFloor.current = stored === undefined
-        const floor = stored ?? 0
-        cursor.current = floor
-        setScoped(floor > 0)
-        feed.current = []
-        sessionRows.current = null
-        setVersion(v => v + 1)
-      }
-      setSessionName(chosen)
-    }
-    const name = knownSession.current
-    if (name === null) return
-
-    const ev = await fetchRuntimeEvents(name, cursor.current)
-    if (ev.ok) {
-      const payload = ev.value as EventsPayload
-      const lastSeq = payload.last_seq ?? 0
-      const key = baseKey(sessionId, name)
-      if (name !== override.current && needFloor.current) {
-        // This conversation's first look at the auto-followed session: floor the
-        // cursor at the current tail and drop the backlog that came with this
-        // read, so the panels open blank and fill only with what happens from
-        // now on. `feed` is empty here — the only path that owes a floor is the
-        // reset above. A session the operator picked by hand is never floored:
-        // asking for it IS asking for its history.
-        // ...except a run still IN FLIGHT, which is the present, not the last
-        // conversation's history. `foldRuns` can only open a run at its
-        // `task_claimed`, so a floor landing inside a running task leaves 执行图谱
-        // permanently empty ("no task running") while 过程流 fills from the same
-        // feed — the split the operator saw as "the graph vanished mid-run".
-        // A sibling panel of this conversation may have adopted the floor while
-        // this read was in flight; its value wins, so every panel opens on the
-        // same window. Dropping this payload costs one tick, never a row: the
-        // cursor stays AT the floor, so the next read returns them again.
-        needFloor.current = false
-        const floorSeq = baseline.get(key) ?? runningSince(payload.events ?? [], lastSeq)
-        baseline.set(key, floorSeq)
-        cursor.current = floorSeq
-        setScoped(floorSeq > 0)
-      } else if (lastSeq < cursor.current) {
-        // Runtime reboot truncated the feed: every row in the new file is new,
-        // so the floor drops with the cursor.
-        baseline.set(key, 0)
-        cursor.current = 0
-        setScoped(false)
-        feed.current = []
-        const again = await fetchRuntimeEvents(name, 0)
-        if (again.ok) {
-          const p2 = again.value as EventsPayload
-          feed.current = p2.events ?? []
-          cursor.current = p2.last_seq ?? 0
+    const owner = generation.current
+    if (pendingLoad.current === owner) return
+    pendingLoad.current = owner
+    const current = () => generation.current === owner
+    try {
+      // One Python storecli spawn per tick on the fast lane (the events cursor);
+      // session discovery runs on a slower stride; details have their own reader.
+      tickNo.current += 1
+      if (knownSession.current === null || sessionId !== knownConversation.current || tickNo.current % 4 === 1) {
+        const s = await fetchSessions()
+        if (!current()) return
+        if (!s.ok) { setOnline(false); return }
+        setOnline(true)
+        const list = s.value as SessionSummary[]
+        setSessions(list.map(x => ({ name: x.name ?? '', runtime: x.kinds?.['runtime.boot'] !== undefined })))
+        // Operator override wins while it names a live session; else auto-pick the
+        // current-runtime session (never the mtime-newest completed campaign).
+        const ovr = override.current
+        const chosen = (ovr !== null && list.some(x => x.name === ovr)) ? ovr : pickRuntimeSession(list)
+        if (chosen !== knownSession.current || sessionId !== knownConversation.current) {
+          // The chosen session changed (override, first probe, or a new runtime
+          // session appeared), or the panel moved to another conversation — either
+          // way the accumulated feed belongs to something else, so drop it and the
+          // graph/ticker never blend two sessions' (or two conversations') events.
+          knownSession.current = chosen
+          knownConversation.current = sessionId
+          // A stored floor means this conversation has looked at this session
+          // before (a view-tab switch, a sibling panel): restore its window.
+          // Absent, this poller owes the floor — see `needFloor`.
+          const stored = chosen !== null && chosen !== override.current
+            ? baseline.get(baseKey(sessionId, chosen))
+            : 0
+          needFloor.current = stored === undefined
+          const floor = stored ?? 0
+          cursor.current = floor
+          setScoped(floor > 0)
+          feed.current = []
+          sessionRows.current = null
+          setVersion(v => v + 1)
         }
-        setVersion(v => v + 1)
-      } else if (payload.events?.length) {
-        feed.current = [...feed.current, ...payload.events]
-        cursor.current = lastSeq
-        setVersion(v => v + 1)
+        setSessionName(chosen)
       }
+      const name = knownSession.current
+      if (name === null) return
+
+      const ev = await fetchRuntimeEvents(name, cursor.current)
+      if (!current()) return
+      if (ev.ok) {
+        const payload = ev.value as EventsPayload
+        const lastSeq = payload.last_seq ?? 0
+        const key = baseKey(sessionId, name)
+        if (name !== override.current && needFloor.current) {
+          // Hide completed history while publishing an in-flight run from this
+          // very response. Sibling panels share the same conversation floor.
+          needFloor.current = false
+          const floorSeq = baseline.get(key) ?? runningSince(payload.events ?? [], lastSeq)
+          baseline.set(key, floorSeq)
+          feed.current = (payload.events ?? []).filter(e => e.seq > floorSeq)
+          cursor.current = Math.max(floorSeq, lastSeq)
+          setScoped(floorSeq > 0)
+          setVersion(v => v + 1)
+        } else if (lastSeq < cursor.current) {
+          // Runtime reboot truncated the feed: every row in the new file is new,
+          // so the floor drops with the cursor.
+          baseline.set(key, 0)
+          cursor.current = 0
+          setScoped(false)
+          feed.current = []
+          const again = await fetchRuntimeEvents(name, 0)
+          if (!current()) return
+          if (again.ok) {
+            const p2 = again.value as EventsPayload
+            feed.current = p2.events ?? []
+            cursor.current = p2.last_seq ?? 0
+          }
+          setVersion(v => v + 1)
+        } else if (payload.events?.length) {
+          feed.current = [...feed.current, ...payload.events]
+          cursor.current = lastSeq
+          setVersion(v => v + 1)
+        }
+      }
+    } catch {
+      if (current()) setOnline(false)
+    } finally {
+      if (pendingLoad.current === owner) pendingLoad.current = null
     }
-    if (sessionRows.current === null || tickNo.current % 4 === 1) {
-      const d = await fetchSession(name)
-      if (d.ok) { sessionRows.current = d.value; setVersion(v => v + 1) }
+  }, [fetchSessions, fetchRuntimeEvents, sessionId])
+
+  // Sealed routing/history can be much larger than the live feed. One
+  // independent reader per session enriches the graph without delaying events.
+  useEffect(() => {
+    const name = sessionName
+    if (name === null) return
+    let active = true
+    let first = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const refresh = async () => {
+      try {
+        if (first || !document.hidden) {
+          const details = await sessionReader.current(name)
+          if (active && knownSession.current === name && knownConversation.current === sessionId && details.ok) {
+            sessionRows.current = details.value
+            setVersion(v => v + 1)
+          }
+        }
+      } catch { /* Live graph remains usable; retry history independently. */ }
+      first = false
+      if (active) timer = setTimeout(() => { void refresh() }, DETAILS_MS)
     }
-  }, [fetchSessions, fetchSession, fetchRuntimeEvents, sessionId])
+    void refresh()
+    return () => { active = false; if (timer !== undefined) clearTimeout(timer) }
+  }, [sessionName, sessionId])
 
   // Pin the feed to an operator-chosen session: force a rediscovery (which re-picks
   // `chosen` = the override and resets the feed) on the next tick, then poke it now.
   const selectSession = useCallback((name: string) => {
     override.current = name
+    generation.current += 1
     knownSession.current = null
     void load()
   }, [load])
@@ -293,15 +322,21 @@ export function useLiveFeed(inj: FeedScope, fast: MutableRefObject<boolean>): Li
         // reschedule below and stops the feed permanently. The next tick reruns.
         try { await load() } catch { setOnline(false) }
       }
+      // The first response renders asynchronously, so the consumer's `fast` ref
+      // may still describe its empty state. Give the initial follow-up the fast cadence.
+      const delay = first || fast.current ? FAST_MS : SLOW_MS
       first = false
+      // Cleanup can run while load() is awaited; narrowing cannot see that write.
+      // oxlint-disable-next-line typescript/no-unnecessary-condition
       if (!alive) return
-      timer = setTimeout(tick, fast.current ? FAST_MS : SLOW_MS)
+      timer = setTimeout(tick, delay)
     }
     void tick()
     const onVisible = () => { if (!document.hidden) void load() }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
       alive = false
+      generation.current += 1
       if (timer !== undefined) clearTimeout(timer)
       document.removeEventListener('visibilitychange', onVisible)
     }

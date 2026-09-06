@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-25-ph-surfaces-first-load-visibility.md
-2026-08-25-ph-surfaces-first-load-visibility.md: a54b0db8d12869dd343f5cc9ff4ab60cd6f5e10e
-2026-08-25-ph-surfaces-first-load-visibility.zh.md: 328209ebc0a5dfccd5d2c2dee88879317a8db770
+2026-08-25-ph-surfaces-first-load-visibility.md: 22ed51ddcf485fbd74d71acab30f9ced6de37764
+2026-08-25-ph-surfaces-first-load-visibility.zh.md: e5189d0810662f3bec160b3d6971b2707b678334
