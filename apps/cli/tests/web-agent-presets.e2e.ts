@@ -276,7 +276,8 @@ describe('the shipped Web composition', () => {
         .map(section => section.text).join('\n')
       expect(persona).toContain('submit_proposal')
       for (const source of ['rsi_run', 'rsi_series', 'rsi_frames', 'chain']) expect(persona).toContain(source)
-      for (const kind of ['tunables', 'executor', 'card']) expect(persona).toContain(kind)
+      for (const kind of ['tunables', 'executor', 'card', 'plan']) expect(persona).toContain(kind)
+      expect(persona.split('\n').filter(line => line.startsWith('plan 的 payload') || line.startsWith('开发评测接受') || line.startsWith('RSI 只用'))).toMatchSnapshot()
       expect(persona).toContain('绝不直接修改 records')
       expect(persona).not.toContain('run_task')
     } finally {

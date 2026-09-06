@@ -10,10 +10,10 @@
  * Board faces are mocked at the injected face.
  */
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import { RsiView, SeriesChart, TaskHeat, confirmLine, describeEvent, describeTried, fmtNum, roundSummary, treeLayout, usageLine } from '../src/client/RsiView.tsx'
+import { RsiView, TaskHeat, confirmLine, describeEvent, describeTried, fmtNum, roundSummary, usageLine } from '../src/client/RsiView.tsx'
 import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -22,6 +22,11 @@ const ok = (value: unknown): RemoteResult<unknown> => ({ ok: true, value })
 const t = (key: keyof typeof en, params?: Record<string, unknown>) =>
   en[key].replace(/\{(\w+)\}/g, (_, k: string) => String(params?.[k]))
 const sessions = ok([{ name: 'session-main', kinds: { 'runtime.boot': 1 } }])
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => { resolve = done })
+  return { promise, resolve }
+}
 
 describe('RsiView', () => {
   const campaign = {
@@ -59,6 +64,7 @@ describe('RsiView', () => {
       fetchSessions: vi.fn(() => Promise.resolve(sessions)),
       fetchRuntimeEvents: vi.fn(() => Promise.resolve(ok({ events, last_seq: 5 }))),
       fetchStores: vi.fn(() => Promise.resolve(ok([]))),
+      fetchRsiModelOptions: vi.fn(() => Promise.resolve(ok({ default_model: 'discovered-default', default_effort: 'off', models: [{ id: 'discovered-default' }, { id: 'choice-model' }], efforts: ['off', 'low', 'high', 'max'] }))),
       fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok(campaigns))),
       // The real face is BOUNDED: no round -> header + the compact tail; round=n
       // -> that ONE round in full, as a single-element `rounds`.
@@ -86,8 +92,91 @@ describe('RsiView', () => {
     render(<RsiView {...(p as unknown as Parameters<typeof RsiView>[0])} />)
   /** One campaign chip by task name. */
   const chip = (task: string) => within(screen.getByTestId('rsi-campaigns')).getByRole('button', { name: new RegExp(`^${task} ·`) })
-  const roundChips = () => within(screen.getByTestId('rsi-rounds')).queryAllByRole('button')
+  const roundChips = () => {
+    return Array.from(screen.getByTestId('rsi-rounds').querySelectorAll<HTMLButtonElement>('button[data-round]'))
+      .sort((a, b) => Number(a.dataset.round) - Number(b.dataset.round))
+  }
   const log = () => screen.getByTestId('rsi-log') as HTMLDetailsElement
+
+  it('shows provider defaults and omits unchosen model fields from the next brief', async () => {
+    const p = props({ fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok([]))) })
+    mount(p)
+    await screen.findByText(en['rsi.guide'])
+    fireEvent.click(screen.getByRole('tab', { name: en['rsi.tab.models'] }))
+    expect(screen.getByTestId('rsi-model-draft').textContent).toContain('Backend default (discovered-default)')
+    expect(screen.getByTestId('rsi-model-draft').textContent).toContain('Backend default (off)')
+    expect(screen.getByTestId('rsi-model-recorded').textContent).toContain(en['rsi.models.unrecorded'])
+    expect([...screen.getByRole('combobox', { name: en['rsi.models.effort'] }).querySelectorAll('option')].map(o => o.value)).toEqual(['', 'off', 'low', 'high', 'max'])
+    expect(p.submitBrief).not.toHaveBeenCalled()
+    fireEvent.keyDown(screen.getByRole('tab', { name: en['rsi.tab.models'] }), { key: 'ArrowLeft' })
+    expect(screen.getByRole('tab', { name: en['rsi.tab.run'] }).getAttribute('aria-selected')).toBe('true')
+    fireEvent.change(screen.getByPlaceholderText(en['evolve.taskHint']), { target: { value: 'new_task' } })
+    fireEvent.click(screen.getByRole('button', { name: en['evolve.start'] }))
+    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledOnce() })
+    expect(JSON.parse((p.submitBrief.mock.calls[0] as unknown as [string, string])[0])).toEqual({ kind: 'evolve', task: 'new_task', proposer: 'llm', continuous: true, rounds: 0 })
+  })
+
+  it('keeps model drafts across tabs and submits explicit choices only on resume', async () => {
+    const p = props({
+      fetchRsiRun: vi.fn(() => Promise.resolve(ok({ ...campaign, llm_config: { model: 'recorded-model', effort: 'low' } }))),
+    })
+    const { container } = mount(p)
+    await screen.findByTestId('rsi-dashboard')
+    fireEvent.click(screen.getByRole('tab', { name: en['rsi.tab.models'] }))
+    expect([...container.querySelectorAll('#ph-rsi-models option')].map(o => o.getAttribute('value'))).toEqual(['discovered-default', 'choice-model'])
+    fireEvent.change(screen.getByRole('combobox', { name: en['rsi.models.model'] }), { target: { value: ' custom/model ' } })
+    fireEvent.change(screen.getByRole('combobox', { name: en['rsi.models.effort'] }), { target: { value: 'high' } })
+    expect(screen.getByTestId('rsi-model-recorded').textContent).toContain('Model: recorded-model · effort: low')
+    expect(p.submitBrief).not.toHaveBeenCalled()
+    expect(p.cancelBrief).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('tab', { name: en['rsi.tab.run'] }))
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: en['evolve.start'] }).disabled).toBe(true)
+    fireEvent.click(chip('pack_lunch'))
+    fireEvent.click(screen.getByRole('tab', { name: en['rsi.tab.models'] }))
+    expect(screen.getByRole<HTMLInputElement>('combobox', { name: en['rsi.models.model'] }).value).toBe(' custom/model ')
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: en['rsi.models.effort'] }).value).toBe('high')
+    fireEvent.click(screen.getByRole('tab', { name: en['rsi.tab.run'] }))
+    fireEvent.click(screen.getByRole('button', { name: en['evolve.start'] }))
+    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledOnce() })
+    expect(JSON.parse((p.submitBrief.mock.calls[0] as unknown as [string, string])[0])).toMatchObject({ task: 'pack_lunch', llm_model: 'custom/model', llm_effort: 'high' })
+  })
+
+  it('keeps typed selections when discovery resolves late or refreshes', async () => {
+    const late = deferred<RemoteResult<unknown>>()
+    const p = props({ fetchRsiModelOptions: vi.fn(() => late.promise) })
+    mount(p)
+    await screen.findByTestId('rsi-dashboard')
+    fireEvent.click(screen.getByRole('tab', { name: en['rsi.tab.models'] }))
+    fireEvent.change(screen.getByRole('combobox', { name: en['rsi.models.model'] }), { target: { value: 'typed-before-discovery' } })
+    await act(async () => { late.resolve(ok({ default_model: 'new-default', default_effort: 'off', models: [{ id: 'new-default' }], efforts: ['off', 'max'] })) })
+    fireEvent.change(screen.getByRole('combobox', { name: en['rsi.models.effort'] }), { target: { value: 'max' } })
+    fireEvent.click(screen.getByRole('button', { name: en['rsi.models.refresh'] }))
+    await waitFor(() => { expect(p.fetchRsiModelOptions).toHaveBeenCalledTimes(2) })
+    expect(screen.getByRole<HTMLInputElement>('combobox', { name: en['rsi.models.model'] }).value).toBe('typed-before-discovery')
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: en['rsi.models.effort'] }).value).toBe('max')
+    expect(p.submitBrief).not.toHaveBeenCalled()
+  })
+
+  it.each(['discovery', 'transport'])('shows %s failures and permits an explicit model with default effort', async (failure) => {
+    const p = props({
+      fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok([]))),
+      fetchRsiModelOptions: vi.fn(() => Promise.resolve(failure === 'discovery'
+        ? ok({ default_model: null, default_effort: 'off', models: [], efforts: ['off', 'low'], error: 'provider unavailable' })
+        : { ok: false, error: { code: 'internal', message: 'provider unavailable', details: {} } })),
+    })
+    mount(p)
+    await screen.findByText(en['rsi.guide'])
+    fireEvent.click(screen.getByRole('tab', { name: en['rsi.tab.models'] }))
+    expect(screen.getByRole('alert').textContent).toContain('provider unavailable')
+    fireEvent.change(screen.getByRole('combobox', { name: en['rsi.models.model'] }), { target: { value: 'manual/model' } })
+    fireEvent.click(screen.getByRole('tab', { name: en['rsi.tab.run'] }))
+    fireEvent.change(screen.getByPlaceholderText(en['evolve.taskHint']), { target: { value: 'new_task' } })
+    fireEvent.click(screen.getByRole('button', { name: en['evolve.start'] }))
+    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledOnce() })
+    const brief = JSON.parse((p.submitBrief.mock.calls[0] as unknown as [string, string])[0]) as { llm_model?: string; llm_effort?: string }
+    expect(brief.llm_model).toBe('manual/model')
+    expect(brief).not.toHaveProperty('llm_effort')
+  })
 
   it('lists campaigns off rsiCampaigns, then tells the picked one: strip, round beats, clips, folded log', async () => {
     const p = props()
@@ -104,15 +193,13 @@ describe('RsiView', () => {
     await waitFor(() => { expect(chip('kitchen_thaw').getAttribute('aria-pressed')).toBe('true') })
     expect((screen.getByPlaceholderText(en['evolve.taskHint']) as HTMLInputElement).value).toBe('kitchen_thaw')
     expect((screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement).disabled).toBe(false)
-    await waitFor(() => { expect(container.querySelectorAll('polyline')).toHaveLength(4) })
+    await waitFor(() => { expect(roundChips()).toHaveLength(2) })
     expect(p.fetchRsiRun).toHaveBeenCalledWith('session-main', 'kitchen_thaw')
     expect(p.fetchRsiRun).not.toHaveBeenCalledWith('session-main', 'pack_lunch')
     expect(p.fetchRsiSeries).toHaveBeenCalledWith('session-main', 'kitchen_thaw')
-    // Chart: a 0–100% axis, one x label per round, a three-entry legend; rows without node_rate fall back to k/n·100.
-    expect([...container.querySelectorAll('text[data-axis="y"]')].map(e => e.textContent)).toEqual(['0%', '25%', '50%', '75%', '100%'])
-    expect([...container.querySelectorAll('text[data-axis="x"]')].map(e => e.textContent)).toEqual(['Round 1', 'Round 2'])
-    expect(container.querySelectorAll('[data-legend]')).toHaveLength(3)
-    expect(container.querySelector('polyline[data-series="best"]')?.getAttribute('points')).toMatch(/^26,[\d.]+ 312,[\d.]+$/)
+    // Historical scalar/node diagnostics do not become comparable learning measurements.
+    expect(container.querySelectorAll('[data-point]')).toHaveLength(0)
+    expect([...container.querySelectorAll('text[data-axis="x"]')].map(e => e.textContent)).toEqual(['1', '2'])
     // No by_task on these rows: no heat strip; the round card carries no summary line either.
     expect(screen.queryByTestId('rsi-heat')).toBeNull()
     expect(screen.queryByTestId('rsi-round-summary')).toBeNull()
@@ -120,7 +207,8 @@ describe('RsiView', () => {
     const status = screen.getByTestId('rsi-status')
     expect(status.textContent).toBe(en['rsi.noLive'])
     expect(container.querySelector('[aria-current="step"]')).toBeNull()
-    // Hypothesis tree: one node per finished round, none dashed; the latest is selected.
+    // The recent round table stays visible; detail evidence remains folded separately.
+    expect(screen.getByText('2 → 2 (best 2)').closest('details')).toBeNull()
     const chips = roundChips()
     expect(chips).toHaveLength(2)
     expect(container.querySelector('[data-running="true"]')).toBeNull()
@@ -155,7 +243,9 @@ describe('RsiView', () => {
     expect(video.getAttribute('src')).toBe('/api/board/media/session-main/media/kitchen_thaw/1/grasp-0.mp4')
     expect(video.hasAttribute('controls')).toBe(true)
     expect(video.getAttribute('preload')).toBe('metadata')
-    expect(container.querySelector('figcaption')?.textContent).toBe('grasp-0')
+    expect(within(screen.getByTestId('rsi-media-gallery')).getByRole('button', {
+      name: 'media/kitchen_thaw/1/grasp-0.mp4',
+    }).getAttribute('aria-pressed')).toBe('true')
     expect(p.fetchRsiFrames).toHaveBeenCalledWith('session-main', 'kitchen_thaw', 1)
     expect(screen.getByText(/verify_failed/)).toBeTruthy()
     // The dropped node shows its reason and at most three keyframe stills off the byte route.
@@ -167,11 +257,95 @@ describe('RsiView', () => {
       '/api/board/media/session-main/media/kitchen_thaw/2/grasp-0-002.jpg',
     ])
     // Round 1's card: the 确认 beat and the usage line.
-    expect(screen.getByTestId('rsi-confirm').textContent).toBe(`${en['rsi.confirm']}Confirm seeds 4247,4248 · 0/2 → 1/2 · passed`)
+    expect(screen.getByTestId('rsi-confirm').textContent).toBe(`${en['rsi.confirm']}Confirm seeds 4247,4248 · 0/2 → 1/2 · historically published`)
     expect(screen.getByTestId('rsi-usage').textContent).toBe('LLM tokens 1.2k · sim 164 s')
     // Stop cancels the campaign's open_brief.
     fireEvent.click(screen.getByRole('button', { name: en['evolve.stop'] }))
     await waitFor(() => { expect(p.cancelBrief).toHaveBeenCalledWith('b-evolve', 'session-main') })
+  })
+
+  it('keeps every clip reachable through one main media player', async () => {
+    const paths = ['reach.mp4', 'grasp.mp4', 'carry.mp4', 'drop.mp4', 'final.png', 'detail.jpg']
+      .map(name => `media/kitchen_thaw/2/${name}`)
+    const p = props({ fetchRsiFrames: vi.fn(() => Promise.resolve(ok({ media: paths, dropped: {} }))) })
+    mount(p)
+    const gallery = await screen.findByTestId('rsi-media-gallery')
+    expect(within(gallery).getAllByRole('button')).toHaveLength(paths.length)
+    for (const path of paths) {
+      const button = within(gallery).getByRole('button', { name: path })
+      fireEvent.click(button)
+      const media = gallery.querySelectorAll('video, img')
+      expect(media).toHaveLength(1)
+      expect(media[0]?.getAttribute('src')).toBe(`/api/board/media/session-main/${path}`)
+      expect(media[0]?.tagName).toBe(path.endsWith('.mp4') ? 'VIDEO' : 'IMG')
+      expect(button.getAttribute('aria-pressed')).toBe('true')
+      expect(within(gallery).getAllByRole('button').filter(b => b.getAttribute('aria-pressed') === 'true')).toHaveLength(1)
+    }
+  })
+
+  it('clears the selected clip while another round loads and selects that round’s own media', async () => {
+    const firstRound = deferred<RemoteResult<unknown>>()
+    const paths = ['media/kitchen_thaw/2/reach.mp4', 'media/kitchen_thaw/2/drop.mp4'] as const
+    const fetchRsiFrames = vi.fn((_s: string, _t: string, round: number) => round === 1
+      ? firstRound.promise
+      : Promise.resolve(ok({ media: paths, dropped: {} })))
+    mount(props({ fetchRsiFrames }))
+    const gallery = await screen.findByTestId('rsi-media-gallery')
+    fireEvent.click(within(gallery).getByRole('button', { name: paths[1] }))
+    expect(gallery.querySelector('video')?.getAttribute('src')).toContain(paths[1])
+    fireEvent.click(roundChips()[0] as HTMLElement)
+    await waitFor(() => { expect(fetchRsiFrames).toHaveBeenCalledWith('session-main', 'kitchen_thaw', 1) })
+    expect(screen.queryByTestId('rsi-media-gallery')).toBeNull()
+    const nextPath = 'media/kitchen_thaw/1/reach.mp4'
+    await act(async () => { firstRound.resolve(ok({ media: [nextPath], dropped: {} })) })
+    const nextGallery = await screen.findByTestId('rsi-media-gallery')
+    expect(nextGallery.querySelectorAll('video, img')).toHaveLength(1)
+    expect(nextGallery.querySelector('video')?.getAttribute('src')).toBe(`/api/board/media/session-main/${nextPath}`)
+    expect(within(nextGallery).getByRole('button', { name: nextPath }).getAttribute('aria-pressed')).toBe('true')
+    for (const path of paths) expect(within(nextGallery).queryByRole('button', { name: path })).toBeNull()
+  })
+
+  it('keeps round media and logs beside development evidence and uses accepted trial ancestry', async () => {
+    const evaluation = {
+      protocol_id: 'fixed-obligations-v1', objective_id: 'kitchen_thaw',
+      before: { successes: 0, episodes: 2, progress: 0.25, obligations: 4 },
+      after: { successes: 0, episodes: 2, progress: 0.5, obligations: 4 },
+      acceptance: { accepted: true, reason: 'fixed objective improved' },
+      installation: { status: 'not_evaluated', reason: 'battery not run' },
+    }
+    const rows = campaign.rounds.map(r => ({ ...r, published: false, accepted: true, evaluation }))
+    const p = props({
+      fetchRsiRun: vi.fn((_s: string, _task: string, round?: number) => Promise.resolve(ok({
+        ...campaign, rounds: round ? rows.filter(r => r.round === round) : rows,
+      }))),
+      fetchRsiSeries: vi.fn(() => Promise.resolve(ok(rows))),
+    })
+    const { container } = mount(p)
+    await waitFor(() => { expect(screen.getByTestId('rsi-acceptance').textContent).toContain('Accepted') })
+    expect(screen.getByTestId('rsi-installation').textContent).toContain('Installation not evaluated')
+    expect(screen.queryByText(en['rsi.published'])).toBeNull()
+    expect(container.querySelectorAll('[data-accepted="true"]')).toHaveLength(2)
+    fireEvent.click(roundChips()[0]!)
+    await waitFor(() => { expect(container.querySelector('video')).toBeTruthy() })
+    expect(screen.getByText(en['rsi.saw'])).toBeTruthy()
+    expect(screen.getByTestId('rsi-log')).toBeTruthy()
+  })
+
+  it('keeps media and analysis in separate dashboard panels with operational logs outside', async () => {
+    const p = props()
+    mount(p)
+    await waitFor(() => { expect(chip('kitchen_thaw')).toBeTruthy() })
+    fireEvent.click(roundChips()[0]!)
+    await waitFor(() => { expect(screen.getByTestId('rsi-live-panel').querySelector('video')).toBeTruthy() })
+    const dashboard = screen.getByTestId('rsi-dashboard')
+    const media = within(dashboard).getByTestId('rsi-live-panel')
+    const analysis = within(dashboard).getByTestId('rsi-analysis-panel')
+    expect(media.querySelector('video')?.getAttribute('src')).toContain('grasp-0.mp4')
+    expect(media.querySelector('[data-testid="rsi-dropped"] img')).toBeTruthy()
+    expect(analysis.querySelector('[data-testid="rsi-rounds"]')).toBeTruthy()
+    expect(analysis.textContent).toContain('grasp-0 stalls on seed 2')
+    expect(analysis.textContent).toContain('1.2k')
+    expect(dashboard.contains(screen.getByTestId('rsi-log'))).toBe(false)
   })
 
   it('keeps the list (and Stop) after a restart emptied the runtime feed', async () => {
@@ -219,11 +393,27 @@ describe('RsiView', () => {
     // Tree: two finished rounds plus the dashed running one, in round 1's lane (the last published).
     expect(roundChips()).toHaveLength(3)
     const runningNode = container.querySelector('[data-running="true"]') as HTMLElement
-    expect(runningNode.getAttribute('title')).toBe('Round 3 · grasp-0: reach_tol 0.03 → 0.036 · — → —')
-    expect(runningNode.getAttribute('data-lane')).toBe('1')
+    expect(runningNode.textContent).toBe('Round 3 · running')
     // The live frame polls runtimeFrame and lands in the <img>.
     await waitFor(() => { expect(p.fetchRuntimeFrame).toHaveBeenCalledWith('session-main', 0) })
     await waitFor(() => { expect((container.querySelector('img') as HTMLImageElement).src).toBe('data:image/jpeg;base64,AAAA') })
+  })
+
+  it('keeps additional development-seed confirmation live without showing the original seed range', async () => {
+    const live = {
+      phase: 'confirm', round: 3, seeds_total: 2, seed_index: 1, seed: 4248,
+      node: 'grasp-0', round_started_at: Date.now() / 1000 - 10,
+      per_seed_partial: [{ seed: 4247, success: false, first_death: 'grasp-0' }],
+      message: 'additional development pass',
+    }
+    const p = props({ fetchRsiRun: vi.fn(() => Promise.resolve(ok({ ...campaign, live }))) })
+    const { container } = mount(p)
+    await waitFor(() => { expect(container.querySelector('[aria-current="step"]')?.getAttribute('data-phase')).toBe('confirm') })
+    expect(container.querySelector('[aria-current="step"]')?.textContent).toBe('Additional development seeds')
+    expect(screen.queryByText(en['rsi.noLive'])).toBeNull()
+    expect(screen.getByTestId('rsi-seed-board').textContent).toBe('4247 ✗ died at grasp-04248 running')
+    expect(screen.getByTestId('rsi-status').textContent).not.toMatch(/held.?out/i)
+    await waitFor(() => { expect(p.fetchRuntimeFrame).toHaveBeenCalled() })
   })
 
   it('renders a failed seed with its first death and mode, and no ETA on the first round', async () => {
@@ -284,6 +474,13 @@ describe('RsiView', () => {
     const p = props({ fetchRsiRun: vi.fn((_s: string, task: string) => Promise.resolve(ok(task === 'kitchen_thaw' ? { ...campaign, rounds, latest: rounds[0] } : null))) })
     mount(p)
     await waitFor(() => { expect(screen.getByTestId('rsi-matrix-Baseline')).toBeTruthy() })
+    const evidence = screen.getByTestId('rsi-seed-evidence') as HTMLDetailsElement
+    expect(evidence.open).toBe(false)
+    expect(evidence.querySelector('summary')?.textContent).toBe(en['rsi.saw'])
+    expect(evidence.querySelectorAll('table')).toHaveLength(2)
+    fireEvent.click(evidence.querySelector('summary') as HTMLElement)
+    expect(evidence.open).toBe(true)
+    expect(within(evidence).getAllByRole('table')).toHaveLength(2)
     const cells = (id: string) => [...screen.getByTestId(id).querySelectorAll('tbody td')].map(e => e.textContent)
     expect([...screen.getByTestId('rsi-matrix-Baseline').querySelectorAll('th')].map(e => e.textContent)).toEqual(['Seed', 'reach-0', 'grasp-0', 'place-0', 'Elapsed'])
     expect(cells('rsi-matrix-Baseline')).toEqual(['1', '✓', '✗', '–', '42s', '2', '✓', '✓', '✓', '1m'])
@@ -319,6 +516,7 @@ describe('RsiView', () => {
     expect(screen.queryByTestId('rsi-rationale')).toBeNull()
     const triedBeat = () => screen.getByText(en['rsi.tried']).parentElement as HTMLElement
     expect(triedBeat().querySelector('[data-proposer]')?.getAttribute('data-proposer')).toBe('rules')
+    expect(triedBeat().textContent).toContain('Historical rules')
     fireEvent.click(roundChips()[0] as HTMLElement)
     expect(screen.getByTestId('rsi-analysis').textContent).toBe(`${en['rsi.analysis']}grasp-0 stalls on seed 2`)
     expect(screen.getByTestId('rsi-analysis').nextElementSibling?.textContent).toMatch(new RegExp(`^${en['rsi.saw']}`))
@@ -328,7 +526,98 @@ describe('RsiView', () => {
     expect(roundChips().map(c => c.getAttribute('data-proposer'))).toEqual(['llm', 'rules'])
   })
 
-  it('hypothesis tree: lanes by parent, green ring on published, grey on same / worse / none, edges parent → child, a node picks the round', async () => {
+  it.each([
+    ['proposed', 'Candidate proposed', 'executor', undefined],
+    ['abstained', 'Model abstained', 'none', 'model_stop'],
+    ['abstained', 'No candidate proposed this round', 'none', 'repeated_invalid_command'],
+    ['abstained', 'No candidate proposed this round', 'none', 'future_guard'],
+    ['abstained', 'No candidate proposed this round', 'none', undefined],
+    ['rejected', 'Candidate validation budget exhausted', 'none', undefined],
+  ])('renders model status %s without treating none as a provider failure (%s)', async (status, label, kind, stop_reason) => {
+    const r = { round: 3, proposer: 'llm', outcome: kind === 'none' ? 'none' : 'same',
+      tried: { kind, detail: { reason: 'recorded reason' } },
+      llm: { status, stop_reason, summary: '', reason: 'recorded reason', model: 'deepseek-chat', prompt_sha: 'prompt-3', attempts: [{ attempt: 1, validation: 'observed' }] } }
+    const settled = { ...campaign, status: 'done', latest: r, rounds: [r] }
+    mount(props({
+      fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok([{ ...campaigns[0], status: 'done', open_brief: null }]))),
+      fetchRsiRun: vi.fn(() => Promise.resolve(ok(settled))),
+    }))
+    await waitFor(() => { expect(screen.getByTestId('rsi-llm-status').textContent).toBe(label) })
+    expect(screen.queryByTestId('rsi-failure')).toBeNull()
+    expect(screen.queryByTestId('rsi-llm-error')).toBeNull()
+    expect(screen.queryByTestId('rsi-analysis')).toBeNull()
+    if (stop_reason !== undefined) expect(screen.getByTestId('rsi-llm-stop').textContent).toBe(`Stop reason ${stop_reason}`)
+    const audit = screen.getByTestId('rsi-llm-audit')
+    expect(audit.textContent).toContain('Model deepseek-chat · Prompt digest prompt-3')
+    expect(JSON.parse(audit.querySelector('pre')?.textContent ?? '{}').attempts).toEqual([{ attempt: 1, validation: 'observed' }])
+  })
+
+  it('renders sealed model-call failure with its stage and error; it never looks like a normal none result', async () => {
+    const r = { round: 3, proposer: 'llm', outcome: 'error', tried: { kind: 'none', detail: { reason: 'model_endpoint' } },
+      needs: ['model_endpoint'], llm: { status: 'error', reason: 'provider unavailable', model: 'deepseek-chat', prompt_sha: 'prompt-3',
+        error: { type: 'HTTPError', message: '402 Payment Required', stage: 'request' } } }
+    const settled = { ...campaign, status: 'failed', latest: r, rounds: [r], live: { phase: 'failed', message: 'model_endpoint failed' } }
+    const p = props({
+      fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok([{ ...campaigns[0], status: 'failed', open_brief: null }]))),
+      fetchRsiRun: vi.fn(() => Promise.resolve(ok(settled))),
+    })
+    mount(p)
+    await waitFor(() => { expect(screen.getByTestId('rsi-llm-status').textContent).toBe('Model call failed') })
+    expect(screen.getByTestId('rsi-failure').textContent).toBe('Run failed · model_endpoint failed')
+    expect(chip('kitchen_thaw').textContent).toContain('Run failed')
+    expect(screen.getByTestId('rsi-llm-error').textContent).toBe('Stage request · HTTPError · 402 Payment Required')
+    expect(log().open).toBe(true)
+    expect(screen.queryByTestId('rsi-status')).toBeNull()
+    expect(p.fetchRuntimeFrame).not.toHaveBeenCalled()
+    expect(screen.getByTestId('rsi-llm-audit').textContent).toContain('provider unavailable')
+  })
+
+  it('shows request budgets in bytes and exploratory calls without inventing missing token usage', async () => {
+    const llm = { method: 'online_program_policy_v1', status: 'abstained', calls: 3, evidence_reads: 0, evidence_refs: [], trial_calls: 2, stop_reason: 'budget_exhausted', usage_complete: false,
+      budget: { limits: {
+        max_calls: 8, max_request_bytes: 24000, max_input_bytes: 96000,
+        max_tool_bytes: 8000, max_read_calls: 2, max_output_tokens: 4096,
+      },
+      used: { calls: 3, input_bytes: 85000, tool_bytes: 9000, output_tokens: null }, usage_complete: false } }
+    const r = { round: 3, proposer: 'llm', tried: { kind: 'none' }, llm, usage: { llm_tokens: null }, evaluation: { before: { progress: 0.2 }, after: null },
+      run_budget: { scope: 'submitted_brief', limits: { model_calls: 12, input_bytes: 192000, probe_episodes: 6, output_tokens_per_call: 4096 },
+        used: { model_calls: 9, input_bytes: 180000, probe_episodes: 4, full_evaluations: 1 } } }
+    mount(props({
+      fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok([{ ...campaigns[0], status: 'done', open_brief: null }]))),
+      fetchRsiRun: vi.fn(() => Promise.resolve(ok({ ...campaign, latest: r, rounds: [r], status: 'done' }))),
+    }))
+    await waitFor(() => { expect(screen.getByTestId('rsi-llm-counts').textContent).toBe('Model calls 3/8 · evidence reads 0 · exploratory trials 2') })
+    expect(screen.getByTestId('rsi-llm-budget').textContent).toContain('Total request 85000/96000 B · per-request limit 24000 B · total tool results 9000 B (per-result limit 8000 B)')
+    expect(screen.getByTestId('rsi-llm-budget').textContent).toContain('Total output — tokens · per-call output limit 4096 tokens')
+    expect(screen.getByTestId('rsi-llm-budget').textContent).toContain('Model token usage is incomplete')
+    expect(screen.getByTestId('rsi-llm-read-limit').textContent).toBe('Batched read-call limit between newly measured probes: 2; cached results and errors do not reset it')
+    expect(screen.getByTestId('rsi-llm-stop').textContent).toBe('Stop reason budget_exhausted')
+    expect(screen.getByTestId('rsi-llm-status').textContent).toBe('Model decision budget exhausted')
+    expect(screen.queryByTestId('rsi-llm-error')).toBeNull()
+    expect(screen.getByRole('columnheader', { name: 'after · Not retested' })).toBeTruthy()
+    expect(screen.getByTestId('rsi-run-budget').textContent).toBe('Cumulative budget for this submitted briefModel calls 9/12 · input 180000/192000 B · probe episodes 4/6Full candidate evaluations 1 · per-call output limit 4096 tokens')
+    expect(JSON.parse(screen.getByTestId('rsi-llm-audit').querySelector('pre')?.textContent ?? '{}')).toEqual(llm)
+  })
+
+  it('keeps unknown loop counters and budgets distinct from recorded zero values', async () => {
+    const r = { round: 3, llm: { method: 'online_program_policy_v1', evidence_reads: null, trial_calls: 0, budget: { used: { calls: 0, input_bytes: null } } }, run_budget: {} }
+    mount(props({ fetchRsiRun: vi.fn(() => Promise.resolve(ok({ ...campaign, latest: r, rounds: [r] }))) }))
+    await waitFor(() => { expect(screen.getByTestId('rsi-llm-counts').textContent).toBe('Model calls 0/— · evidence reads — · exploratory trials 0') })
+    expect(screen.getByTestId('rsi-llm-budget').textContent).toContain('Total request —/— B')
+    expect(screen.queryByTestId('rsi-llm-read-limit')).toBeNull()
+    expect(screen.queryByTestId('rsi-llm-stop')).toBeNull()
+    expect(screen.getByTestId('rsi-run-budget').textContent).toContain('Budget scope —Model calls —/— · input —/— B · probe episodes —/—')
+  })
+
+  it.each([0, null])('renders an explicit read limit of %s without filling unknown values', async (limit) => {
+    const r = { round: 3, llm: { budget: { limits: { max_read_calls: limit } } } }
+    mount(props({ fetchRsiRun: vi.fn(() => Promise.resolve(ok({ ...campaign, latest: r, rounds: [r] }))) }))
+    await waitFor(() => { expect(screen.getByTestId('rsi-llm-budget')).toBeTruthy() })
+    if (limit === null) expect(screen.queryByTestId('rsi-llm-read-limit')).toBeNull()
+    else expect(screen.getByTestId('rsi-llm-read-limit').textContent).toContain('probes: 0;')
+  })
+
+  it('round table selects details and does not treat historical publication as acceptance', async () => {
     const rounds = [
       { round: 1, parent: 0, outcome: 'improved', published: true, before: 1, after: 2, best: 2, tried: { kind: 'executor', node: 'grasp-0', detail: { to: 'pi05' } } },
       { round: 2, parent: 1, outcome: 'same', published: false, before: 2, after: 2, best: 2, tried: { kind: 'card', node: 'grasp-0', detail: { to: 'c1' } } },
@@ -346,16 +635,14 @@ describe('RsiView', () => {
     const { container } = mount(p)
     await waitFor(() => { expect(roundChips()).toHaveLength(5) })
     const nodes = roundChips()
-    expect(nodes.map(n => n.getAttribute('data-lane'))).toEqual(['0', '1', '1', '1', '2'])
-    expect(nodes.map(n => n.getAttribute('data-published'))).toEqual(['true', null, null, 'true', null])
+    expect(nodes.every(n => n.getAttribute('data-accepted') === null)).toBe(true)
     expect(nodes.map(n => n.getAttribute('data-outcome'))).toEqual(['improved', 'same', 'worse', 'improved', 'none'])
-    expect([...container.querySelectorAll('[data-edge]')].map(e => e.getAttribute('data-edge'))).toEqual(['1-2', '1-3', '1-4', '4-5'])
+    expect(container.querySelector('[data-edge]')).toBeNull()
     expect(nodes[4]?.getAttribute('aria-pressed')).toBe('true')
     fireEvent.click(nodes[2] as HTMLElement)
     expect(nodes[2]?.getAttribute('aria-pressed')).toBe('true')
     expect(screen.getByText('2 → 1 (best 2)')).toBeTruthy()
-    // Legacy rows without parent all share lane 0.
-    expect(treeLayout([{ round: 2 }, { round: 1 }]).map(n => [n.round, n.x, n.lane])).toEqual([[1, 0, 0], [2, 1, 0]])
+
   })
 
   it('status card: while the phase is propose the 试 step reads LLM 分析中 with the message line', async () => {
@@ -396,6 +683,107 @@ describe('RsiView', () => {
     expect(screen.getByText('1 → 2 (best 2)')).toBeTruthy()
   })
 
+  it('loads sealed evidence and media for a round selected while still running', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      let sealed = false
+      const completed = { ...campaign.rounds[0], round: 3,
+        llm: { summary: 'sealed exploratory feedback', calls: 3 } }
+      const p = props({
+        fetchRsiRun: vi.fn((_s: string, _task: string, round?: number) => Promise.resolve(ok({
+          ...campaign, live: sealed ? null : { phase: 'retest', round: 3, message: 'probe running' },
+          rounds: round === 3 ? (sealed ? [completed] : []) : campaign.rounds,
+        }))),
+        fetchRsiSeries: vi.fn(() => Promise.resolve(ok(sealed ? [...campaign.rounds, completed] : campaign.rounds))),
+        fetchRsiFrames: vi.fn((_s: string, _task: string, round: number) => Promise.resolve(ok(
+          sealed && round === 3 ? { media: ['media/kitchen_thaw/3/probe.mp4'], dropped: {} } : [],
+        ))),
+      })
+      const { container } = mount(p)
+      await waitFor(() => { expect(roundChips()).toHaveLength(3) })
+      fireEvent.click(roundChips()[2] as HTMLElement)
+      await waitFor(() => { expect(p.fetchRsiRun).toHaveBeenCalledWith('session-main', 'kitchen_thaw', 3) })
+      expect(screen.queryByTestId('rsi-analysis')).toBeNull()
+      sealed = true
+      await act(async () => { await vi.advanceTimersByTimeAsync(2100) })
+      await waitFor(() => { expect(screen.getByTestId('rsi-analysis').textContent).toContain('sealed exploratory feedback') })
+      await waitFor(() => { expect(container.querySelector('video')?.getAttribute('src')).toContain('/3/probe.mp4') })
+      expect(p.fetchRsiRun.mock.calls.filter(call => call[2] === 3)).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('hides the previous task during loading and ignores late full evidence and media from the same round number', async () => {
+    const row = (summary: string) => ({ round: 1, before: 0, after: 0, best: 0, proposer: 'llm',
+      tried: { kind: 'none', detail: { reason: summary } }, llm: { status: 'abstained', summary } })
+    const run = (task: string, summary: string) => ({ ...campaign, task, status: 'done', rounds: [row(summary)], latest: row(summary) })
+    const pendingCampaign = deferred<RemoteResult<unknown>>()
+    const pendingFull = deferred<RemoteResult<unknown>>()
+    const pendingMedia = deferred<RemoteResult<unknown>>()
+    const p = props({
+      fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok(campaigns.map(c => ({ ...c, status: 'done', cursor: 1, rounds: 1 }))))),
+      fetchRsiRun: vi.fn((_s: string, task: string, round?: number) => task === 'pack_lunch'
+        ? round === undefined ? pendingCampaign.promise : pendingFull.promise
+        : Promise.resolve(ok(run(task, round === undefined ? 'kitchen compact' : 'kitchen full')))),
+      fetchRsiSeries: vi.fn((_s: string, task: string) => Promise.resolve(ok([row(`${task} series`)]))),
+      fetchRsiFrames: vi.fn((_s: string, task: string) => task === 'pack_lunch' ? pendingMedia.promise
+        : Promise.resolve(ok(['media/kitchen_thaw/1/clip.mp4']))),
+    })
+    const { container } = mount(p)
+    await waitFor(() => { expect(screen.getByTestId('rsi-analysis').textContent).toContain('kitchen full') })
+    await waitFor(() => { expect(container.querySelector('video')?.getAttribute('src')).toContain('/kitchen_thaw/') })
+    fireEvent.click(chip('pack_lunch'))
+    expect(screen.getByTestId('rsi-loading')).toBeTruthy()
+    expect(screen.queryByTestId('rsi-analysis')).toBeNull()
+    expect(screen.queryByTestId('rsi-rounds')).toBeNull()
+    expect(container.querySelector('video')).toBeNull()
+    await act(async () => { pendingCampaign.resolve(ok(run('pack_lunch', 'pack compact'))) })
+    await waitFor(() => { expect(p.fetchRsiRun).toHaveBeenCalledWith('session-main', 'pack_lunch', 1) })
+    expect(screen.getByTestId('rsi-analysis').textContent).toContain('pack compact')
+    expect(screen.getByTestId('rsi-analysis').textContent).not.toContain('kitchen full')
+    expect(container.querySelector('video')).toBeNull()
+    fireEvent.click(chip('kitchen_thaw'))
+    await waitFor(() => { expect(screen.getByTestId('rsi-analysis').textContent).toContain('kitchen full') })
+    await act(async () => {
+      pendingFull.resolve(ok(run('pack_lunch', 'late pack full')))
+      pendingMedia.resolve(ok(['media/pack_lunch/1/late.mp4']))
+    })
+    expect(screen.getByTestId('rsi-analysis').textContent).toContain('kitchen full')
+    expect(container.textContent).not.toContain('late pack full')
+    expect(container.querySelector('video')?.getAttribute('src')).toContain('/kitchen_thaw/')
+  })
+
+  it('rejects an old campaign response after switching away and revisiting the same task', async () => {
+    const pendingFirst = deferred<RemoteResult<unknown>>()
+    let kitchenReads = 0
+    const run = (task: string, marker: string) => {
+      const r = { round: 1, before: 0, after: 0, best: 0, proposer: 'llm',
+        tried: { kind: 'none', detail: { reason: marker } }, llm: { status: 'abstained', summary: marker } }
+      return { ...campaign, task, status: 'done', rounds: [r], latest: r }
+    }
+    const p = props({
+      fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok(campaigns.map(c => ({ ...c, status: 'done', cursor: 1, rounds: 1 }))))),
+      fetchRsiRun: vi.fn((_s: string, task: string, round?: number) => {
+        if (round !== undefined) return Promise.resolve(ok(null))
+        if (task === 'kitchen_thaw' && ++kitchenReads === 1) return pendingFirst.promise
+        return Promise.resolve(ok(run(task, `${task} fresh`)))
+      }),
+      fetchRsiSeries: vi.fn(() => Promise.resolve(ok([]))),
+      fetchRsiFrames: vi.fn(() => Promise.resolve(ok([]))),
+    })
+    const { container } = mount(p)
+    await waitFor(() => { expect(kitchenReads).toBe(1) })
+    fireEvent.click(chip('pack_lunch'))
+    await waitFor(() => { expect(screen.getByTestId('rsi-analysis').textContent).toContain('pack_lunch fresh') })
+    fireEvent.click(chip('kitchen_thaw'))
+    await waitFor(() => { expect(screen.getByTestId('rsi-analysis').textContent).toContain('kitchen_thaw fresh') })
+    await act(async () => { pendingFirst.resolve(ok(run('kitchen_thaw', 'stale initial response'))) })
+    expect(screen.getByTestId('rsi-analysis').textContent).toContain('kitchen_thaw fresh')
+    expect(container.textContent).not.toContain('stale initial response')
+    expect(chip('kitchen_thaw').getAttribute('aria-pressed')).toBe('true')
+  })
+
   it('the chart and heat strip render off the COMPACT series rows alone', async () => {
     // No per_seed / after_seeds / llm anywhere in these rows: the shape the
     // bounded face actually returns.
@@ -408,11 +796,9 @@ describe('RsiView', () => {
         node_rate: { before: 0.75, after: 0.75, best: 0.75 }, by_task: { grasp: { before: 1, after: 0.5 } } },
     ]
     const { container } = mount(props({ fetchRsiSeries: vi.fn(() => Promise.resolve(ok(rows))) }))
-    await waitFor(() => { expect(container.querySelector('polyline[data-series="best"]')).toBeTruthy() })
+    await waitFor(() => { expect(screen.getByTestId('rsi-heat')).toBeTruthy() })
     expect(screen.queryByTestId('rsi-face-error')).toBeNull()
-    // best rides node_rate (0.75 -> y 32 on the 8..104 plot band), not the k/n fallback (which would be y 40)
-    const y = (pts: string) => pts.split(' ').map(pt => Number(pt.split(',')[1]))
-    expect(y(container.querySelector('polyline[data-series="best"]')?.getAttribute('points') ?? '')).toEqual([32, 32])
+    expect(container.querySelectorAll('[data-point]')).toHaveLength(0)
     // the heat strip reads by_task off the same rows
     const cells = [...screen.getByTestId('rsi-heat').querySelectorAll('td[data-task="grasp"]')]
     expect(cells.map(c => c.getAttribute('data-rate'))).toEqual(['1', '0.5'])
@@ -439,7 +825,39 @@ describe('RsiView', () => {
     expect(screen.getByText('view:battle')).toBeTruthy()
   })
 
-  it('needs a task to start, then submits the task-only evolve brief; stop is disabled with no open brief', async () => {
+  it('preserves the pending brief when cancellation fails and allows retry', async () => {
+    const cancelBrief = vi.fn()
+      .mockResolvedValueOnce({ ok: false, error: { code: 'internal', message: 'cancel marker write failed', details: {} } })
+      .mockResolvedValueOnce(ok({ brief_id: 'b-new', requested: true }))
+    const p = props({ fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok([]))), cancelBrief })
+    mount(p)
+    await screen.findByText(en['rsi.guide'])
+    fireEvent.change(screen.getByPlaceholderText(en['evolve.taskHint']), { target: { value: 'kitchen_thaw' } })
+    fireEvent.click(screen.getByRole('button', { name: en['evolve.start'] }))
+    await waitFor(() => { expect(screen.getByTestId('rsi-pending').textContent).toContain('b-new') })
+    fireEvent.click(screen.getByRole('button', { name: en['evolve.stop'] }))
+    await screen.findByText('cancel marker write failed')
+    expect(screen.getByTestId('rsi-pending').textContent).toContain('b-new')
+    const stop = screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement
+    expect(stop.disabled).toBe(false)
+    fireEvent.click(stop)
+    await waitFor(() => { expect(screen.queryByTestId('rsi-pending')).toBeNull() })
+    expect(cancelBrief.mock.calls).toEqual([['b-new', 'session-main'], ['b-new', 'session-main']])
+    expect(screen.queryByText('cancel marker write failed')).toBeNull()
+  })
+
+  it('shows the submit RPC error without inventing a pending brief', async () => {
+    const submitBrief = vi.fn(() => Promise.resolve({ ok: false, error: { code: 'internal', message: 'inbox is read only', details: {} } }))
+    mount(props({ fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok([]))), submitBrief }))
+    await screen.findByText(en['rsi.guide'])
+    fireEvent.change(screen.getByPlaceholderText(en['evolve.taskHint']), { target: { value: 'kitchen_thaw' } })
+    fireEvent.click(screen.getByRole('button', { name: en['evolve.start'] }))
+    await screen.findByText('inbox is read only')
+    expect(screen.queryByTestId('rsi-pending')).toBeNull()
+    expect((screen.getByRole('button', { name: en['evolve.start'] }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('starts and resumes with LLM only; stop is disabled with no open brief', async () => {
     const p = props({
       fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok(campaigns.map(c => ({ ...c, open_brief: null }))))),
     })
@@ -456,15 +874,67 @@ describe('RsiView', () => {
     fireEvent.change(input, { target: { value: 'new_task' } })
     expect(start.disabled).toBe(false)
     fireEvent.click(start)
-    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"new_task","proposer":"llm"}', 'session-main') })
-    // Resume = pick the campaign chip (prefills its task) and press the same button; the 提议器 select rides the brief.
-    fireEvent.change(screen.getByLabelText(en['rsi.proposer']), { target: { value: 'rules' } })
+    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"new_task","proposer":"llm","continuous":true,"rounds":0}', 'session-main') })
+    expect(screen.getByTestId('rsi-proposer-policy').textContent).toBe(en['rsi.llmOnly'])
+    expect(screen.queryByRole('option', { name: en['rsi.proposer.rules'] })).toBeNull()
+    // Resuming a historical campaign still submits the LLM-only brief.
     fireEvent.click(chip('pack_lunch'))
     expect(input.value).toBe('pack_lunch')
     expect((screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: en['evolve.start'] }))
-    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"pack_lunch","proposer":"rules"}', 'session-main') })
+    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"pack_lunch","proposer":"llm","continuous":true,"rounds":0}', 'session-main') })
     expect(p.cancelBrief).not.toHaveBeenCalled()
+  })
+
+  it('offers an explicit finite cycle limit without enlarging model or sampling budgets', async () => {
+    const p = props({ fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok(campaigns.map(c => ({ ...c, status: 'done', open_brief: null }))))) })
+    mount(p)
+    await screen.findByRole('combobox', { name: 'Run mode' })
+    expect((screen.getByRole('combobox', { name: 'Run mode' }) as HTMLSelectElement).value).toBe('continuous')
+    expect(screen.getByTestId('rsi-mode-help').textContent).toContain('without updates')
+    fireEvent.change(screen.getByRole('combobox', { name: 'Run mode' }), { target: { value: 'finite' } })
+    const limit = screen.getByRole('spinbutton', { name: 'Cycle limit' })
+    fireEvent.change(limit, { target: { value: '0' } })
+    expect((screen.getByRole('button', { name: en['evolve.start'] }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(limit, { target: { value: '2.5' } })
+    expect((screen.getByRole('button', { name: en['evolve.start'] }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(limit, { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: en['evolve.start'] }))
+    await waitFor(() => { expect(p.submitBrief).toHaveBeenCalledWith('{"kind":"evolve","task":"kitchen_thaw","proposer":"llm","continuous":false,"rounds":3}', 'session-main') })
+  })
+
+  it('keeps the overall run active after a model stop and distinguishes cycle counters from cumulative resources', async () => {
+    const limits = { model_calls: 8, input_bytes: 96000, probe_episodes: 3, output_tokens_per_call: 4096 }
+    const cycle = { scope: 'learning_cycle', cycle: 2, limits, used: { model_calls: 1, input_bytes: 1000, probe_episodes: 0, full_evaluations: 0 } }
+    const total = { scope: 'submitted_brief', limits: { ...limits, model_calls: null, input_bytes: null, probe_episodes: null }, used: { model_calls: 9, input_bytes: 31000, probe_episodes: 2, full_evaluations: 1 } }
+    const r = { round: 3, cycle_outcome: 'abstained', stop_reason: 'model_stop', cycle_budget: { ...cycle, cycle: 1 }, run_budget: { ...total, used: { ...total.used, model_calls: 8 } },
+      llm: { status: 'abstained', stop_reason: 'model_stop' }, after: null, after_seeds: [] }
+    mount(props({ fetchRsiRun: vi.fn(() => Promise.resolve(ok({
+      ...campaign, continuous: true, stop_reason: null, cycle_budget: cycle, run_budget: total,
+      latest: r, rounds: [r], live: { phase: 'backoff', cycle: 2, retry_at: Date.now() / 1000 + 30, message: 'No update; continuing.' },
+    }))) }))
+    await screen.findByTestId('rsi-cycle-backoff')
+    expect(screen.getByTestId('rsi-run-state').textContent).toContain('Current cycle 2 · Overall run is still active')
+    expect(screen.getByTestId('rsi-cycle-backoff').textContent).toContain('continuing to the next cycle')
+    expect(screen.getByTestId('rsi-live-cycle-budget').textContent).toContain('Model calls 1/8')
+    expect(screen.getByTestId('rsi-live-run-budget').textContent).toContain('Model calls 9/no total cap')
+    expect(screen.getByTestId('rsi-run-budget').textContent).toContain('Model calls 8/no total cap')
+    expect(screen.getByTestId('rsi-cycle-outcome').textContent).toContain('Cycle stop reason model_stop')
+    expect(screen.getByTestId('rsi-run-state').textContent).not.toContain('Overall stop reason')
+    expect((screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: en['evolve.start'] }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it.each([['cancelled', 'cancelled'], ['failed', 'model_error'], ['done', 'round_limit']])('shows an overall %s reason independently of the last model stop', async (status, stop_reason) => {
+    mount(props({
+      fetchRsiCampaigns: vi.fn(() => Promise.resolve(ok(campaigns.map(c => ({ ...c, status, open_brief: null }))))),
+      fetchRsiRun: vi.fn(() => Promise.resolve(ok({ ...campaign, status, continuous: stop_reason !== 'round_limit', stop_reason, cycle_budget: { cycle: 3 }, live: null }))),
+    }))
+    await screen.findByTestId('rsi-run-state')
+    expect(screen.getByTestId('rsi-run-state').textContent).toContain(`Overall stop reason ${stop_reason}`)
+    expect(screen.getByTestId('rsi-run-state').textContent).not.toContain('Overall run is still active')
+    expect(screen.queryByTestId('rsi-status')).toBeNull()
+    expect((screen.getByRole('button', { name: en['evolve.stop'] }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('start answers at once: submitted with the brief id and a ticking counter, then claimed once the campaign runs', async () => {
@@ -492,7 +962,7 @@ describe('RsiView', () => {
       await vi.advanceTimersByTimeAsync(2000)
       await waitFor(() => { expect(screen.getByTestId('rsi-pending').textContent).toBe('brief-42 claimed') })
       expect(screen.getByTestId('rsi-status')).toBeTruthy()
-      expect(start().disabled).toBe(false)
+      expect(start().disabled).toBe(true)
       await vi.advanceTimersByTimeAsync(4000)
       expect(screen.queryByTestId('rsi-pending')).toBeNull()
       // Stop cancels the pending brief itself when nothing claimed it yet.
@@ -552,8 +1022,8 @@ describe('usageLine / confirmLine', () => {
     expect(usageLine({ llm_tokens: { prompt: 1000, completion: 234 }, sim_s: 163.6 }, t as never)).toBe('LLM tokens 1.2k · sim 164 s')
     expect(usageLine({ llm_tokens: { prompt: 900 }, sim_s: 5 }, t as never)).toBe('LLM tokens 900 · sim 5 s')
     expect(usageLine({ llm_tokens: null, sim_s: null }, t as never)).toBe('LLM tokens — · sim 0 s')
-    expect(confirmLine({ confirm: { seeds: [4247, 4248], before: 0, after: 1 }, published: true }, t as never)).toBe('Confirm seeds 4247,4248 · 0/2 → 1/2 · passed')
-    expect(confirmLine({ confirm: { seeds: [4247, 4248], before: 1, after: 1 }, published: false }, t as never)).toBe('Confirm seeds 4247,4248 · 1/2 → 1/2 · failed')
+    expect(confirmLine({ confirm: { seeds: [4247, 4248], before: 0, after: 1 }, published: true }, t as never)).toBe('Confirm seeds 4247,4248 · 0/2 → 1/2 · historically published')
+    expect(confirmLine({ confirm: { seeds: [4247, 4248], before: 1, after: 1 }, published: false }, t as never)).toBe('Confirm seeds 4247,4248 · 1/2 → 1/2 · not historically published')
   })
 })
 
@@ -562,8 +1032,12 @@ describe('describeTried', () => {
     const tt = t as unknown as Parameters<typeof describeTried>[1]
     expect(describeTried({ kind: 'tunables', node: 'drop-can1', detail: { path: ['reach_tol'], from: 0.03, to: 0.036 } }, tt)).toBe('drop-can1: reach_tol 0.03 → 0.036')
     expect(describeTried({ kind: 'card', node: 'grasp-0', detail: { to: 'geometric', error: 'boom' } }, tt)).toBe('grasp-0: mount candidate card geometric · boom')
-    expect(describeTried({ kind: 'none', node: null as never, detail: { reason: 'every seed succeeded' } }, tt)).toBe('Nothing to try: every seed succeeded')
+    expect(describeTried({ kind: 'none', node: null as never, detail: { reason: 'every seed succeeded' } }, tt)).toBe('No candidate: every seed succeeded')
     expect(describeTried({ kind: 'mystery', node: 'n' }, tt)).toBe('mystery @ n')
+  })
+
+  it('names plan interventions without inventing a target node', () => {
+    expect(describeTried({ kind: 'plan', detail: { graph: {} } }, t as never)).toBe('Revise execution plan')
   })
 
   it('prints tunable numbers to at most 4 significant digits', () => {
@@ -588,7 +1062,7 @@ describe('evolveSessions', () => {
   })
 })
 
-describe('SeriesChart / TaskHeat / roundSummary (node_rate + by_task rows)', () => {
+describe('TaskHeat / roundSummary (node_rate + by_task rows)', () => {
   const series = [
     { round: 1, before: 0, after: 1, best: 1, node_rate: { before: 0.25, after: 0.5, best: 0.5 },
       by_task: { nav: { before: 0.5, after: 1 }, grasp: { before: 0, after: 0.5 }, drop: { before: 0, after: 0 } } },
@@ -596,23 +1070,12 @@ describe('SeriesChart / TaskHeat / roundSummary (node_rate + by_task rows)', () 
       by_task: { nav: { before: 1, after: 1 }, grasp: { before: 0.5, after: 0 }, drop: { before: 0, after: null } } },
   ]
 
-  it('draws node_rate·100 solid and after k/n·100 dotted on one percentage axis; a toggle hides either group', () => {
-    const { container } = render(<SeriesChart series={series} n={2} t={t as never} />)
-    // y = 104 - pct/100·96: 25% → 80, 50% → 56 (node lines); task after 1/2 → 50% on both rounds.
-    expect(container.querySelector('polyline[data-series="before"]')?.getAttribute('points')).toBe('26,80 312,56')
-    expect(container.querySelector('polyline[data-series="task"]')?.getAttribute('points')).toBe('26,56 312,56')
-    expect(container.querySelector('polyline[data-series="task"]')?.getAttribute('class')).toMatch(/chartTask/)
-    fireEvent.click(container.querySelector('input[data-group="nodes"]') as Element)
-    expect(container.querySelectorAll('polyline')).toHaveLength(1)
-    fireEvent.click(container.querySelector('input[data-group="task"]') as Element)
-    expect(container.querySelectorAll('polyline')).toHaveLength(0)
-    expect(screen.getByText(en['rsi.chart.nodes'])).toBeTruthy()
-    expect(screen.getByText(en['rsi.chart.task'])).toBeTruthy()
-  })
-
   it('heat strip: tasks in first-seen order × rounds, after (else before) coloured, k/n tooltip, ▲ / ▼ off before', () => {
     const { container } = render(<TaskHeat series={series} n={2} t={t as never} />)
-    expect((screen.getByTestId('rsi-heat') as HTMLDetailsElement).open).toBe(true)
+    const heat = screen.getByTestId('rsi-heat') as HTMLDetailsElement
+    expect(heat.open).toBe(false)
+    fireEvent.click(heat.querySelector('summary') as HTMLElement)
+    expect(heat.open).toBe(true)
     expect([...container.querySelectorAll('tbody th')].map(e => e.textContent)).toEqual(['nav', 'grasp', 'drop'])
     const cell = (task: string, r: number) => container.querySelector(`td[data-task="${task}"][data-round="${r}"]`) as HTMLElement
     expect(cell('nav', 1).title).toBe('Round 1 · nav passed 2/2')
@@ -628,20 +1091,13 @@ describe('SeriesChart / TaskHeat / roundSummary (node_rate + by_task rows)', () 
     expect(render(<TaskHeat series={[{ round: 1, before: 0, after: 0, best: 0 }]} n={2} t={t as never} />).container.textContent).toBe('')
   })
 
-  it('roundSummary: node counts off per_seed / after_seeds nodes, subtask verdicts off by_task', () => {
-    const nodes = (oks: boolean[]) => oks.map((ok, i) => ({ id: `n${i}`, ok }))
-    const r = {
-      round: 1, per_seed: [{ seed: 1, nodes: nodes([true, false, false, false]) }, { seed: 2, nodes: nodes([true, true, true, false]) }],
-      after_seeds: [{ seed: 1, nodes: nodes([true, true, true, false]) }, { seed: 2, nodes: nodes([true, true, true, false]) }],
-    }
-    const rates = { by_task: {
+  it('roundSummary reads only backend diagnostics and leaves missing measurements unknown', () => {
+    const rates = { node_rate: { before: 0.5, after: 0.75 }, by_task: {
       nav: { before: 1, after: 1 }, grasp: { before: 0.5, after: 1 }, carry: { before: 0, after: 1 }, drop: { before: 0, after: 0 },
     } }
-    expect(roundSummary(r, rates, t as never)).toBe('Nodes passed 4/8 → 6/8 · Subtasks nav ✓ grasp ✓ carry ✓ drop ✗')
-    // Nothing retested: after repeats before; a half-passed task shows its percentage.
-    expect(roundSummary({ ...r, after_seeds: [] }, { by_task: { grasp: { before: 0.5, after: null } } }, t as never)).toBe('Nodes passed 4/8 → 4/8 · Subtasks grasp 50%')
-    // Rows without nodes fall back to the series row's node_rate as percentages; neither → ''.
-    expect(roundSummary({ round: 2 }, { node_rate: { before: 0.25, after: 0.5, best: 0.5 } }, t as never)).toBe('Nodes passed 25% → 50%')
-    expect(roundSummary({ round: 3 }, undefined, t as never)).toBe('')
+    expect(roundSummary(rates, t as never)).toBe('Nodes passed 50% → 75% · Subtasks nav ✓ grasp ✓ carry ✓ drop ✗')
+    expect(roundSummary({ by_task: { grasp: { before: 0.5, after: null } } }, t as never)).toBe('Subtasks grasp 50%')
+    expect(roundSummary({ node_rate: { before: 0.25 } }, t as never)).toBe('Nodes passed 25% → —')
+    expect(roundSummary(undefined, t as never)).toBe('')
   })
 })

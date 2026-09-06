@@ -60,4 +60,4 @@ export const statusLine = (c: CampaignSummary, t: PropsLocale<'phops'>['t']): st
 
 /** campaign.json's status word in the operator's language; unknown words verbatim. */
 export const statusWord = (status: string | undefined, t: PropsLocale<'phops'>['t']): string =>
-  (status === 'running' ? t('rsi.status.running') : status === 'done' ? t('rsi.status.done') : status === 'cancelled' ? t('rsi.status.cancelled') : status ?? '—')
+  (status === 'running' ? t('rsi.status.running') : status === 'done' ? t('rsi.status.done') : status === 'cancelled' ? t('rsi.status.cancelled') : status === 'failed' ? t('rsi.failed') : status ?? '—')

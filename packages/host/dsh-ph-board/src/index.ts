@@ -525,6 +525,14 @@ export class BoardBridge extends TypertRemoteService {
     return this.run('skills', request.name)
   }
 
+  /** Available RSI models and effort choices from the configured harness provider.
+   * @returns Defaults, model ids, effort choices, and any discovery error, verbatim.
+   */
+  @Remote('rsiModelOptions')
+  rsiModelOptions(): Promise<JsonValue> {
+    return this.run('rsi_model_options')
+  }
+
   /**
    * One evolve campaign's state (`storecli rsi_run`): the campaign.json header,
    * `latest`, and a BOUNDED `rounds` — the last 20 rounds in the compact

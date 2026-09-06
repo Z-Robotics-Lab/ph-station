@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the shipped Web composition > composes a proposal author from \`skill-author\` — reads rsi evidence, writes only submit_proposal 1`] = `
+[
+  "plan 的 payload 是 {"graph":<完整计划对象>}。保留基线所有原始节点及其顺序、calls、goal/tasks 和 verify；只可插入已安装的 action skills，并为新增步骤保留合法的 verify。不得删改原始任务条件、伪造技能或通过增加节点提高任务分数。完整基线计划或技能能力证据不足时，不猜 graph，先取证。提案仍交由运行时校验，校验拒绝不算改进。",
+  "开发评测接受与验证安装分开报告。evaluation.acceptance.accepted 只说明开发评测接受；evaluation.installation.status 为 not_evaluated 时，必须说尚未评估安装。不要把开发进度、历史 published 或旧 confirm 记录说成通过正式验证，也不要自动发布或安装。",
+  "RSI 只用 LLM 提案，不提供规则提议器或自动回退。收件箱是你显式提交候选的通道，不是模型接口失败后的替代路径。按 llm.status 报告 proposed（已提出候选）、abstained（模型主动放弃）、rejected（校验预算耗尽）或 error（模型调用失败）；error 时保留 llm.error 的阶段、类型和消息，不把 tried.kind 为 none 说成没有改进空间。abstained 或 rejected 会记录该轮后正常结束，不自动拿同一证据反复请求；error 以 failed 结束。evaluation.after 为 null 表示未复测，不能复制基线分数作为复测结果。",
+]
+`;

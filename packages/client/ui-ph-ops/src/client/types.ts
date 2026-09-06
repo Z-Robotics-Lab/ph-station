@@ -178,22 +178,6 @@ export interface RuntimeEventsPayload {
   last_seq?: number
 }
 
-/** One `skills({name})` row: a record's overview (Python `board.store.skills`).
- * `bindings` maps embodiment → executor keys; `evidence` maps embodiment →
- * `{n, k, by_executor: {key: {n, k}}}` (n tries, k successes), shown verbatim. */
-export interface SkillEvidence {
-  n?: number
-  k?: number
-  by_executor?: Record<string, { n?: number; k?: number }>
-}
-export interface SkillRow {
-  name?: string
-  bindings?: Record<string, string[]>
-  evidence?: Record<string, SkillEvidence>
-  limits?: Record<string, unknown> | null
-  failure_modes?: string[]
-}
-
 /** One task node of a seed's plan, as scripts/evolve.py's `nodes` writes it:
  * `ok` null = not run yet. */
 export interface NodeRow {
@@ -217,6 +201,10 @@ export interface SeedRow {
   /** Per-node verdicts in plan order; absent on rows written before nodes existed. */
   nodes?: NodeRow[] | null
   elapsed_s?: number | null
+  /** Execution-owned verifier evidence, retained verbatim for inspection. */
+  evaluation?: unknown
+  verification_observations?: unknown[] | null
+  terminal_observation?: unknown
 }
 
 /** The per-round rates board/store.py derives off the seeds' nodes for
@@ -228,19 +216,138 @@ export interface RoundRates {
   by_task?: Record<string, { before?: number | null; after?: number | null }> | null
 }
 
+/** Backend evaluation of the same fixed task obligations on a seed suite. */
+export interface EvaluationSample {
+  successes?: number | null
+  episodes?: number | null
+  progress?: number | null
+  obligations?: number | null
+}
+
+/** Development acceptance and installation are independent recorded decisions. */
+export interface RoundEvaluation {
+  protocol_id?: string
+  objective_id?: string
+  before?: EvaluationSample | null
+  after?: EvaluationSample | null
+  acceptance?: { accepted?: boolean | null; reason?: string | null } | null
+  installation?: { status?: string | null; reason?: string | null } | null
+}
+
+/** Recorded resource consumption; null means unmeasured, including incomplete token usage. */
+export interface ResourceCost {
+  episode_attempts: number | null
+  model_calls: number | null
+  input_bytes: number | null
+  llm_tokens: number | null
+  sim_s: number | null
+  wall_s: number | null
+}
+
+/** Backend transfer measurement and resource costs within one development epoch. */
+export interface TransferEvidence {
+  prior_tasks?: number | null
+  first_accepted_round?: number | null
+  total_trials?: number | null
+  censored?: boolean | null
+  condition?: string | null
+  memory_prefix?: number | null
+  claim?: string | null
+  accepted_updates?: number
+  cost?: {
+    total: ResourceCost
+    /** Null means no first acceptance; a present record can contain unknown costs. */
+    first_accepted: ResourceCost | null
+    /** Since the acceptance preceding this round, including the current round. */
+    since_previous_acceptance: ResourceCost
+  }
+}
+
+/** Backend identities of the program policies compared and retained by a round. */
+export interface PolicyRevision {
+  before_id?: string | null
+  candidate_id?: string | null
+  active_id?: string | null
+  parent_id?: string | null
+  updated?: boolean | null
+  representation?: string | null
+}
+
+/** Backend counters for a submitted brief or a single learning cycle. */
+export interface RunBudget {
+  scope?: string | null
+  cycle?: number
+  /** Explicit null total caps denote an uncapped continuous brief; absent caps are unknown. */
+  limits?: {
+    model_calls?: number | null
+    input_bytes?: number | null
+    output_tokens_per_call?: number | null
+    probe_episodes?: number | null
+  } | null
+  used?: {
+    model_calls?: number | null
+    input_bytes?: number | null
+    probe_episodes?: number | null
+    full_evaluations?: number | null
+  } | null
+}
+
 /** One round of an evolve campaign (`campaign.json` rounds[]). */
 export interface CampaignRound {
   round?: number
   tried?: { kind?: string; node?: string; detail?: unknown } | null
-  /** Who proposed `tried`: 'llm' | 'rules' | 'inbox'; absent on rounds written before proposers were named. */
+  /** Recorded source: LLM, explicit proposal inbox, or historical rules. New runs use LLM only. */
   proposer?: string | null
-  /** The LLM proposer's own words (present only when `proposer` is 'llm'). */
-  llm?: { summary?: string | null; rationale?: string | null; model?: string | null; prompt_sha?: string | null } | null
+  /** Backend model audit. Status distinguishes a proposal, abstention, validation rejection, and provider failure. */
+  llm?: {
+    method?: string | null
+    calls?: number | null
+    evidence_reads?: number | null
+    evidence_refs?: unknown[]
+    trial_calls?: number | null
+    usage_complete?: boolean
+    budget?: {
+      limits?: {
+        max_calls?: number | null
+        max_request_bytes?: number | null
+        max_input_bytes?: number | null
+        max_tool_bytes?: number | null
+        max_read_calls?: number | null
+        max_output_tokens?: number | null
+      } | null
+      used?: { calls?: number | null; input_bytes?: number | null; tool_bytes?: number | null; output_tokens?: number | null } | null
+      usage_complete?: boolean
+    } | null
+    stop_reason?: string | null
+    status?: string | null
+    summary?: string | null
+    rationale?: string | null
+    reason?: string | null
+    model?: string | null
+    requested_model?: string | null
+    effort?: string | null
+    prompt_sha?: string | null
+    error?: { type?: string | null; message?: string | null; stage?: string | null } | null
+    [key: string]: unknown
+  } | null
   before?: number
-  after?: number
+  after?: number | null
   best?: number
-  suite_sha?: string
+  suite_sha?: string | null
   published?: boolean
+  accepted?: boolean | null
+  evaluation?: RoundEvaluation | null
+  /** Backend diagnosis and memory records are shown verbatim, without frontend inference. */
+  diagnosis?: { status?: string; findings?: Array<{ kind?: string; channel?: string; evidence?: unknown }>; [key: string]: unknown } | null
+  experience?: { retrieved?: unknown[]; recorded?: unknown; [key: string]: unknown } | null
+  transfer?: TransferEvidence | null
+  policy?: PolicyRevision | null
+  run_budget?: RunBudget | null
+  cycle_budget?: RunBudget | null
+  cycle_outcome?: string | null
+  stop_reason?: string | null
+  /** Exploratory probes are not the paired acceptance trial. Full rounds only. */
+  learning?: { method?: string; probes?: unknown[]; selected_policy_id?: string | null; [key: string]: unknown } | null
   per_seed?: SeedRow[] | null
   /** The retest rows of the trial (same seeds as `per_seed`); absent when nothing was tried. */
   after_seeds?: SeedRow[] | null
@@ -251,9 +358,9 @@ export interface CampaignRound {
   media_dropped?: Record<string, string | DroppedNode> | null
   /** The round this try started from (the last accepted state; 0 = the initial baseline). */
   parent?: number | null
-  /** 'improved' | 'same' | 'worse' | 'none' (tried nothing). */
+  /** 'improved' | 'same' | 'worse' | 'none' (tried nothing) | 'error' (model call failed). */
   outcome?: string | null
-  /** The held-out confirm pass, when one ran: its seeds and k-of-n before / after. */
+  /** Additional development-seed pass, when one ran: its seeds and k-of-n before / after. */
   confirm?: { seeds?: number[] | null; before?: number | null; after?: number | null } | null
   usage?: Usage | null
   ts?: number
@@ -276,8 +383,10 @@ export type FramesPayload = string[] | { media?: string[] | null; dropped?: Reco
 /** The in-flight round, as scripts/evolve.py rewrites campaign.json's `live`
  * between checkpoints; null on a campaign written before live progress existed. */
 export interface LiveState {
-  /** 'baseline' | 'propose' | 'retest' | 'publish' | 'done' | 'cancelled' | 'idle' */
+  /** Evaluation phase, backoff between cycles, or terminal/idle state. */
   phase?: string
+  cycle?: number
+  retry_at?: number | null
   round?: number
   seeds_total?: number
   seed_index?: number
@@ -303,6 +412,8 @@ export interface LiveState {
  * compact {@link SeriesPoint} shape. `rsiRun({session, task, round})` swaps
  * `rounds` for that ONE round in full (per-seed trails, media, llm, needs). */
 export interface Campaign {
+  /** Request configuration recorded by the runtime; absent on historical campaigns. */
+  llm_config?: { model: string | null; effort: string } | null
   task?: string
   session?: string
   seeds?: [number, number]
@@ -310,12 +421,17 @@ export interface Campaign {
   rounds?: CampaignRound[]
   best?: number
   cursor?: number
-  /** 'running' | 'cancelled' | 'done' (campaign.json's word, shown verbatim). */
+  /** 'running' | 'cancelled' | 'done' | 'failed' (campaign.json's word, shown verbatim). */
   status?: string
   latest?: CampaignRound | null
   live?: LiveState | null
   /** The intake filename of the evolve brief still driving this task, or null. */
   open_brief?: string | null
+  transfer?: TransferEvidence | null
+  run_budget?: RunBudget | null
+  cycle_budget?: RunBudget | null
+  continuous?: boolean
+  stop_reason?: string | null
 }
 
 /** One `rsiCampaigns({name})` row: a campaign's headline off its campaign.json
@@ -347,13 +463,29 @@ export interface CampaignSummary {
 export interface SeriesPoint extends RoundRates {
   round?: number
   before?: number
-  after?: number
+  after?: number | null
   best?: number
   parent?: number | null
   proposer?: string | null
   outcome?: string | null
   accepted?: boolean | null
   published?: boolean | null
+  evaluation?: RoundEvaluation | null
+  policy?: PolicyRevision | null
+  run_budget?: RunBudget | null
+  cycle_budget?: RunBudget | null
+  cycle_outcome?: string | null
+  stop_reason?: string | null
+  llm?: CampaignRound['llm']
   usage?: Usage | null
   tried?: CampaignRound['tried']
+}
+
+/** Model discovery and request defaults owned by the harness provider. */
+export interface RsiModelOptions {
+  default_model: string | null
+  default_effort: string
+  models: { id: string }[]
+  efforts: string[]
+  error?: string
 }
