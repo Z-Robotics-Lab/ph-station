@@ -388,6 +388,26 @@ export function RsiView({
   // carries; the compact tail row stands in until that lands.
   const shown = (full?.round === shownRound ? full : rounds.find(r => r.round === shownRound)) ?? null
 
+  // The incumbent's retest rollout: the whole-episode videos of the round whose copy
+  // every new round starts from. Read once per (session, task, incumbent round).
+  const bestRound = shownCampaign?.incumbent?.round ?? null
+  const bestKey = JSON.stringify([sessionName, task, bestRound])
+  const [bestRead, setBestRead] = useState<{ key: string; value: string[] } | null>(null)
+  useEffect(() => {
+    if (sessionName === null || task === null || bestRound === null || bestRound === 0) return
+    let alive = true
+    fetchRsiFrames(sessionName, task, bestRound)
+      .then((r) => {
+        if (!alive || !r.ok) return
+        const v = r.value as FramesPayload
+        const media = Array.isArray(v) ? v : v?.media ?? []
+        setBestRead({ key: bestKey, value: media.filter(p => /\/retest\/.*\/episode\.mp4$/.test(p)) })
+      })
+      .catch(() => { if (alive) setBestRead({ key: bestKey, value: [] }) })
+    return () => { alive = false }
+  }, [fetchRsiFrames, sessionName, task, bestRound, bestKey])
+  const bestRollouts = bestRead?.key === bestKey ? bestRead.value : []
+
   // A live selection is reread once its sealed row appears in the existing poll.
   useEffect(() => {
     if (sessionName === null || task === null || shownRound === null) return
@@ -648,6 +668,12 @@ export function RsiView({
                         {live !== null && <SeedBoard live={live} seeds={shownCampaign?.seeds} t={t} />}
                       </div>
                     )}
+                    {bestRound !== null && bestRound > 0 && <>
+                      <h3 className={css.secTitle}>{t('rsi.sec.bestRollout')} · {t('rsi.roundN', { r: bestRound })}</h3>
+                      {bestRollouts.length === 0
+                        ? <div className={css.dim} data-testid="rsi-best-rollout-empty">{t('rsi.bestRollout.none')}</div>
+                        : <div data-testid="rsi-best-rollout"><MediaGallery key={`best:${sessionName}:${task}:${bestRound}`} session={sessionName ?? ''} paths={bestRollouts} /></div>}
+                    </>}
                     <h3 className={css.secTitle}>{t('rsi.sec.frames')}{shownRound !== null ? ` · ${t('rsi.roundN', { r: shownRound })}` : ''}</h3>
                     {frames.media.length === 0
                       ? <div className={css.dim}>{t('evolve.noMedia')}</div>

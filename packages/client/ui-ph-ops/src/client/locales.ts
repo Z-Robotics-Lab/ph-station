@@ -149,6 +149,8 @@ export type PhOpsKey =
   | 'rsi.statusLine'
   | 'rsi.roundN'
   | 'rsi.sec.frames'
+  | 'rsi.sec.bestRollout'
+  | 'rsi.bestRollout.none'
   | 'rsi.sec.log'
   | 'rsi.saw'
   | 'rsi.tried'
@@ -462,6 +464,8 @@ export const zh: Record<PhOpsKey, string> = {
   'rsi.statusLine': '第 {r} 轮 · 最佳 {k}/{n} · {status}',
   'rsi.roundN': '第 {r} 轮',
   'rsi.sec.frames': '关键片段',
+  'rsi.sec.bestRollout': '最佳轮次整体回放',
+  'rsi.bestRollout.none': '该轮复测没有留下整段回放（早于整段录制，或复测未运行）',
   'rsi.sec.log': '日志',
   'rsi.saw': '看到了什么',
   'rsi.tried': '试了什么',
@@ -769,6 +773,8 @@ export const en: Record<PhOpsKey, string> = {
   'rsi.statusLine': 'Round {r} · best {k}/{n} · {status}',
   'rsi.roundN': 'Round {r}',
   'rsi.sec.frames': 'Key clips',
+  'rsi.sec.bestRollout': 'Best round · full rollout',
+  'rsi.bestRollout.none': 'No full rollout recorded for that retest (predates episode recording, or no retest ran)',
   'rsi.sec.log': 'Log',
   'rsi.saw': 'What it saw',
   'rsi.tried': 'What it tried',

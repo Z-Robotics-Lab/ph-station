@@ -432,6 +432,8 @@ export interface Campaign {
   cycle_budget?: RunBudget | null
   continuous?: boolean
   stop_reason?: string | null
+  /** The accepted card copy every new round starts from: its round (0 = the stock card). */
+  incumbent?: { round?: number; workspace?: string | null } | null
 }
 
 /** One `rsiCampaigns({name})` row: a campaign's headline off its campaign.json
