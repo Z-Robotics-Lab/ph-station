@@ -627,10 +627,13 @@
 .learningLegend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; font-size: 12px; }
 .learningLegend [data-kind="policy"] { color: var(--ph-pass); }
 .learningLegend [data-kind="candidate"] { color: #b66a0a; }
-.learningChart { display: block; width: 100%; height: 280px; overflow: visible; }
+.learningChart { display: block; width: 100%; height: 320px; overflow: visible; }
 .learningAxisLabel { font-size: 11px; fill: var(--ph-dim); }
 .learningPolicy { fill: none; stroke: var(--ph-pass); stroke-width: 2.5; }
 .learningPolicyPoint { fill: var(--ph-pass); }
+.learningPolicyPoint[data-untested="true"] { fill: var(--ph-surface); stroke: var(--ph-pass); stroke-width: 1.5; }
+.learningPolicyPoint[data-outcome="error"] { fill: var(--ph-surface); stroke: #c0392b; stroke-width: 1.75; }
+.learningLegend [data-kind="error"] { color: #c0392b; }
 .learningCandidate { fill: var(--ph-surface); stroke: #b66a0a; stroke-width: 1.75; }
 .learningPair { stroke: #b66a0a; stroke-width: 1; opacity: .55; }
 .learningSelection { stroke: var(--ph-dim); stroke-dasharray: 3 4; opacity: .45; }

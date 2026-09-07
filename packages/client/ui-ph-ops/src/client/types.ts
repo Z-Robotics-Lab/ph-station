@@ -368,7 +368,7 @@ export interface CampaignRound {
 
 /** What one round (or a whole campaign, summed) spent. */
 export interface Usage {
-  llm_tokens?: { prompt?: number | null; completion?: number | null } | null
+  llm_tokens?: { prompt?: number | null; completion?: number | null; cache_hit?: number | null } | null
   sim_s?: number | null
 }
 

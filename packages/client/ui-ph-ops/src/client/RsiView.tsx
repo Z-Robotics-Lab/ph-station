@@ -161,12 +161,21 @@ export function describeTried(tried: CampaignRound['tried'], t: T): string {
   return typeof d.error === 'string' ? `${out} · ${d.error}` : out
 }
 
-/** "LLM tokens 1.2k · 仿真 164 s" off a round's (or the campaign's summed)
- * usage; tokens = prompt + completion, '—' when the round called no LLM. */
+const fmtTokens = (n: number): string => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
+
+/** "LLM tokens 97.3k (cache 91%) · 仿真 164 s" off a round's (or the campaign's summed)
+ * usage. When the endpoint reports prefix-cache hits, tokens = the BILLABLE count
+ * (uncached prompt + completion) with the cached share beside it; otherwise
+ * prompt + completion. '—' when the round called no LLM. */
 export function usageLine(u: Usage, t: T): string {
   const tk = u.llm_tokens
-  const total = tk == null ? null : (tk.prompt ?? 0) + (tk.completion ?? 0)
-  const tokens = total === null ? '—' : total >= 1000 ? `${(total / 1000).toFixed(1)}k` : String(total)
+  if (tk == null) return t('rsi.usage', { tokens: '—', s: Math.round(u.sim_s ?? 0) })
+  const prompt = tk.prompt ?? 0
+  const total = prompt + (tk.completion ?? 0)
+  const cached = tk.cache_hit ?? 0
+  const tokens = cached > 0 && prompt > 0
+    ? `${fmtTokens(total - cached)} (cache ${Math.round(100 * cached / prompt)}%)`
+    : fmtTokens(total)
   return t('rsi.usage', { tokens, s: Math.round(u.sim_s ?? 0) })
 }
 

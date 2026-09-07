@@ -19,6 +19,10 @@ describe('RSI learning history', () => {
   it('keeps all history visible across evaluator changes and selects a single version', () => {
     const series = Array.from({ length: 78 }, (_, i) => row(i + 1, i < 72 ? 'old' : 'current'))
     const props = base(); const { container } = render(<RsiLearning {...props} series={series} />)
+    // the default view is the newest evaluator epoch; the segmented overview is the ALL option
+    expect([...container.querySelectorAll('[data-axis="x"]')].map(node => node.textContent)).toEqual(['73', '74', '75', '76', '77', '78'])
+    expect(container.querySelector('[data-epoch-boundary="73"]')).toBeNull()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Evaluation version' }), { target: { value: 'all' } })
     expect([...container.querySelectorAll('[data-axis="x"]')].map(node => node.textContent)).toEqual(['1', '16', '32', '47', '63', '78'])
     expect(rounds()).toEqual(Array.from({ length: 20 }, (_, i) => 78 - i))
     expect(container.querySelector('[data-epoch-boundary="73"]')).not.toBeNull()
@@ -58,8 +62,9 @@ describe('RSI learning history', () => {
       <RsiLearning {...base()} selectedRound={590}
         series={[row(589), { round: 590, evaluation: { before: { progress: 0 }, after: null } }]} />,
     )
-    expect(container.querySelectorAll('[data-series="policy"]')).toHaveLength(2)
     const epoch = screen.getByRole('combobox', { name: 'Evaluation version' }) as HTMLSelectElement
+    fireEvent.change(epoch, { target: { value: 'all' } })
+    expect(container.querySelectorAll('[data-series="policy"]')).toHaveLength(2)
     fireEvent.change(epoch, { target: { value: epoch.options[2]!.value } })
     expect([...container.querySelectorAll('[data-axis="x"]')].map(node => node.textContent)).toEqual(['590'])
     expect(screen.getByText(/Only round 590 has completed/)).toBeTruthy()
@@ -88,7 +93,7 @@ describe('RSI learning history', () => {
     rerender(<RsiLearning {...props} series={[row(73), row(74)]} selectedRound={74} />)
     expect(rounds()).toEqual([74, 73])
     rerender(<RsiLearning {...props} series={[row(73), row(74), row(75, 'new')]} selectedRound={75} />)
-    expect(rounds()).toEqual([75, 74, 73])
+    expect(rounds()).toEqual([75])   // a new evaluator epoch is shown on its own by default
     const epoch = screen.getByRole('combobox', { name: 'Evaluation version' }) as HTMLSelectElement
     fireEvent.change(epoch, { target: { value: epoch.options[1]!.value } })
     rerender(<RsiLearning {...props} following={false} series={[row(73), row(74), row(75, 'new'), row(76, 'new')]} selectedRound={74} />)

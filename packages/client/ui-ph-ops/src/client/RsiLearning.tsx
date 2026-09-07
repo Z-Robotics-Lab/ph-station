@@ -27,7 +27,9 @@ export function RsiLearning({ series, selectedRound, onPick, following, onFollow
   t: T
 }) {
   const [metric, setMetric] = useState<LearningMetric>('progress')
-  const [epochId, setEpochId] = useState<string | null>(ALL_EPOCHS)
+  // default: the NEWEST evaluator epoch (the rounds that are comparable to each other);
+  // the overview across all epochs is one click away
+  const [epochId, setEpochId] = useState<string | null>(null)
   const [page, setPage] = useState(0)
   const host = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(640)
@@ -70,9 +72,13 @@ export function RsiLearning({ series, selectedRound, onPick, following, onFollow
     : point.row.outcome === 'error' || point.row.cycle_outcome === 'error' ? t('rsi.learning.error')
       : point.row.evaluation?.after == null ? t('rsi.learning.untested')
         : point.row.evaluation.acceptance?.accepted === false || point.row.outcome === 'same' || point.row.outcome === 'worse' ? t('rsi.learning.noUpdate') : '—'
-  const W = width; const H = 280; const L = 43; const R = 18; const TOP = 16; const B = 36
-  const x = (round: number) => L + ((round - domain[0]) / (domain[1] - domain[0])) * (W - L - R)
-  const y = (value: number) => H - B - value * (H - B - TOP)
+  const W = width; const H = 320; const L = 43; const R = 18; const TOP = 16; const B = 36
+  // the y axis follows the data (rounded up to 5%, at least 10%): a 8% -> 38% climb is a
+  // climb, not a flat line at the bottom of a 0-100% frame
+  const peak = Math.max(0, ...points.flatMap(point => [point.before, point.policy, point.candidate]).filter((v): v is number => v !== null))
+  const yMax = Math.min(1, Math.max(0.1, Math.ceil(peak * 1.2 * 20) / 20))
+  const x = (round: number) => L + ((round - domain[0]) / (domain[1] - domain[0] || 1)) * (W - L - R)
+  const y = (value: number) => H - B - (value / yMax) * (H - B - TOP)
   const first = points[0]?.round; const last = points.at(-1)?.round
   const tickCount = width < 380 ? 3 : 6
   const ticks = first === undefined || last === undefined ? []
@@ -94,16 +100,16 @@ export function RsiLearning({ series, selectedRound, onPick, following, onFollow
       <label>{t('rsi.learning.metric')} <select aria-label={t('rsi.learning.metric')} value={metric} onChange={(event) => { setMetric(event.target.value as LearningMetric) }}>
         <option value="progress">{t('rsi.chart.objective')}</option><option value="success">{t('rsi.chart.task')}</option>
       </select></label>
-      <button type="button" aria-pressed={following} onClick={() => { setEpochId(ALL_EPOCHS); setPage(0); onFollow() }}>{t('rsi.learning.follow')}</button>
+      <button type="button" aria-pressed={following} onClick={() => { setEpochId(null); setPage(0); onFollow() }}>{t('rsi.learning.follow')}</button>
     </div>
-    <div className={css.learningLegend}><span data-kind="policy">● {t('rsi.learning.policy')}</span><span data-kind="candidate">◇ {t('rsi.learning.candidate')}</span></div>
+    <div className={css.learningLegend}><span data-kind="policy">● {t('rsi.learning.policy')}</span><span data-kind="candidate">◇ {t('rsi.learning.candidate')}</span><span data-kind="untested">○ {t('rsi.learning.untested')}</span><span data-kind="error">○ {t('rsi.learning.error')}</span></div>
     {points.length === 1 && first !== undefined && <div className={css.chartContract}>{t('rsi.learning.singlePoint', { r: first })}</div>}
     {points.length === 0 ? <div className={css.dim}>{t('rsi.chartEmpty')}</div> : <>
       <svg className={css.learningChart} width="100%" height={H} viewBox={`0 0 ${W} ${H}`} role="group" aria-label={t('rsi.learning.chart')} tabIndex={0} onKeyDown={(event) => { navigate(event, selectedRound) }}>
         <title>{t('rsi.learning.chart')}</title>
-        {[0, .25, .5, .75, 1].map(value => <g key={value}>
+        {[0, .25, .5, .75, 1].map(f => f * yMax).map(value => <g key={value}>
           <line className={css.chartGrid} x1={L} y1={y(value)} x2={W - R} y2={y(value)} />
-          <text className={css.learningAxisLabel} data-axis="y" x={L - 7} y={y(value) + 4} textAnchor="end">{value * 100}%</text>
+          <text className={css.learningAxisLabel} data-axis="y" x={L - 7} y={y(value) + 4} textAnchor="end">{Math.round(value * 100)}%</text>
         </g>)}
         {ticks.map(round => <text key={round} className={css.learningAxisLabel} data-axis="x" x={x(round)} y={H - 13} textAnchor="middle">{round}</text>)}
         {allEpochs && epochs.slice(1).map(item => <line key={item.id} className={css.learningSelection} data-epoch-boundary={item.firstRound} x1={x(item.firstRound - .5)} x2={x(item.firstRound - .5)} y1={TOP} y2={H - B}><title>{t('rsi.learning.boundary', { r: item.firstRound })}</title></line>)}
@@ -114,7 +120,8 @@ export function RsiLearning({ series, selectedRound, onPick, following, onFollow
             x1={x(point.round)} x2={x(point.round)} y1={y(point.before)} y2={y(point.candidate)} />}
           {point.candidate !== null && <path className={css.learningCandidate} data-point="candidate" data-round={point.round} data-value={point.candidate} d={`M${x(point.round)},${y(point.candidate) - 6} l6,6 -6,6 -6,-6 Z`} />}
           {point.policy !== null && point.policy !== point.candidate && <circle className={css.learningHit} data-pick-policy={point.round} cx={x(point.round)} cy={y(point.policy)} r={14} aria-hidden="true" />}
-          {point.policy !== null && <circle className={css.learningPolicyPoint} data-point="policy" data-round={point.round} data-value={point.policy} cx={x(point.round)} cy={y(point.policy)} r={3.5} />}
+          {point.policy !== null && <circle className={css.learningPolicyPoint} data-point="policy" data-round={point.round} data-value={point.policy}
+            data-outcome={point.row.outcome ?? undefined} data-untested={point.candidate === null ? 'true' : undefined} cx={x(point.round)} cy={y(point.policy)} r={point.candidate === null ? 4.5 : 3.5} />}
           {(point.policy !== null || point.candidate !== null) && <circle className={css.learningHit} data-pick-round={point.round} cx={x(point.round)} cy={y(point.candidate ?? point.policy ?? 0)} r={14} role="button" aria-label={pointLabel(point)} aria-pressed={selectedRound === point.round} onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); pick(point.round) }
             else { event.stopPropagation(); navigate(event, point.round) }
