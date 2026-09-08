@@ -401,7 +401,7 @@ export function RsiView({
         if (!alive || !r.ok) return
         const v = r.value as FramesPayload
         const media = Array.isArray(v) ? v : v?.media ?? []
-        setBestRead({ key: bestKey, value: media.filter(p => /\/retest\/.*\/episode\.mp4$/.test(p)) })
+        setBestRead({ key: bestKey, value: media.filter(p => /\/retest[^/]*\/.*\/episode\.mp4$/.test(p)) })
       })
       .catch(() => { if (alive) setBestRead({ key: bestKey, value: [] }) })
     return () => { alive = false }
