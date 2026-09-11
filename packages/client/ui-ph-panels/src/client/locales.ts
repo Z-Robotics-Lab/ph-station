@@ -99,6 +99,8 @@ export type PhPanelsKey =
   | 'chips.steamPrep.template'
   | 'chips.rsi'
   | 'chips.rsi.template'
+  | 'chips.mshab'
+  | 'chips.mshab.template'
   // rsi chain stages (progress.json `stage`, folded python-side)
   | 'progressTargetNode'
   | 'stage.calibrate'
@@ -227,6 +229,9 @@ export const zh: Record<PhPanelsKey, string> = {
   'chips.rsi': 'RSI 提升 kitchen_thaw',
   'chips.rsi.template':
     'RSI 提升 kitchen_thaw：投一张 {"kind":"rsi","task":"kitchen_thaw"} 到进化态 session。最小形态只要任务名——领块、标定、门禁、prereg、dev、held-out 由 runtime 自己走完；目标节点由首死归因选，不要替它挑。先说明计划，再执行。',
+  'chips.mshab': 'mshab rollout',
+  'chips.mshab.template':
+    '开始一个 mshab rollout：task=mshab_pick（可换 mshab_place / mshab_open / mshab_close），seed=424242，session=session-mshab。随机动作策略，rollout 过程看取景窗。先说明计划，再执行。',
   'progressTargetNode': '目标节点',
   'stage.calibrate': '标定',
   'stage.gate': '门禁',
@@ -347,6 +352,9 @@ export const en: Record<PhPanelsKey, string> = {
   'chips.rsi': 'RSI-improve kitchen_thaw',
   'chips.rsi.template':
     'RSI-improve kitchen_thaw: submit {"kind":"rsi","task":"kitchen_thaw"} to an evolution-mode session. The task name is the whole brief -- the runtime allocates the seed blocks, calibrates, scores the go/no-go gate, seals the prereg, runs dev and held-out. The target node comes from first-death attribution; do not pick it yourself. Outline the plan, then run.',
+  'chips.mshab': 'mshab rollout',
+  'chips.mshab.template':
+    'Start an mshab rollout: task=mshab_pick (or mshab_place / mshab_open / mshab_close), seed=424242, session=session-mshab. Random-action policy; watch the rollout in the viewport. Outline the plan, then run.',
   'progressTargetNode': 'target node',
   'stage.calibrate': 'calibrate',
   'stage.gate': 'gate',

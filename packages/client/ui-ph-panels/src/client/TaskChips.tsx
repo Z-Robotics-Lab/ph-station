@@ -19,6 +19,7 @@ const CHIPS: readonly { readonly label: PhPanelsKey; readonly template: PhPanels
   { label: 'chips.recycle', template: 'chips.recycle.template' },
   { label: 'chips.packLunch', template: 'chips.packLunch.template' },
   { label: 'chips.steamPrep', template: 'chips.steamPrep.template' },
+  { label: 'chips.mshab', template: 'chips.mshab.template' },
   { label: 'chips.battle', template: 'chips.battle.template' },
   { label: 'chips.rsi', template: 'chips.rsi.template' },
 ]
