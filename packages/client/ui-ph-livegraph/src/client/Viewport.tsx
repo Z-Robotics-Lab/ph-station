@@ -155,9 +155,17 @@ export function Viewport({ t }: PropsLocale<'phlivegraph'>) {
         />
         {hasFrame
           ? (
-            <span className={`${css.viewportAgeBadge} ${live ? css.viewportAgeLive : css.viewportAgeStale}`}>
-              {live ? fmtAge(age) : `${fmtAge(age)} ${t('viewportAgo')}`}
-            </span>
+            // Badge only when STALE: a live stream re-rendered its "0s" text
+            // ~15x/s, which reads as flickering text over the picture. Live
+            // frames need no caption; the grey "Xs ago" appears only once the
+            // stream actually pauses.
+            live
+              ? null
+              : (
+                <span className={`${css.viewportAgeBadge} ${css.viewportAgeStale}`}>
+                  {`${fmtAge(age)} ${t('viewportAgo')}`}
+                </span>
+              )
           )
           : (
             <div className={css.viewportNone}>
