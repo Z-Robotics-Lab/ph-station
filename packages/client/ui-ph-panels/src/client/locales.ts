@@ -101,6 +101,8 @@ export type PhPanelsKey =
   | 'chips.rsi.template'
   | 'chips.mshab'
   | 'chips.mshab.template'
+  | 'chips.mshabFull'
+  | 'chips.mshabFull.template'
   // rsi chain stages (progress.json `stage`, folded python-side)
   | 'progressTargetNode'
   | 'stage.calibrate'
@@ -232,6 +234,9 @@ export const zh: Record<PhPanelsKey, string> = {
   'chips.mshab': 'mshab rollout',
   'chips.mshab.template':
     '开始一个 mshab rollout：task=mshab_pick（可换 mshab_place / mshab_open / mshab_close），seed=424242，session=session-mshab。随机动作策略，rollout 过程看取景窗。先说明计划，再执行。',
+  'chips.mshabFull': 'mshab 摆桌全链',
+  'chips.mshabFull.template':
+    '跑 mshab 摆桌完整任务：投 {"kind":"task","task":"mshab_settable_full_vlm","seed":424242,"max_replans":6} 到 session-mshab。VLM 会自主设计 16 节点技能图（碗出抽屉、苹果出冰箱、都摆上桌、两个柜门关好），全程约 5 分钟，前 1-2 分钟是本地模型在出图（取景窗静止属正常）。想看短版换 task=mshab_settable_vlm。先说明计划，再执行。',
   'progressTargetNode': '目标节点',
   'stage.calibrate': '标定',
   'stage.gate': '门禁',
@@ -355,6 +360,9 @@ export const en: Record<PhPanelsKey, string> = {
   'chips.mshab': 'mshab rollout',
   'chips.mshab.template':
     'Start an mshab rollout: task=mshab_pick (or mshab_place / mshab_open / mshab_close), seed=424242, session=session-mshab. Random-action policy; watch the rollout in the viewport. Outline the plan, then run.',
+  'chips.mshabFull': 'mshab set-table full',
+  'chips.mshabFull.template':
+    'Run the full mshab set-table task: submit {"kind":"task","task":"mshab_settable_full_vlm","seed":424242,"max_replans":6} to session-mshab. The VLM designs the 16-node skill graph itself (bowl out of the drawer, apple out of the fridge, both onto the table, both containers closed); ~5 minutes total, the first 1-2 minutes are local-model planning (a still viewport is normal). For the short version use task=mshab_settable_vlm. Outline the plan, then run.',
   'progressTargetNode': 'target node',
   'stage.calibrate': 'calibrate',
   'stage.gate': 'gate',
